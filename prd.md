@@ -1,241 +1,577 @@
 # Graph Mini Apps — Product Requirements Document
 
-> *Ask a question about onchain data. Get back a live app with a name you can hand to anyone.*
+> *Describe an onchain app. Get an agent with a UI, a wallet, and a name.*
 
 **Event:** ETHGlobal Lisbon 2026 · Fri Jul 24 – Sun Jul 26 · **submissions close Sun 09:00 WEST**
 **Targets:** The Graph (3 tracks) · ENS (2 tracks) · 0G (1 track) — 3 partner selections, 6 tracks, **$24,000 addressable**
 
 **Contents**
 
-1. [Thesis](#1-thesis)
-2. [User & job-to-be-done](#2-user--job-to-be-done)
-3. [The product — three primitives](#3-the-product--three-primitives)
-4. [Non-goals](#4-non-goals--killed-with-reasons)
+1. [Positioning](#1-positioning)
+2. [What a mini app is](#2-what-a-mini-app-is)
+3. [Users](#3-users)
+4. [The product — four primitives](#4-the-product--four-primitives)
 5. [The Mini App Manifest](#5-the-mini-app-manifest)
-6. [ENS binding](#6-ens-binding--the-real-spec)
-7. [0G — provenance, not privacy](#7-0g--provenance-not-privacy)
-8. [Verified technical ground truth](#8-verified-technical-ground-truth)
-9. [Architecture](#9-architecture)
-10. [Track compliance matrix](#10-track-compliance-matrix)
-11. [The 36-hour plan](#11-the-36-hour-plan)
-12. [Demo video script](#12-demo-video--250)
-13. [Risk register](#13-risk-register)
-14. [Open questions for Friday](#14-open-questions--resolve-at-booths-friday-morning)
-- [Appendix A — A2UI component catalog](#appendix-a--a2ui-component-catalog)
+6. [Generative UI and actions](#6-generative-ui-and-actions)
+7. [Agency and safety](#7-agency-and-safety)
+8. [ENS binding](#8-ens-binding)
+9. [0G — compute and Agentic ID](#9-0g--compute-and-agentic-id)
+10. [The Graph integration](#10-the-graph-integration)
+11. [Architecture](#11-architecture)
+12. [The ecosystem layer](#12-the-ecosystem-layer)
+13. [Verified technical ground truth](#13-verified-technical-ground-truth)
+14. [Track compliance matrix](#14-track-compliance-matrix)
+15. [The 36-hour cut](#15-the-36-hour-cut--what-actually-ships)
+16. [Demo script](#16-demo-script--250)
+17. [Risk register](#17-risk-register)
+18. [Open questions](#18-open-questions--resolve-at-booths-friday-morning)
+- [Appendix A — component and action catalog](#appendix-a--component-and-action-catalog)
 - [Appendix B — submission templates](#appendix-b--submission-templates)
-- [Appendix C — revision notes](#appendix-c--revision-notes-what-changed-from-v1)
+- [Appendix C — revision notes](#appendix-c--revision-notes)
 - [Appendix D — sources](#appendix-d--sources)
 
 ---
 
-# 1. Thesis
+# 1. Positioning
 
-**The mini app is an ENS name.**
+## The observation
 
-Everything else in this product is downstream of that sentence. Read it as a product decision, not a feature.
+**The Graph had everything it needed to be Dune, and it stayed a developer tool.**
 
-**One-liner:** *Ask a question about onchain data. Get back a live app with a name you can hand to anyone — `top-dexs.graphminis.eth`.*
+Both indexed the same chains. Both solved the same problem. But Dune shipped a surface a non-engineer could stand on — write a query, get a dashboard, share a link — and became the default way *everyone* looks at onchain data: traders, journalists, DAO voters, founders, people arguing on Twitter. The Graph shipped subgraphs, schemas, and a GraphQL gateway, and became the default way *developers* get onchain data.
 
-**Why generated UI, specifically.** The Graph indexes 15,000+ subgraphs across 10 standardized schema families. The space of *questions* is unbounded; the space of pre-built dashboards is not. Every fixed dashboard is a developer's guess about what you'd want to ask, frozen at build time. Below some threshold of demand, no one will ever build the dashboard for your question — so today your options are "write GraphQL yourself" or "read a wall of JSON in a chat window." Generated UI collapses the cost of the long tail to zero: the agent picks the visual form that fits *this* answer, because it just saw the data's shape.
+That's not a technology gap. It's a surface gap. The Graph's data is richer, more real-time, more composable, and more decentralized than Dune's — and almost nobody outside of web3 engineering has ever touched it directly.
 
-**Why it has to be an artifact, not a chat message.** A chat answer dies in the scrollback. Dune's real insight was never "dashboards" — it was the **fork button**: the query became a durable, addressable, remixable object with attribution. That's what turns a tool into an ecosystem. Here, the addressable object is an ENS name, which means the artifact is portable across every wallet, app, and *agent* on Ethereum without us running a registry.
+**Graph Mini Apps is the consumer surface The Graph never built.**
 
-**The three-sentence pitch:**
-> Blockchain data is indexed and queryable, but the UI for any given question doesn't exist until someone builds it. Graph Mini Apps generates the interface on the fly from live Graph data, then freezes it into an ENS name anyone — human or agent — can resolve and re-run. Ask once, and the answer becomes infrastructure.
+## Why now
+
+Two things changed in the last year that make this buildable, and neither existed when Dune won.
+
+**Generative UI became real.** At Microsoft Build 2026, Steve Sanderson demoed [VibeOS](https://www.youtube.com/watch?v=7NfyZhV1dKM) — an operating system with no application code. Launch the calculator and there's nothing underneath it: a Claude agent generates the interface in real time and interprets what you do with it. It's a provocation aimed at the oldest assumption in computing, that an app is a durable piece of code. The interfaces are *hallucinated*, and they work.
+
+Apply that to onchain data and the Dune bottleneck disappears. Today, if the dashboard for your question doesn't exist, you wait for someone to build it — and for the long tail, nobody ever will. If the interface is generated per-question, the wait is zero and the long tail is free.
+
+**Agent-native UI got a standard.** [A2UI](https://a2ui.org) (Google, Apache-2.0, v0.9.1 stable) makes generated interfaces *safe*: the agent emits declarative JSON, never code, and can only reference components the client already approved. Critically, it's **bidirectional** — components carry actions that dispatch back to the agent. Which means a generated UI isn't a picture. It's a control surface.
+
+## The product
+
+**Google Opal for onchain.** Describe what you want in natural language; get a working mini app you can use, share, fork, and remix — with The Graph as the entire data backend.
+
+But with one difference that matters more than the rest:
+
+> **Opal's mini apps produce text. Ours hold wallets.**
+
+A Graph mini app isn't a dashboard that answers. It's an agent that acts. It watches live onchain data, renders whatever interface fits the moment, and can execute — trade, rebalance, claim, mirror another wallet, alert you. Each one has its own wallet, its own ENS name, and its own onchain identity.
+
+**The one-liner:** *Describe an onchain app. Get an agent with a UI, a wallet, and a name.*
+
+## Why this beats "isn't it just Dune?"
+
+Dune dashboards can't trade. They can't watch for a liquidation and act on it at 4am. They can't be handed to another agent. They can't exist for a question nobody has asked yet.
+
+| | Dune | Graph Mini Apps |
+|---|---|---|
+| Who builds it | A human, in SQL | An agent, from a sentence |
+| When it exists | After someone builds it | The moment you ask |
+| What it does | Displays | Displays **and acts** |
+| Identity | A URL on dune.com | An ENS name + onchain Agentic ID |
+| Who can run it | People, on Dune | People, **and any agent, anywhere** |
+| Data | Dune's warehouse | The Graph — 15,000+ subgraphs, live, decentralized |
 
 ---
 
-# 2. User & job-to-be-done
+# 2. What a mini app is
 
-**Primary user:** the DeFi analyst / researcher / protocol contributor who can read a chart but doesn't want to write GraphQL — and who needs to *share* what they found.
+One object, one spec, a very wide range. This is the range slide — it's what makes the platform argument instead of the demo argument.
 
-**Job:** *"When I have a question about how protocols are performing, I want an answer I can look at and pass to my team, without asking an engineer or writing a query."*
+```
+  ANALYTICS ─────────────────── MONITORING ─────────────────── AUTONOMOUS
+  read-only                     read + alert                   read + act
 
-**What they do today:**
+  "Top DEXs by volume           "Tell me when any of my        "Mirror this wallet's
+   on Arbitrum this week"        lending positions drops        Arbitrum swaps, max
+                                 below 1.4 health factor"       $50 per trade"
 
-| Today | Cost |
+  Renders: leaderboard          Renders: gauges + alert        Renders: live position,
+                                 banner, watch toggle           kill switch, trade log
+  Wallet: none                  Wallet: none                   Wallet: yes, funded,
+                                                                capped
+  Trigger: on open              Trigger: Substreams event      Trigger: Substreams event
+```
+
+Every one of these is the same artifact: **a manifest** (§5). Same creation flow, same renderer, same ENS name, same fork button. The difference is which capabilities the creator turned on.
+
+**Worked example — the autonomous end:**
+
+```
+User types in the Studio:
+  "Watch my Aave position on Arbitrum. If health factor goes under 1.4,
+   sell enough ETH to bring it back to 1.8. Show me what you're doing."
+
+The generated mini app:
+  DATA     Lending/CDP 3.1.0 standardized schema → live position
+  STREAM   Substreams price feed → re-evaluates on every block, not every 5 min
+  UI       health-factor gauge · position table · trade log · KILL SWITCH
+           (agent chose a gauge because the value is a bounded ratio —
+            nobody specified "gauge")
+  WALLET   session key, $500 cap, allowlisted to one DEX router
+  ACTION   swap(), gated by policy + the kill switch
+  IDENTITY aave-guard.graphminis.eth · Agentic ID #142 on 0G Chain
+```
+
+Nobody wrote that app. Nobody will ever write that app — it's one person's specific position, on one chain, with one risk tolerance. That's the long tail, and it's most of the demand.
+
+---
+
+# 3. Users
+
+## Primary — the consumer The Graph never reached
+
+Traders, DAO contributors, DeFi power users, crypto-curious people who read charts but have never written GraphQL. **They are Dune's audience, and The Graph has never had them.**
+
+**Job:** *"I want an onchain thing that watches something for me and does something about it, without hiring an engineer or waiting for someone to build it."*
+
+| What they do today | Cost |
 |---|---|
-| Search Dune for an existing dashboard | Only exists for popular questions; usually stale or subtly wrong |
-| Write GraphQL against a subgraph | Needs to know which of 15,000 subgraphs, and its schema |
-| Ask ChatGPT | Gets a plausible number with no provenance, no live data, no artifact |
-| Ask an engineer on the team | Hours-to-days latency, doesn't scale |
+| Hunt for a Dune dashboard | Only exists for popular questions; stale; read-only |
+| Set a price alert on an exchange | Fires at 4am and does nothing |
+| Ask an engineer friend | Days of latency, doesn't scale, awkward |
+| Manually watch a position | Doesn't sleep well, misses the move |
+| Buy an off-the-shelf trading bot | Rigid, opaque, not their strategy |
 
-**Secondary user (this is what unlocks Graph Track 1):** the *agent builder* who wants their agent to return a UI instead of a paragraph. They install our npm package / MCP server and get Graph-grounded generative UI for free.
+## Secondary — creators
 
-**Anti-user:** anyone who wants a drag-and-drop dashboard builder. Not us. Say so in the README.
+People who build a good mini app and share it. They earn from it via x402 (§12). This is the Dune power-user persona — the reason Dune had content on day one — and it's what turns a tool into an ecosystem.
 
----
+## Tertiary — agent builders
 
-# 3. The product — three primitives
+They install the MCP server or `@graphminis/kit` and get Graph-grounded generative UI inside their own agent. **This is the Graph Track 1 constituency**, and it's why the kit stays a real, published artifact even though the Studio is now the primary surface.
 
-Scope discipline: three things, each of which independently satisfies a track's hard requirement. **If a feature doesn't ladder to one of these three, it doesn't get built this weekend.**
+## Anti-user
 
-## P1 — `@graphminis/kit` (the reusable tooling) → Graph Track 1
-
-A published, installable package that turns "a question" into "a rendered UI over live Graph data." Ships as:
-
-- **npm library** — `resolveSchema()`, `planQuery()`, `fanOut()`, `toA2UI()`
-- **MCP server** — exposes those as tools so *any* agent (Claude, Cursor, ChatGPT) gets Graph-grounded generative UI
-- **`SKILL.md`** — one-prompt install for Claude Code
-
-Track 1 explicitly demands *"reusable tooling/infrastructure, not a single end-user app."* This is that. It must be genuinely separable — a stranger must be able to `npm i` it and use it without our website. **Publish it to npm for real.** An unpublished package reads as an assertion; a published one is evidence.
-
-## P2 — The generator (the end-user app) → Graph Track 2 + Track 3
-
-Natural language → intent → **standardized schema** resolution → **parallel fan-out across ≥2 schema families** → A2UI JSON → live rendered app.
-
-Track 3's bar is *"compose two or more Graph products, OR build meaningfully on a standardized schema."* We do both: standardized schemas (Lending/CDP v3.1.0 + DEX AMM v1.3.2, minimum) **and** two Graph products (Gateway subgraph queries + the x402 gateway, with Subgraph MCP as a third). Track 3 also warns: *"simply querying one Subgraph with no composition does not qualify"* — so the cross-schema fan-out is not a nice-to-have, it's the qualification. **Build it first.**
-
-## P3 — Manifest ⟷ ENS resolution (the artifact) → ENS Track 1 + Track 2
-
-A generated app serializes to a **Mini App Manifest** (§5), which is pinned and bound to an ENS subname via **real ENSIP-25/26 records**. Resolving the name rehydrates the app against *live* data — not a cached screenshot.
-
-The ENS demo money shot: **paste the ENS name into a completely different agent and watch it reconstruct the same app.** That is discoverability that isn't cosmetic, and it's the exact thing ENS Track 2 asks for.
+Anyone who wants a drag-and-drop dashboard builder, or a no-code workflow canvas with boxes and arrows. Not us. You describe intent; the agent decides the interface.
 
 ---
 
-# 4. Non-goals — killed, with reasons
+# 4. The product — four primitives
 
-Say these out loud in the README. Explicit non-goals read as judgment; silent omissions read as incompleteness.
+## P1 — The Studio → Graph Track 1 + 2
 
-| Killed | Why |
-|---|---|
-| Ratings, reviews, star scores | Zero judging points, real build cost |
-| Fork/remix UI | The manifest already makes forking possible; a UI for it is polish. Mention in "what's next" |
-| Versioning system | `appVersion` field in the manifest. Done. No machinery |
-| Substreams streaming / ClickHouse sink | Not achievable in 36h. Substreams MCP *discovery* is a cheap stretch if time allows |
-| Agent memory / personalization | Nice, unscored, cut |
-| Multi-agent fleets, subname trees | Cool slide, no demo. Cut |
-| "Private portfolio analysis" on 0G | Unverifiable on stage, wrong use of TEE. Replaced — see §7 |
-| Creator micropayments / x402 revenue routing | x402 pays the gateway, not creators. Would need our own facilitator |
-| Mobile responsive | Demo is on a laptop |
-| Multi-chain (>2) | One chain done right beats five done shakily |
-| Dual/split submissions | Rules make it pointless; splitting effort makes both weak |
+**Everything happens in our web app.** This is the Opal lesson: the moment you tell a consumer to `npm install`, you've lost them and you're back to being a developer tool — which is the exact failure mode this product exists to fix.
+
+The Studio is one page:
+
+- **Describe** — natural language, one box
+- **Watch it build** — the plan streams: schemas resolved, sources health-checked, components chosen, actions wired. Legible, not a spinner
+- **Use it immediately** — renders live, in place
+- **Refine conversationally** — "add a 7-day chart", "only alert me above $10k", "use Optimism too"
+- **Configure capabilities** — wallet, spend cap, triggers, x402 price — all in-app, no config files
+- **Publish** — name it, mint it, list it
+
+MCP server config, SKILL library, and the generator all live inside this app. A user should never see a terminal.
+
+**`@graphminis/kit` still ships as a published npm package + MCP server + SKILL.md** — it's the engine, and Graph Track 1 requires *"reusable tooling/infrastructure, not a single end-user app."* The Studio is a client of the kit, not a wrapper around a private codebase. Publish it for real; an unpublished package reads as an assertion.
+
+## P2 — The Runtime → Graph Track 2 + 3
+
+Generative UI over live Graph data, with actions. NL → intent → standardized schema resolution → parallel fan-out across ≥2 schema families → Substreams subscription where freshness matters → A2UI document with interactive components → rendered, live, acting.
+
+Track 3's bar is *"compose two or more Graph products, OR build meaningfully on a standardized schema."* We do both, several times over (§10).
+
+## P3 — Identity → ENS Track 1 + 2, 0G Track 1
+
+Every mini app gets an **ENS subname** and an **Agentic ID (ERC-7857) on 0G Chain**. The name is how humans and agents find and run it. The Agentic ID is its onchain identity and the thing its wallet is bound to.
+
+Naming is not decoration here — **a mini app has a wallet, so it needs a name a human can verify before funding it.** `aave-guard.graphminis.eth` resolving to both a UI and an address is the entire safety UX.
+
+## P4 — The Ecosystem → Graph Track 1, ENS Track 1
+
+Registry, fork/remix, ratings, creator earnings via x402. This is what makes it a platform rather than a toy (§12). Dune's fork button was the whole flywheel; we ship it on day one.
 
 ---
 
 # 5. The Mini App Manifest
 
-The single most important artifact in the system. Everything — registry, ENS, forking, provenance — is a function of this object. Keep it small enough to fit in an ENS text record's worth of pointer plus one IPFS fetch.
+The single most important object in the system. Registry, ENS, forking, provenance, and agency are all functions of it.
 
 ```jsonc
 {
-  "spec": "graphmini/1",
-  "name": "top-dexs",
-  "title": "Top DEXs by Volume — Arbitrum, 7d",
-  "question": "Show me the top 5 DEXs by volume on Arbitrum this week",
+  "spec": "graphmini/2",
+  "name": "aave-guard",
+  "title": "Aave Position Guard — Arbitrum",
+  "intent": "Watch my Aave position. If health factor < 1.4, sell ETH to reach 1.8.",
 
-  "plan": {
-    "schemas": ["dex-amm@1.3.2", "lending-cdp@3.1.0"],
+  // ── WHERE THE DATA COMES FROM ─────────────────────────────────
+  "data": {
+    "schemas": ["lending-cdp@3.1.0", "dex-amm@1.3.2"],
     "network": "arbitrum-one",
     "sources": [
-      { "subgraphId": "<id>", "schema": "dex-amm@1.3.2", "healthCheckedAt": "2026-07-25T14:02:00Z" }
+      { "subgraphId": "<id>", "schema": "lending-cdp@3.1.0",
+        "healthCheckedAt": "2026-07-25T14:02:00Z" }
     ],
-    "query": "query($since:Int!){ ... }",
-    "variables": { "since": 1753372800 },
-    "transport": "gateway"          // "gateway" | "x402" | "mcp"
+    "queries": { "position": "query($user:ID!){ ... }" },
+    "stream": {                          // Substreams — event-driven, not polled
+      "package": "erc4626-vaults@v0.2.0",
+      "module": "map_vault_events",
+      "filter": { "user": "$owner" }
+    },
+    "transport": "x402"                  // "gateway" | "x402" | "mcp"
   },
 
+  // ── WHAT IT LOOKS LIKE ────────────────────────────────────────
   "ui": { /* A2UI v0.9.1 document — flat component list + data model */ },
 
+  // ── WHAT IT CAN DO ────────────────────────────────────────────
+  "agency": {
+    "mode": "autonomous",                // "readonly" | "alert" | "autonomous"
+    "triggers": [
+      { "on": "stream", "when": "healthFactor < 1.4", "run": "rebalance" }
+    ],
+    "actions": {
+      "rebalance": {
+        "kind": "swap",
+        "router": "0x<allowlisted router>",
+        "params": { "targetHealthFactor": 1.8 }
+      }
+    },
+    "policy": {                          // see §7 — enforced, not advisory
+      "wallet": "0x<session key address>",
+      "maxSpendUsd": 500,
+      "maxPerTxUsd": 50,
+      "allowlist": ["0x<router>", "0x<aave pool>"],
+      "expiresAt": "2026-08-25T00:00:00Z",
+      "requireConfirm": false,
+      "killSwitch": true
+    }
+  },
+
+  // ── WHO IT IS ─────────────────────────────────────────────────
+  "identity": {
+    "ens": "aave-guard.graphminis.eth",
+    "agenticId": { "chain": "0g", "contract": "0x<ERC7857>", "tokenId": 142 }
+  },
+
+  // ── WHERE IT CAME FROM ────────────────────────────────────────
   "provenance": {
     "model": "deepseek-chat-v3",
     "compute": "0g-private-computer",
-    "attestationRef": "0g://<tx-or-storage-ref>",
+    "attestationRef": "0g://<ref>",
     "generatedAt": "2026-07-25T14:02:11Z"
   },
 
+  // ── ECOSYSTEM ─────────────────────────────────────────────────
   "author": "fabianferno.eth",
   "appVersion": "1.0.0",
-  "forkedFrom": null
+  "forkedFrom": "lending-watch.graphminis.eth@0.9.2",
+  "pricing": { "x402": { "enabled": true, "priceUsd": 0.05 } }
 }
 ```
 
 **Design notes**
 
-- `plan` is separated from `ui` on purpose: re-running the plan gives fresh data, so a resolved name is *live*, not a screenshot. **This is what makes it a mini app rather than a permalink.**
-- `sources` is resolved at generation time and **health-checked**. Given ~28% of standardized deployments are dead at any moment (§13), freezing a verified-live source into the manifest is a correctness requirement, not an optimization.
-- `transport` lets the same manifest run keyed (gateway) or keyless (x402). The x402 path is what makes the "any agent, no signup" claim true.
+- **`data` is separate from `ui`.** Re-running the data plan gives fresh results, so a resolved ENS name is *live*, not a screenshot. This is what makes it a mini app rather than a permalink.
+- **`sources` is health-checked at generation time.** ~28% of standardized deployments are dead at any moment (§17) — freezing a verified-live source is a correctness requirement.
+- **`agency.policy` is the security boundary.** It is enforced at the signer, not suggested to the model. See §7.
+- **`forkedFrom` pins a version.** Forking a moving target is how you get a fork that silently breaks.
+- **Forking strips `identity`, `policy.wallet`, and `provenance`.** A fork must never inherit the parent's wallet or its attestation. Non-negotiable.
 
 ---
 
-# 6. ENS binding — the real spec
+# 6. Generative UI and actions
 
-Use the standards. This is the difference between winning ENS and getting a polite nod.
+## The A2UI loop
+
+A2UI is bidirectional, and that's the whole reason a mini app can be an agent:
+
+```
+   AGENT                                          CLIENT
+     │  A2UI document (components + data model)      │
+     │ ────────────────────────────────────────────► │  renders from
+     │                                               │  approved catalog
+     │                                               │
+     │  streamed component/data updates              │  live data binding
+     │ ────────────────────────────────────────────► │
+     │                                               │
+     │        action payload (client_to_server.json) │  user clicks
+     │ ◄──────────────────────────────────────────── │  a Button
+     │                                               │
+   agent converts the event into a query,            │
+   runs policy checks, may sign a transaction        │
+```
+
+A `Button` carries an `action` that is either a **Server Event** (dispatched to the agent) or a **Local Function Call** (handled client-side). Server events resolve path references against the local data model and post a payload conforming to `client_to_server.json`.
+
+```jsonc
+{
+  "id": "rebalance-btn",
+  "component": "Button",
+  "child": "btn-label",
+  "action": {
+    "event": {
+      "name": "rebalance_position",
+      "context": {
+        "target": { "path": "/targetHealthFactor" },
+        "amount": { "path": "/computedSellAmount" }
+      }
+    }
+  }
+}
+```
+
+## Two properties worth saying out loud in the demo
+
+**The agent cannot inject code.** A2UI is declarative data, not executable code. The client holds the approved component catalog; the agent may only reference it by name. A generated interface that can move money *must* have this property, and it's ~15 seconds of demo that separates you from every "LLM writes React" project in the room.
+
+**Form follows data, not keywords.** The composer picks components from the *shape* of the returned data — a bounded ratio becomes a gauge, a ranked categorical becomes a leaderboard, two entities over shared metrics become a comparison grid. Not from words in the prompt. That's the defensible version of "generative UI," and it's the answer when a judge says "couldn't you just draw a chart?"
+
+---
+
+# 7. Agency and safety
+
+**Read this section before writing any signing code.** A generated interface that holds a wallet is the most interesting thing in this project and the easiest way to embarrass yourself on stage.
+
+## Threat model
+
+| Threat | Mitigation |
+|---|---|
+| Model hallucinates a bad trade | Policy enforced at the **signer**, not in the prompt. The model proposes; the policy engine disposes |
+| Prompt injection via onchain data (token names, ENS text, memos) | Treat all indexed data as untrusted. Never let query results reach the planner as instructions. Sanitize + delimit |
+| Mini app drains its wallet | Hard caps: `maxSpendUsd`, `maxPerTxUsd`, `expiresAt`. Session key, never a root key |
+| Mini app interacts with a malicious contract | `allowlist` of router/pool addresses. Empty allowlist = no actions, no exceptions |
+| Fork inherits the parent's funded wallet | Forking strips wallet, policy, identity, provenance. Enforced in the fork path |
+| Runaway loop | `killSwitch: true` renders a kill switch in every autonomous app. Also a global pause |
+| Judge asks "what stops it going rogue?" | You have this table. Have it memorized |
+
+## Policy engine
+
+Every action passes through the same gate, regardless of whether a human clicked or a trigger fired:
+
+```
+proposed action
+  → is the mode "autonomous"?           else require explicit confirm
+  → is target in allowlist?             else reject
+  → is amount ≤ maxPerTxUsd?            else reject
+  → is cumulative ≤ maxSpendUsd?        else reject
+  → is now < expiresAt?                 else reject
+  → is killSwitch untripped?            else reject
+  → sign with session key
+  → append to the on-app trade log (visible in the UI, always)
+```
+
+**Demo posture:** testnet by default. If you demo on mainnet, use a wallet with $20 in it and say the number out loud — it reads as confidence, not recklessness.
+
+## Wallets
+
+Each mini app gets its own wallet. Options, in order of speed-to-demo:
+
+| Approach | Speed | Notes |
+|---|---|---|
+| **Session-key EOA derived per mini app** | Fastest | Simple, fully in your control, easy to explain. Recommended for the weekend |
+| **Embedded wallet (Privy / Turnkey)** | Medium | Better UX for real users, adds a dependency and a signup flow |
+| **Smart account + session keys (ERC-4337 / 7702)** | Slowest | The correct long-term answer. Real policy enforcement onchain. Too much for 36h |
+
+Recommendation: **session-key EOA now, smart accounts in "what's next."** Say the upgrade path out loud in the demo — judges reward knowing where you cut.
+
+---
+
+# 8. ENS binding
+
+## Why ENS is load-bearing here
+
+Under the old framing, ENS was a nice shareable name. Under this one it's a **safety primitive**: a mini app has a wallet and can spend money, so before you fund one you need to verify what it is and who made it. A name that resolves to a UI, an address, an author, and an onchain identity — all from one lookup — is exactly that verification.
+
+`aave-guard.graphminis.eth` is simultaneously: where the app lives, where its wallet is, who wrote it, and what it's allowed to do.
 
 ## Namespace
 
-Register a 2LD you control (`graphminis.eth`, or whatever's free) and issue subnames beneath it. Three viable mechanisms, in order of speed:
+Register a 2LD you control (`graphminis.eth`) and issue subnames beneath it:
 
 | Mechanism | Speed | Tradeoff |
 |---|---|---|
-| **Offchain via CCIP-Read** ([NameStone](https://namestone.com/), Namespace, JustaName, or [gskril/ens-offchain-registrar](https://github.com/gskril/ens-offchain-registrar)) | Fastest — REST API, gasless | Records live in a DB behind CCIP-Read. Legitimate and widely used, but a judge may probe "how onchain is this?" — have the answer ready |
-| **[Durin](https://github.com/resolverworks/durin)** — L2 subname registry | Medium | Subnames are ERC-721s on an L2, records onchain. **Bonus: gives you a deployed contract address** |
-| **[ensdomains/hackathon-registrar](https://github.com/ensdomains/hackathon-registrar)** | Fast | Purpose-built for exactly this situation |
+| **Offchain via CCIP-Read** ([NameStone](https://namestone.com/), Namespace, JustaName, [gskril/ens-offchain-registrar](https://github.com/gskril/ens-offchain-registrar)) | Fastest — REST, gasless | Records in a DB behind CCIP-Read. Legitimate, but have the "how onchain is this?" answer ready |
+| **[Durin](https://github.com/resolverworks/durin)** — L2 subname registry | Medium | Subnames as ERC-721s on L2, records onchain. Bonus: another deployed contract address |
+| **[ensdomains/hackathon-registrar](https://github.com/ensdomains/hackathon-registrar)** | Fast | Purpose-built for this situation |
 
-> **Do this Friday, first thing:** walk to the ENS booth and ask which mechanism they want to see. It's a 5-minute conversation that de-risks a $3,000 track, and they'll tell you what impresses them. Do not guess.
+> **Friday, first thing:** ask the ENS booth which they want to see. Five minutes, de-risks $3,000.
 
-## Records written per mini app
-
-For `top-dexs.graphminis.eth`:
+## Records per mini app
 
 ```
+addr                             → 0x<the mini app's wallet>        ← now meaningful
 contenthash                      → ipfs://<manifest CID>
-agent-context                    → YAML: what this app answers, which schemas,
-                                   which network, how to re-run it
-agent-endpoint[web]              → https://graphminis.xyz/a/top-dexs
-agent-endpoint[mcp]              → https://mcp.graphminis.xyz/sse
-agent-registration[<erc7930-registry>][<agentId>]  → "1"     # ENSIP-25
-url, description, avatar         → standard records, for wallet/profile display
+agent-context                    → YAML: what it does, which schemas, what it can
+                                   spend, how to run it                    (ENSIP-26)
+agent-endpoint[web]              → https://graphminis.xyz/a/aave-guard     (ENSIP-26)
+agent-endpoint[mcp]              → https://mcp.graphminis.xyz/sse          (ENSIP-26)
+agent-registration[<erc7930>][142] → "1"                                   (ENSIP-25)
+url · description · avatar       → standard profile records
 ```
 
-## Why this earns each ENS track
+The `agent-registration` key binds the ENS name to the **Agentic ID token on 0G Chain** — registry entry and name verify each other in both directions. That mutual verification is the strongest single technical idea in this build, and it's the thing that makes ENS and 0G one story instead of two slides.
 
-- **Track 1 (Most Creative):** the record set isn't identity — it's an *executable artifact*. `contenthash` + `agent-context` together mean an ENS name is a runnable program over live blockchain data. "Go beyond name → address" is the literal ask; a name that resolves to a self-describing, re-runnable data app is a genuinely new use of the record layer.
-- **Track 2 (AI Agents):** `agent-endpoint[mcp]` means any MCP-speaking agent discovers how to *talk to* the app, and `agent-context` tells it what the app is for — no docs, no integration. ENSIP-25 `agent-registration` proves the generator agent's registry entry is really bound to this name. Both directions of discovery, both using the actual standards.
+## Track fit
 
-**Demo requirement:** must be functional with **no hard-coded values**, and **someone must physically present at the ENS booth Sunday morning.** Put a name on that job now.
+- **ENS Track 1 (Most Creative):** the name isn't identity, it's an *executable, funded artifact*. `contenthash` + `agent-context` + `addr` means one ENS name is a runnable, spending program over live blockchain data. "Go beyond name → address" is the literal ask.
+- **ENS Track 2 (AI Agents):** every mini app *is* an agent, with `agent-endpoint[mcp]` for machine discovery, `agent-context` for capability description, and ENSIP-25 registry binding for verification. Discovery in both directions, using the real standards.
+
+**Hard requirements:** functional, **no hard-coded values**, and **someone presents at the ENS booth Sunday morning in person.** Assign that name today.
 
 ---
 
-# 7. 0G — provenance, not privacy
+# 9. 0G — compute and Agentic ID
 
-**The reframe.** The obvious move is "private portfolio analysis." Wrong instrument. On a demo stage, privacy is an unverifiable claim — you cannot *show* an audience that something stayed secret.
+Two uses, both in 0G Track 1's stated wheelhouse. No privacy framing — that was a dead end, since privacy is unverifiable on a demo stage.
 
-**Better:** *agent-generated UI over financial data has a trust problem.* If an agent invents the chart, how do you know the chart isn't lying? Run **the generation step itself** inside 0G's sealed inference, and attach the attestation to the manifest. Now every mini app carries a cryptographic receipt: *this UI was produced by this model, from this query plan, at this time.* Verifiable provenance for generated interfaces. That's a real, novel, defensible claim — and unlike privacy, you can point at it on screen.
+## Inference on 0G Compute
 
-**Integration cost: about ten minutes.** [0G Private Computer](https://0g.ai/blog/0g-private-computer) exposes an **OpenAI-compatible API** at `https://router-api.0g.ai/v1` — existing OpenAI SDK code works after a one-line base-URL change. TEE-backed (Intel TDX + H100/H200). Models include DeepSeek Chat V3, Qwen3.6 Plus, GLM-5-FP8.
+Planning and UI composition run on [0G Private Computer](https://0g.ai/blog/0g-private-computer) — OpenAI-compatible at `https://router-api.0g.ai/v1`, so it's a one-line base-URL change. TEE-backed (Intel TDX + H100/H200). Models: DeepSeek Chat V3, Qwen3.6 Plus, GLM-5-FP8.
 
 ```ts
 const openai = new OpenAI({
   baseURL: "https://router-api.0g.ai/v1",
   apiKey: process.env.ZEROG_API_KEY,
 });
-// same call shape you already have
 ```
 
-**Contract requirement.** 0G demands **contract deployment addresses**. Ship the smallest honest contract on 0G Chain: a `MiniAppRegistry` mapping `keccak(ensName) → (manifestCID, attestationHash, author)`. ~40 lines. This simultaneously:
+The attestation is stored in the manifest's `provenance`. **This matters more now than it did as a dashboard tool:** if a generated UI can move money, "did this model really produce this plan, from this data" stops being a nicety and becomes an audit trail. Verifiable provenance for an agent that spends.
 
-- satisfies 0G's deployment-address requirement,
-- gives you a real registry address for the ENSIP-25 `agent-registration[<registry>][<agentId>]` key,
-- and closes the loop: **onchain registry entry ⟷ ENS name, mutually verifying.**
+## Agentic ID (ERC-7857)
 
-That last point is the strongest technical idea available to you this weekend. It makes ENS and 0G reinforce each other instead of sitting in separate slides — which is exactly what a judge means by "coherent" versus "prize-chasing."
+Every published mini app is minted as an **Agentic ID** on 0G Chain — 0G's ERC-7857 standard for agents as onchain assets with encrypted metadata, transferable ownership, and cloning. This is a near-perfect fit: our mini apps are agents, they're ownable, and **forking is literally cloning.**
 
-**Track choice:** submit to **0G Track 1 (Best AI Product, $6,000)**. Track 2 wants frameworks — but `@graphminis/kit` is already committed to Graph Track 1, and 0G explicitly routes end-user products to Track 1. Don't fight it.
+0G Track 1's extra qualification says: *"For Agentic ID projects: link to minted Agentic ID on 0G explorer."* Minting satisfies that **and** the contract-deployment-address requirement in one move.
+
+> **Scope warning.** Full ERC-7857 wants a TEE/ZKP oracle, 0G Storage for encrypted metadata, and AES-256-GCM. That is a 6–10 hour rabbit hole. **Timebox to 3 hours.** Fallback: deploy a minimal ERC-7857-shaped registry that mints a real token with a manifest CID and skips encrypted-metadata transfer. You still get a minted token, a real contract address, and an explorer link — say plainly in the README which parts of the standard you implemented. Judges respect a scoped implementation far more than a broken full one.
 
 ---
 
-# 8. Verified technical ground truth
+# 10. The Graph integration
 
-Checked against live docs on 2026-07-24. Put this in the README — it's also the "which subgraphs/endpoints/tools did you use" answer that Graph Track 2 requires.
+The Graph is the entire backend. Not a data source among several — the backend.
+
+## Four Graph products, four distinct reasons
+
+| Product | Used for | Why not something else |
+|---|---|---|
+| **Standardized Subgraphs** | Cross-protocol queries — one query shape across 90 lending deployments on 15 chains | Protocol-specific subgraphs would need an adapter per protocol. This is the whole composability thesis |
+| **Subgraph MCP** | Discovery — finding the right subgraph among 15,000 when a user asks about something unusual | Hardcoding subgraph IDs caps you at whatever you thought of on Friday |
+| **Substreams** | Event-driven triggers — autonomous apps must react to a block, not a 5-minute poll | Polling a subgraph means your liquidation guard is up to 5 minutes late. That's the difference between working and not |
+| **x402** | Keyless per-query payment — the mini app's own wallet pays for its own data | An API key can't be given to an agent that a stranger forked. x402 makes forking work without credential sharing |
+
+**That Substreams justification is the real one.** Under the old dashboard framing, Substreams was a nice-to-have I'd cut. Under "mini apps that act," polling is a correctness bug. Say this in the demo — Track 3 judges will hear a team that understands *why* the product exists, not one checking a box.
+
+## x402, both directions
+
+```
+  INBOUND   mini app wallet ──$0.01 USDC (Base)──► The Graph gateway
+            keyless per-query data. No API key to share when forked.
+
+  OUTBOUND  user of a mini app ──$0.05──► creator's wallet
+            creator earnings. Our facilitator, same protocol.
+```
+
+The Graph's x402 pays the gateway; it does not route to third parties. Creator earnings need our own facilitator wrapping the same protocol — that's the honest framing, and it's a genuinely nice extension to demo: *the same payment rail an agent uses to buy data, creators use to get paid.*
+
+## Fan-out
+
+```
+intent → schema resolution → live-deployment lookup (health-checked)
+       → parallel query across N deployments and ≥2 schema families
+       → merge → normalize → compose
+```
+
+Minimum for Track 3 qualification: **DEX AMM 1.3.2 + Lending/CDP 3.1.0.** Track 3 explicitly warns that *"simply querying one Subgraph with no composition does not qualify."* Build the fan-out first, before anything visual.
+
+---
+
+# 11. Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  THE STUDIO  (Next.js — the only surface a user sees)                │
+│  describe · watch it build · use · refine · configure · publish      │
+│  registry · fork/remix · ratings · earnings                          │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │  imports, never reaches around
+┌───────────────────────────────▼──────────────────────────────────────┐
+│  @graphminis/kit   (npm · MCP server · SKILL.md)                     │
+│                                                                      │
+│   PLANNER ──────────► RESOLVER ──────────► FAN-OUT ──────► COMPOSER  │
+│   intent → plan       schema → live         parallel        → A2UI   │
+│   [0G Compute]        deployments,          across ≥2       doc w/   │
+│                       health-checked        schemas         actions  │
+│                            │                    │                    │
+│                       subgraph-registry    gateway│x402│mcp          │
+│                                                                      │
+│   POLICY ENGINE ◄─── actions from the rendered UI or a trigger       │
+│   allowlist · caps · expiry · kill switch → session-key signer       │
+└──────┬────────────────────┬──────────────────┬──────────────────┬────┘
+       │                    │                  │                  │
+       ▼                    ▼                  ▼                  ▼
+  THE GRAPH            A2UI RENDER        IDENTITY           STREAMS
+  standardized         React, mobile-     ENS subname        Substreams
+  subgraphs ·          responsive,        (addr, contenthash, → triggers
+  Subgraph MCP ·       interactive        agent-context,      (event-driven,
+  x402 gateway         components         agent-endpoint[…])  not polled)
+                                          ⟷ mutual verify
+                                          Agentic ID ERC-7857
+                                          on 0G Chain
+```
+
+**The Studio imports the kit and never reaches around it.** That constraint is what lets one repo credibly claim both "reusable infrastructure" (Graph T1) and "end-user app" (Graph T2). Enforce it in review.
+
+## Repo layout
+
+```
+packages/kit/          # @graphminis/kit — planner, resolver, fan-out, composer, policy
+packages/mcp/          # MCP server wrapping the kit
+apps/studio/           # Next.js — Studio, registry, /a/[name] runtime
+contracts/
+  ├─ AgenticId.sol     # ERC-7857 (scoped) — 0G Chain
+  └─ MiniAppRegistry.sol
+SKILL.md · README.md · architecture.png
+prd.md · prd-v1-original.md
+```
+
+---
+
+# 12. The ecosystem layer
+
+Dune's flywheel was never the dashboards — it was fork, attribution, and a leaderboard of people whose work got reused. Ship that on day one; it's what makes the platform claim credible in a 3-minute video.
+
+## Registry
+
+Browse and search published mini apps. Filter by category (analytics / monitor / autonomous), chain, protocol, schema, tag. Show what matters: **times forked, times run, total value transacted, creator.** Vanity metrics are worse than none.
+
+## Fork and remix
+
+The reason the manifest exists. Fork any mini app → get an editable copy → refine it in natural language → publish under your own name, with `forkedFrom` preserved for attribution.
+
+**Forking strips `identity`, `agency.policy.wallet`, and `provenance`.** A fork gets a fresh wallet, a fresh ENS name, a fresh Agentic ID, and zero inherited spending authority. This is a security requirement, not a design preference — enforce it in code, and mention it in the demo.
+
+## Ratings and reviews
+
+Thumbs plus a short review, weighted by whether the rater actually ran the app. Keep the schema trivial (`appId, rater, score, text, ranIt`) — this is ecosystem texture, not a product in itself. The point is that a registry with visible community signal *reads* like a platform, and an empty grid doesn't.
+
+## Creator earnings
+
+Creators set an x402 price per run. Users' agents pay it; funds settle to the creator's wallet. Show lifetime earnings on the creator's profile.
+
+**This is the loop that makes it an ecosystem:** creator publishes → users fork and run → creator earns → creator publishes more. Dune never paid its dashboard authors, and it's the most common complaint about it. Being the version that does is a real differentiator, and it's worth thirty seconds of the video.
+
+---
+
+# 13. Verified technical ground truth
+
+Checked against live docs 2026-07-24. This also answers Graph Track 2's *"describe which subgraphs/endpoints/tools were used."*
 
 ## The Graph
 
 ```
 Subgraph MCP    https://subgraphs.mcp.thegraph.com/sse
                 Authorization: Bearer <GATEWAY_API_KEY>   (via npx mcp-remote)
-                15,000+ subgraphs; schema inspection, keyword/contract search, 30d volume
+                15,000+ subgraphs; schema inspection, keyword/contract search
 
 Gateway         https://gateway.thegraph.com/api/<API_KEY>/subgraphs/id/<SUBGRAPH_ID>
 
@@ -244,6 +580,9 @@ x402 (keyless)  POST https://gateway.thegraph.com/api/x402/subgraphs/id/<SUBGRAP
                 Base Sepolia USDC  0x036CbD53842c5426634e7929541eC2318f3dCF7e
                 npm @graphprotocol/client-x402 · npx graphclient-x402
                 ~$0.01/query, no signup
+
+Substreams      https://substreams.dev  — package registry (.spkg)
+                SKILLs: claude plugin marketplace add streamingfast/substreams-skills
 ```
 
 MCP client config:
@@ -261,269 +600,244 @@ MCP client config:
 }
 ```
 
-## Standardized schemas
+## Standardized schemas (Messari, via The Graph)
 
-Messari, via The Graph. **Pick two — don't survey all ten.**
+**Pick two. Don't survey all ten.**
 
 `Generic 3.0.0` · **`DEX AMM 1.3.2`** · `DEX AMM Extended 4.0.1` · `DEX Aggregator 1.0.2` · **`Lending/CDP 3.1.0`** · `Yield Aggregator 1.3.1` · `NFT Marketplace 2.1.0` · `Network 1.2.0` · `Bridge 1.2.0` · `Perp Futures 1.3.4` · `Options 1.3.2`
 
-Query methods supported: real-time entity queries, time-travel queries for historical snapshots, and time-series snapshot entities.
+Supports real-time entity queries, time-travel queries, and time-series snapshots.
 
 ## A2UI
 
-Apache-2.0, **v0.9.1 stable** (v1.0 RC). **React renderer is stable**, at `/renderers/react` in [google/A2UI](https://github.com/google/A2UI). Format is a flat component list with ID references plus a data model — designed for incremental LLM updates.
+Apache-2.0, **v0.9.1 stable** (v1.0 RC). Docs at [a2ui.org](https://a2ui.org), repo [a2ui-project/a2ui](https://github.com/a2ui-project/a2ui). **React renderer stable.** Flat component list + data model, designed for incremental LLM updates. Declarative JSON, never executable code; client holds the approved catalog.
 
-Declarative JSON, never executable code; the client holds the approved component catalog (Appendix A). **That security property is a good 15 seconds of your demo** — the agent cannot inject code into your app, only select from components you approved.
+**Actions:** `Button.action` → Server Event (to agent) or Local Function Call (client-side). Payload conforms to `client_to_server.json`; path references resolve against the local data model. Transport is pluggable — A2A, WebSockets. See [client-to-server actions](https://a2ui.org/concepts/client_to_server_actions/).
 
 ## 0G
 
 ```
 Private Computer   https://router-api.0g.ai/v1     (OpenAI-compatible)
                    TEE: Intel TDX + NVIDIA H100/H200
-                   Models: DeepSeek Chat V3, Qwen3.6 Plus, GLM-5-FP8
-                   Web UI / CLI / TypeScript SDK · pc.0g.ai
-0G Chain           EVM-compatible — deploy MiniAppRegistry here
+                   Models: DeepSeek Chat V3, Qwen3.6 Plus, GLM-5-FP8 · pc.0g.ai
+0G Chain           EVM-compatible — deploy AgenticId + MiniAppRegistry
+Agentic ID         ERC-7857. Deploy your own contract; oracle (TEE/ZKP) +
+                   0G Storage + AES-256-GCM for full spec. Scope this (§9).
 ```
 
 ## Prior art worth building on
 
-All open source, all legitimate to extend:
+- [`PaulieB14/subgraph-registry`](https://github.com/PaulieB14/subgraph-registry) — semantic classification of all 15K subgraphs **with reliability scoring**. Your schema resolver *and* dead-endpoint defense, pre-built.
+- [`PaulieB14/graph-lending-mcp`](https://glama.ai/mcp/servers/PaulieB14/graph-lending-mcp) — one query across 90 lending deployments, 19 tools. Reference for the fan-out.
+- [`graphops/subgraph-mcp`](https://github.com/graphops/subgraph-mcp) · [`ensdomains/ens-cli`](https://github.com/ensdomains/ens-cli)
 
-- [`PaulieB14/graph-lending-mcp`](https://glama.ai/mcp/servers/PaulieB14/graph-lending-mcp) — fans one query across 90 lending deployments, 19 tools. Reference implementation for your fan-out.
-- [`PaulieB14/subgraph-registry`](https://github.com/PaulieB14/subgraph-registry) — semantic classification of all 15K subgraphs with **reliability scoring**. This is your schema resolver *and* your dead-endpoint defense, pre-built.
-- [`graphops/subgraph-mcp`](https://github.com/graphops/subgraph-mcp) — the MCP server implementation.
-- [`ensdomains/ens-cli`](https://github.com/ensdomains/ens-cli) — agent-native ENS CLI.
-
-> ETHGlobal permits open-source starter kits and building additively on existing tools — but **document precisely what was pre-existing and what you built**, in the README and in git history. This is where sloppy teams get disqualified.
+> ETHGlobal permits open-source starter kits and additive extension — but **document exactly what was pre-existing versus built this weekend**, in the README and in git history.
 
 ---
 
-# 9. Architecture
+# 14. Track compliance matrix
 
-```
-                    "top 5 DEXs by volume on Arbitrum this week"
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │  PLANNER                        │   0G Private Computer
-                    │  intent → schema family + net   │   (TEE, attested)
-                    │  → query plan                   │
-                    └────────────────┬────────────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │  RESOLVER                       │   subgraph-registry
-                    │  schema → live deployments      │   + health check
-                    │  DROP DEAD ENDPOINTS  ← critical│   (~28% are dead)
-                    └────────────────┬────────────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │  FAN-OUT (parallel)             │
-                    │  DEX AMM 1.3.2 ─┐               │   gateway | x402 | mcp
-                    │  Lending 3.1.0 ─┴→ merge        │
-                    └────────────────┬────────────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │  COMPOSER → A2UI JSON           │   0G (attested)
-                    │  picks component form from      │
-                    │  the shape of the data          │
-                    └────────────────┬────────────────┘
-                                     │
-              ┌──────────────────────┼──────────────────────┐
-              ▼                      ▼                      ▼
-       A2UI React render      Manifest → IPFS        MiniAppRegistry
-       (live app)             ↓                      (0G Chain)
-                              ENS subname                  │
-                              contenthash                  │
-                              agent-context         ◄──────┘
-                              agent-endpoint[mcp]    ENSIP-25 mutual
-                              agent-registration[…]  verification
-```
-
-**The whole system is `@graphminis/kit`.** The website is a thin client over it. That separation is what lets one repo credibly claim both "reusable tooling" (T1) and "end-user app" (T2) — but only if it's *actually* separable. Enforce it: **the web app imports the package, never reaches around it.**
-
-## Repo layout
-
-```
-packages/kit/          # npm: @graphminis/kit — planner, resolver, fan-out, composer
-packages/mcp/          # MCP server wrapping kit
-apps/web/              # Next.js — generator UI + /a/[name] resolver
-contracts/             # MiniAppRegistry.sol (0G Chain)
-SKILL.md               # one-prompt install
-README.md              # data sources, what's pre-existing, AI-tool attribution
-architecture.png       # required-ish for 0G, cheap to produce
-prd.md                 # this file — ETHGlobal wants spec artifacts committed
-prd-v1-original.md     # archived first draft (shows planning evolution)
-```
-
----
-
-# 10. Track compliance matrix
-
-Every row is a hard qualification requirement, not a nice-to-have. **Anything unchecked at Sunday 07:00 is a disqualification, not a missing feature.**
+Hard qualification requirements. **Anything unchecked at Sunday 07:00 is a disqualification, not a missing feature.**
 
 | # | Requirement | Track | Owner | Status |
 |---|---|---|---|---|
 | 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | ☐ |
-| 2 | Reusable tooling published + installable (npm/MCP/SKILL) | Graph 1 | | ☐ |
+| 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | ☐ |
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | ☐ |
-| 4 | AI component that reasons over the data | Graph 2 | | ☐ |
+| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | ☐ |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | ☐ |
-| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do both) | Graph 3 | | ☐ |
+| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | ☐ |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | ☐ |
 | 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | ☐ |
 | 10 | **Present at ENS booth, Sunday morning, in person** | ENS 1/2 | **assign a name** | ☐ |
 | 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | ☐ |
 | 12 | **Contract deployment addresses** | 0G 1 | | ☐ |
-| 13 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
-| 14 | Live demo link | 0G 1 | | ☐ |
-| 15 | Team names + Telegram/X | 0G 1 | | ☐ |
-| 16 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | ☐ |
-| 17 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | ☐ |
-| 18 | Select exactly 3 partner prizes: Graph, ENS, 0G | submission | | ☐ |
+| 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | ☐ |
+| 14 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
+| 15 | Live demo link | 0G 1 | | ☐ |
+| 16 | Team names + Telegram/X | 0G 1 | | ☐ |
+| 17 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | ☐ |
+| 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | ☐ |
+| 19 | Select exactly 3 partner prizes: Graph, ENS, 0G | submission | | ☐ |
 
-**Addressable:** $15,000 (Graph, 3 tracks) + $3,000 (ENS 1+2) + $6,000 (0G T1) = **$24,000 across 6 tracks, 3 selections.**
+**Addressable:** $15,000 (Graph ×3) + $3,000 (ENS 1+2) + $6,000 (0G T1) = **$24,000 across 6 tracks, 3 selections.**
 
-> Submission rules: up to **3 partner prizes**; a partner with multiple tracks counts as **1 selection**. Graph + ENS + 0G uses all three and covers six tracks. There is no reason to split the repo — and splitting effort in 36h makes both halves weak.
+> Rules: up to **3 partner prizes**; a multi-track partner counts as **1 selection**. Graph + ENS + 0G uses all three and covers six tracks in one repo.
 
----
-
-# 11. The 36-hour plan
-
-Ordered by *risk*, not by architecture. Everything that can kill you is front-loaded; everything cosmetic is last and cuttable.
-
-## Friday 10:00–13:00 — de-risk before building
-
-- ENS booth: confirm the subname mechanism they want to see. Register the 2LD **now** — propagation is not instant.
-- Graph API key from Studio; verify a real standardized-schema query returns data on Arbitrum.
-- 0G: get a Private Computer key, make one `/v1/chat/completions` call succeed.
-- Spike the A2UI React renderer with a hand-written JSON doc. **If A2UI's renderer fights you for more than 2 hours, fall back to a fixed component catalog driven by the same JSON schema** — the product thesis survives; only the library changes.
-- `git commit` after each of these. **Start the history habit immediately.**
-
-## Friday 13:00–20:00 — the qualifying spine
-
-- Resolver + health check + parallel fan-out across DEX AMM and Lending/CDP. *This is Track 3's qualification — build it before anything pretty.*
-- Planner: NL → query plan, via 0G. Ten hardcoded intent patterns beat a general parser; ship those first and only generalize if time allows.
-- End-to-end: type a question → see real numbers in a terminal. Ugly is fine.
-
-## Friday 20:00 – Saturday 02:00 — it becomes a product
-
-- Composer: query result → A2UI JSON → rendered app.
-- Manifest serialization.
-- Next.js generator page.
-- **Checkpoint 02:00: does a question produce a rendered live app?** If not, cut the ENS *write* path to read-only and protect the core.
-
-## Saturday 09:00–15:00 — the artifact layer
-
-- Pin manifest → IPFS; write ENS records (`contenthash`, `agent-context`, `agent-endpoint[web|mcp]`).
-- `/a/[name]` route: resolve ENS → fetch manifest → **re-run the plan live** → render.
-- Deploy `MiniAppRegistry` to 0G Chain; **record the address** (requirement #12).
-- Write `agent-registration[…]` back to ENS, closing the ENSIP-25 loop.
-
-## Saturday 15:00–20:00 — the tooling claim
-
-- Extract `@graphminis/kit`, **publish to npm for real.**
-- MCP server + `SKILL.md`.
-- Prove the money shot: a *different* agent resolves the ENS name and reconstructs the app.
-
-## Saturday 20:00 – Sunday 02:00 — ship the story
-
-- Record the video. **Budget three hours; it always takes three hours.**
-- README with data sources, AI attribution, pre-existing-work disclosure.
-- Architecture diagram.
-- Generate 5–6 good mini apps so the site isn't empty on stage.
-
-## Sunday 02:00–08:00 — freeze, buffer, submit
-
-- **Feature freeze at 02:00.** After that: only demo-path bugs.
-- Submit by **08:00**, one hour early. Not 08:55.
-- Someone sleeps enough to present at the ENS booth. That person is **not** the same person doing the 02:00 bug fixes.
+**Sponsor-brief alignment worth noting:** Graph Track 2's own example ideas include *"trading/execution agent with live liquidity + x402 pay-per-query"*, *"portfolio/PnL copilot"*, and *"risk-monitoring agent for lending liquidations."* The autonomous framing hits three of six listed examples. You are building what they asked for.
 
 ---
 
-# 12. Demo video — 2:50
+# 15. The 36-hour cut — what actually ships
 
-Satisfies 0G's <3:00 **and** Graph's 2–4:00. One cut for everything — don't make three videos.
+**The vision above is the product. This section is the weekend.** They are different documents and conflating them is how teams submit nothing.
+
+The scope in §1–§12 is roughly three times what fits in the ~30 working hours left. That's fine — a PRD should describe the product — but the build has to be sequenced so that **every hour produces something demoable**, and so that the things which are *qualification requirements* land before the things which are *impressive*.
+
+## The spine — nothing ships without this
+
+1. **Cross-schema fan-out**, health-checked (Graph T3 qualification)
+2. **NL → plan → A2UI render**, live data (Graph T2 qualification)
+3. **One action that executes** with policy enforcement (the entire differentiator)
+4. **ENS name written and resolvable** (ENS T1+T2 qualification)
+5. **A contract deployed on 0G Chain** with an address (0G qualification)
+
+If only these five exist Sunday morning, you have a complete, qualifying submission for six tracks.
+
+## Degrade in this order if you're behind
+
+| Cut | When | Cost |
+|---|---|---|
+| Full ERC-7857 → minimal minting contract | If §9 exceeds 3h | Low — still get a token + explorer link |
+| Substreams stream → 15s polling, same interface | If streaming exceeds 3h | **Medium** — weakens the T3 story. Keep the manifest field so it reads as designed-for |
+| Ratings + reviews | Saturday evening | Low — registry survives without it |
+| Creator x402 payouts → show inbound x402 only | Saturday evening | Low — inbound x402 still demos the rail |
+| Conversational refinement → regenerate from scratch | Anytime | Low — user barely notices in a demo |
+| Autonomous trigger → button-triggered action | **Last resort** | **High** — this is the differentiator. Protect it |
+
+Never cut: the fan-out, one working action, the ENS write, the 0G contract.
+
+## Hour by hour
+
+**Fri 10:00–13:00 · de-risk before building**
+ENS booth — pick the subname mechanism, register the 2LD now (propagation isn't instant). Graph API key; verify a standardized-schema query returns real data on Arbitrum. 0G: one successful `/v1/chat/completions` call. Spike the A2UI React renderer **including a Button with a server event** — actions are the whole product; find out today if they fight you. Commit after each.
+
+**Fri 13:00–20:00 · the qualifying spine**
+Resolver + health check + parallel fan-out across DEX AMM and Lending/CDP. Planner: NL → plan, on 0G. Ten hardcoded intent patterns beat a general parser — ship those, generalize only if time allows. Target: type a question, see real numbers in a terminal. Ugly is fine.
+
+**Fri 20:00 – Sat 02:00 · it becomes a product**
+Composer → A2UI doc with interactive components. Manifest v2 serialization. Studio page: describe → watch it build → render. **Checkpoint 02:00 — does a sentence produce a live rendered app?** If no, cut everything in §12 and protect the spine.
+
+**Sat 09:00–14:00 · the differentiator**
+Policy engine + session-key signer. One action end-to-end on testnet. Kill switch. Trade log in the UI. **This is the demo. Do not let it slip past 14:00.**
+
+**Sat 14:00–18:00 · identity**
+Pin manifest → IPFS. Write ENS records (`addr`, `contenthash`, `agent-context`, `agent-endpoint[web|mcp]`). Deploy contracts to 0G Chain, **record addresses**. Mint one Agentic ID; grab the explorer link. Write `agent-registration[…]` back to ENS to close the ENSIP-25 loop.
+
+**Sat 18:00–21:00 · platform + tooling**
+Publish `@graphminis/kit` to npm for real. MCP server + SKILL.md. Registry grid, fork button, ratings. Mobile pass (Tailwind — should be cheap). Seed 6–8 good mini apps spanning analytics → monitor → autonomous, so the range slide is real.
+
+**Sat 21:00 – Sun 02:00 · ship the story**
+Record the video — **budget three hours, it always takes three.** README with data sources, AI attribution, pre-existing-work disclosure. Architecture diagram.
+
+**Sun 02:00–08:00 · freeze and submit**
+**Feature freeze 02:00.** Demo-path bugs only. Submit by **08:00**, not 08:55. The ENS booth presenter sleeps — and is not the person fixing bugs at 02:00.
+
+---
+
+# 16. Demo script — 2:50
+
+Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 
 ```
-0:00–0:20  Problem, concretely.
-           "There are 15,000 subgraphs. There is no dashboard for your question,
-            and there never will be — nobody builds UI for the long tail."
+0:00–0:18  POSITIONING. Say the thesis out loud.
+           "The Graph had everything it needed to be Dune. It indexes more
+            chains, more protocols, in real time. But it only ever built for
+            developers — so everyone else went to Dune. We built the surface
+            The Graph never did."
 
-0:20–1:00  THE CORE. Type: "compare lending TVL and DEX volume on Arbitrum this week."
-           Show the fan-out live: two standardized schemas, parallel, dead
-           endpoints skipped. A UI assembles itself — chart form chosen from the
-           data's shape.                                    ← Graph T2 + T3
+0:18–0:50  THE OPAL MOMENT. Type into the Studio:
+           "Watch my Aave position on Arbitrum. If health factor drops under
+            1.4, sell ETH to bring it back to 1.8."
+           Watch the plan stream: two standardized schemas resolved, dead
+           deployments skipped, Substreams subscribed, components chosen.
+                                                    ← Graph T2 + T3
 
-1:00–1:20  "The agent didn't write code. A2UI is declarative — it can only pick
-            from components we approved. It cannot inject anything."
-                                                            ← technical execution
+0:50–1:10  THE VIBEOS MOMENT. The UI appears — health gauge, position table,
+           trade log, kill switch.
+           "Nobody built this screen. It chose a gauge because a health factor
+            is a bounded ratio. And it can't inject code — A2UI is declarative,
+            it can only use components we approved."
+                                                    ← technical execution
 
-1:20–1:45  Click 'Name this app'. It becomes lending-vs-dex.graphminis.eth.
-           Show the real records: contenthash, agent-context, agent-endpoint[mcp].
-                                                            ← ENS T1
+1:10–1:45  THE LEAP. Drop the health factor on testnet. The app fires:
+           policy check, session key signs, trade lands, log updates live.
+           "This isn't a dashboard. It has a wallet, a $500 cap, one allowlisted
+            router, and a kill switch. Dune can't do this."
+                                                    ← the differentiator
 
-1:45–2:15  MONEY SHOT. Switch to a different agent — plain Claude, our MCP server,
-           nothing else. Paste the ENS name. It resolves, reads agent-context,
-           re-runs the plan, and renders the same app with fresh data.
-           "The name is the app. Any agent can run it."     ← ENS T2
+1:45–2:05  IDENTITY. It's aave-guard.graphminis.eth — resolving to the UI, the
+           wallet address, and Agentic ID #142 on 0G Chain. The ENS record and
+           the onchain token verify each other.
+           Paste the name into a different agent — it resolves, reads
+           agent-context, and runs.                 ← ENS T1 + T2, 0G T1
 
-2:15–2:35  Open the provenance panel: the UI was generated inside 0G's sealed
-           inference, attested, and the registry entry lives at <0G address>,
-           which is what the ENS name verifies against.     ← 0G T1
+2:05–2:25  THE ECOSYSTEM. Registry. Fork it — new wallet, new name, no inherited
+           spending authority. Refine in one sentence. Publish. The creator
+           earns $0.05 per run via x402, on the same rail the agent uses to buy
+           its own data.                            ← Graph T1, ecosystem
 
-2:35–2:50  npm i @graphminis/kit — one install, any agent gets this.
-           "Ask once. The answer becomes infrastructure."    ← Graph T1
+2:25–2:50  npm i @graphminis/kit — any agent gets this.
+           "15,000 subgraphs. Every question is an app now, and every app can
+            act. That's The Graph, finally pointed at everyone."
+                                                    ← Graph T1
 ```
 
-**Notes:** the money shot at 1:45 is the whole video — rehearse it until it's boring. Have a **pre-recorded fallback clip** of the live query in case the venue wifi dies during recording; it will.
+**Notes.** The 1:10 leap is the video — rehearse until boring. Pre-record a fallback clip of the live query and the firing trade; venue wifi will fail during recording. Say the spend cap number out loud; it reads as confidence.
 
 ---
 
-# 13. Risk register
+# 17. Risk register
 
 | Risk | P | Impact | Mitigation |
 |---|---|---|---|
-| **Dead standardized subgraph mid-demo** — 90 deployments, ~65 live at any moment (~28% down) | **High** | Fatal | Health-check before every fan-out; skip dead sources; pre-verify demo queries 30 min before recording; keep one known-good subgraph pinned |
-| A2UI React renderer immature / undocumented | Med | High | 2-hour timebox, then fall back to a fixed component catalog over the same JSON. Thesis survives |
-| ENS subname issuance eats a day | Med | High | Booth conversation Friday morning; offchain CCIP-Read as the fast path |
-| 0G Private Computer key/quota delay | Low | Med | OpenAI-compatible — a base-URL env var swaps it out. Build against OpenAI, flip to 0G, prove the flip on camera |
-| Venue wifi dies during recording | **High** | High | Record the core flow early Saturday, not Sunday. Keep a fallback clip |
-| Git history looks AI-generated / one big commit | Med | **Fatal** | Commit every 20–30 min with real messages, starting now. Existing history ("test", "Iniit", "commmit current") is already a liability |
-| Team burns Saturday on a registry/browse UI | Med | High | It's in §4 non-goals. Point at it when someone starts building it |
-| Nobody makes the ENS booth Sunday | Low | High | Assign a name **today**, protect their sleep Saturday night |
-| "Isn't this just Dune?" from a judge | Med | Med | Rehearsed answer: Dune requires you to write SQL and a human to build the dashboard. Here the question is the interface, the artifact is portable via ENS, and any agent can re-run it. Dune's queries can't be resolved by an agent that's never seen Dune |
+| **Scope.** Vision is ~3× the remaining hours | **High** | **Fatal** | §15 spine + degrade order. Re-read the degrade table at every checkpoint, not at 04:00 Sunday |
+| **Dead standardized subgraph mid-demo** — ~65 of 90 deployments live at any time | **High** | Fatal | Health-check before every fan-out; skip dead sources; re-verify demo queries 30 min before recording; keep one known-good pinned |
+| Action/policy path not done by Sat 14:00 | Med | **Fatal** | It's the differentiator. Protect the slot. Fall back to button-triggered, never cut entirely |
+| A2UI action loop harder than the render loop | Med | High | Spike the Button server-event Friday morning, not Saturday. Fallback: local action handler that calls our API directly, same UX |
+| ERC-7857 full spec rabbit hole (oracle + encryption + Storage) | **High** | Med | Hard 3h timebox → minimal minting contract. Document what you scoped |
+| Substreams streaming eats a day | Med | Med | 3h timebox → 15s polling behind the same interface. Keep the manifest field |
+| ENS subname issuance eats a day | Med | High | Booth Friday morning; offchain CCIP-Read as fast path |
+| 0G key/quota delay | Low | Med | OpenAI-compatible — swap via env var. Build on OpenAI, flip to 0G, show the flip |
+| Venue wifi dies during recording | **High** | High | Record core flow early Saturday. Keep fallback clips |
+| Git history looks AI-generated | Med | **Fatal** | Commit every 20–30 min with real messages. Pre-event commits ("test", "Iniit") are a clean pre-existing-work boundary — cite the hash in the README |
+| Demo agent does something embarrassing with real money | Low | **Fatal** | Testnet. If mainnet, $20 wallet and say the number |
+| Judge: "an LLM with a wallet is reckless" | Med | Med | §7 is the answer. Policy at the signer, not the prompt; allowlist; caps; expiry; kill switch. Have the table memorized |
+| Judge: "isn't this just Dune?" | Med | Low | §1 table. Dune dashboards can't trade, can't be run by an agent, and don't exist until a human writes SQL |
 
 ---
 
-# 14. Open questions — resolve at booths Friday morning
+# 18. Open questions — resolve at booths Friday morning
 
 1. **ENS:** which subname mechanism do you want to see — offchain CCIP-Read, Durin on L2, or hackathon-registrar? *(5 min, de-risks $3,000)*
-2. **ENS:** does an ENS name resolving to a re-runnable data app read as "creative use," or do you want something else in Track 1?
-3. **The Graph:** which standardized-schema deployments are reliably live on Arbitrum *right now*? They know. This directly attacks the top risk.
-4. **The Graph:** does building on `graph-lending-mcp` / `subgraph-registry` count as additive, or do you want it from scratch? (Track 1 says extending existing tools is welcome if clearly additive — get it confirmed.)
-5. **0G:** does an OpenAI-compatible Private Computer call satisfy "proof of 0G Compute," or do they want an on-chain attestation artifact?
-6. **0G:** is a minimal registry contract sufficient for the deployment-address requirement?
+2. **ENS:** does "every mini app is an agent with a wallet, a name, and ENSIP-25/26 records" land better in Track 1 or Track 2? Which do you want us to lead with at the booth?
+3. **The Graph:** which standardized-schema deployments are reliably live on Arbitrum *right now*? Directly attacks the top risk.
+4. **The Graph:** is there a Substreams package we can subscribe to in an afternoon for price or lending events on Arbitrum, or should we poll and say so?
+5. **The Graph:** does building on `subgraph-registry` / `graph-lending-mcp` count as additive? (Track 1 welcomes extension "if clearly additive" — get it confirmed.)
+6. **0G:** is a scoped ERC-7857 (real mint, real token, no encrypted-metadata oracle) acceptable for the Agentic ID bonus qualification?
+7. **0G:** does an OpenAI-compatible Private Computer call satisfy "proof of 0G Compute," or do they want an attestation artifact onchain?
 
 ---
 
-# Appendix A — A2UI component catalog
+# Appendix A — component and action catalog
 
-A2UI requires the **client** to hold a catalog of approved components; the agent may only reference them by name. That's the security property, and it's also your scope fence — the catalog is finite, so the composer's output space is finite.
+A2UI requires the **client** to hold the approved catalog; the agent may only reference it by name. That's the security property and your scope fence — a finite catalog means a finite output space.
 
-**Ship six.** Not more. Each maps to a data shape the planner can detect.
+## Display components — ship six
 
-| Component | Data shape that triggers it | Notes |
+| Component | Data shape that triggers it |
+|---|---|
+| `metric_card` | single scalar, optional delta |
+| `bar_chart` | categorical × one metric |
+| `time_series` | timestamped × one-or-more metrics |
+| `leaderboard` | categorical, ranked — the most common question shape |
+| `gauge` | **bounded ratio** — health factors, utilization, LTV |
+| `comparison_grid` | ≥2 entities × shared metrics — **the cross-schema shot** |
+| `data_table` | fallback when nothing else fits |
+
+## Action components — ship four
+
+| Component | Emits | Notes |
 |---|---|---|
-| `metric_card` | single scalar (+ optional delta) | "Total TVL on Arbitrum" |
-| `bar_chart` | categorical × one metric | Ranking/comparison — the workhorse |
-| `time_series` | timestamped × one-or-more metrics | "over time" questions |
-| `leaderboard` | categorical, ranked, with a metric | Top-N — the single most common question shape |
-| `data_table` | rows × arbitrary columns | The fallback when nothing else fits |
-| `comparison_grid` | ≥2 entities × shared metrics | **The cross-schema shot** — this is what renders the Track 3 demo |
+| `action_button` | Server Event → policy engine → signer | The core primitive |
+| `confirm_dialog` | Server Event, gated on user confirm | Required when `requireConfirm: true` |
+| `kill_switch` | Local Function Call + Server Event | Must render in every autonomous app |
+| `trade_log` | display-only, streams from the action journal | Non-negotiable — an agent that spends must show its work |
 
-Deliberately deferred (say so in the README): OHLCV candles, wallet balance cards, protocol revenue breakdowns, alert banners, Sankey/flow diagrams.
+**Composer rule:** components are chosen from the *shape of the data*, never from keywords in the prompt. A bounded ratio becomes a gauge whether or not the user said "gauge." That's the defensible version of generative UI.
 
-**Composer rule:** the component is chosen from the *shape of the returned data*, not from keywords in the question. That is the defensible version of "generative UI" — and it's the answer to "couldn't you just have a chart?"
+Deferred (say so in the README): OHLCV candles, Sankey/flow diagrams, portfolio treemaps, multi-step approval flows.
 
 ---
 
@@ -534,42 +848,57 @@ Deliberately deferred (say so in the README): OHLCV candles, wallet balance card
 ```markdown
 # Graph Mini Apps
 
-Ask a question about onchain data. Get back a live app with an ENS name
-anyone — human or agent — can resolve and re-run.
+Describe an onchain app. Get an agent with a UI, a wallet, and a name.
 
-**Live demo:** <url>   **Video:** <url>   **npm:** @graphminis/kit
+**Live:** <url>  ·  **Video:** <url>  ·  **npm:** @graphminis/kit
+**Agentic ID:** <0G explorer link>  ·  **Contracts:** 0x… (0G Chain)
 
-## What it does
-[3 sentences from §1]
+## Why
+The Graph had everything it needed to be Dune — more chains, more protocols,
+real time, decentralized — but it only ever built for developers. This is the
+consumer surface it never shipped. And because the interface is generated per
+question, apps exist the moment you ask, including for the long tail nobody
+would ever build by hand.
+
+## What a mini app is
+Not a dashboard. An agent with a wallet: it watches live Graph data, renders
+whatever UI fits, and can act — within a policy you set.
+[range: analytics → monitoring → autonomous]
 
 ## How it uses The Graph
 - Standardized Subgraphs — DEX AMM 1.3.2, Lending/CDP 3.1.0 (Arbitrum)
-- Gateway:      https://gateway.thegraph.com/api/<key>/subgraphs/id/<id>
-- x402 gateway: POST /api/x402/subgraphs/id/<id>  (keyless, USDC on Base)
-- Subgraph MCP: https://subgraphs.mcp.thegraph.com/sse
-- Exact subgraph IDs queried: <list them — Track 2 requires this>
+  Exact deployment IDs queried: <list — Track 2 requires this>
+- Subgraph MCP  — https://subgraphs.mcp.thegraph.com/sse (discovery)
+- Substreams    — <package> (event-driven triggers; polling is a correctness
+                  bug for an agent that acts)
+- x402 gateway  — POST /api/x402/subgraphs/id/<id> (keyless; a forked app pays
+                  with its own wallet, no shared API key)
 
 ## ENS
-- Namespace: graphminis.eth, subnames per mini app
-- Records: contenthash · agent-context · agent-endpoint[web|mcp] (ENSIP-26)
-           agent-registration[registry][agentId] (ENSIP-25)
-- Mechanism: <offchain CCIP-Read | Durin L2 | hackathon-registrar>
+graphminis.eth + per-app subnames. Records: addr · contenthash ·
+agent-context · agent-endpoint[web|mcp] (ENSIP-26) ·
+agent-registration[registry][tokenId] (ENSIP-25), which mutually verifies
+against the Agentic ID on 0G Chain.
 
 ## 0G
-- Private Computer (router-api.0g.ai/v1) generates the UI inside a TEE
-- MiniAppRegistry deployed on 0G Chain: 0x<ADDRESS>
-- Attestation reference stored in each manifest
+- Private Computer (router-api.0g.ai/v1) plans and composes inside a TEE;
+  attestation stored in each manifest
+- Every published mini app minted as an Agentic ID (ERC-7857)
+- Implemented: <exactly which parts of ERC-7857 — be precise>
 
-## Setup
-1. …
+## Safety
+Policy enforced at the signer, not in the prompt: allowlist, per-tx and
+lifetime caps, expiry, kill switch. Forks inherit no spending authority.
 
-## What is NOT in scope
-[§4 — state this explicitly; it reads as judgment]
+## Not in scope
+[be explicit — it reads as judgment]
 
-## Pre-existing work / attribution
-- Built during ETHGlobal Lisbon 2026, from scratch, starting <commit>
-- Open-source components used: A2UI (Apache-2.0), subgraph-registry, …
-- AI tools: Claude Code used for <what>; specs in prd.md, prd-v1-original.md
+## Attribution
+- Built at ETHGlobal Lisbon 2026 starting <commit hash>; prior commits predate
+  the event and contain <what>
+- OSS used: A2UI (Apache-2.0), subgraph-registry, …
+- AI tools: Claude Code for <what>; specs committed as prd.md,
+  prd-v1-original.md
 
 ## Team
 Name · Telegram · X
@@ -580,58 +909,72 @@ Name · Telegram · X
 ```markdown
 # Graph Mini Apps
 
-Give any agent the ability to answer onchain-data questions with a
-rendered UI instead of a paragraph.
-
-## Prerequisites
-- The Graph gateway API key (thegraph.com/studio) — or none, via x402
-- Node 18+
+Give any agent the ability to build onchain mini apps — generated UI over live
+Graph data, with actions.
 
 ## Install
 npm i @graphminis/kit
 # or add the MCP server:
-{ "mcpServers": { "graphminis": { ... } } }
+{ "mcpServers": { "graphminis": { "command": "npx",
+  "args": ["mcp-remote", "https://mcp.graphminis.xyz/sse"] } } }
 
 ## Use
-import { plan, fanOut, toA2UI } from '@graphminis/kit'
-const p  = await plan("compare lending TVL and DEX volume on Arbitrum, 7d")
-const d  = await fanOut(p)          // parallel, health-checked
-const ui = await toA2UI(d)          // A2UI v0.9.1 document
+import { plan, fanOut, compose, publish } from '@graphminis/kit'
 
-## Publish as an ENS-addressable mini app
-await publish(ui, { name: 'lending-vs-dex' })
-// → lending-vs-dex.graphminis.eth
+const p  = await plan("watch my Aave position, rebalance under 1.4 HF")
+const d  = await fanOut(p)            // parallel, health-checked, ≥2 schemas
+const ui = await compose(d)           // A2UI v0.9.1 doc, interactive
+
+await publish(ui, {
+  name: 'aave-guard',
+  policy: { maxSpendUsd: 500, allowlist: ['0x…'], killSwitch: true }
+})
+// → aave-guard.graphminis.eth + Agentic ID on 0G Chain
 
 ## Customization
-- Component catalog: packages/kit/src/catalog.ts
-- Schema resolution: packages/kit/src/resolver.ts
+- Component + action catalog: packages/kit/src/catalog.ts
+- Schema resolution:          packages/kit/src/resolver.ts
+- Policy engine:              packages/kit/src/policy.ts
 ```
 
 ---
 
-# Appendix C — revision notes (what changed from v1)
+# Appendix C — revision notes
 
-Kept for the record; [`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset, not clutter.
+[`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
 
-**Factual corrections:**
+## v3 — the repositioning (current)
+
+**Mini apps are agents, not dashboards.** They hold wallets and act. This is the change that makes everything else cohere:
+
+- Kills the Dune comparison outright — Dune dashboards can't trade
+- Makes ENS load-bearing as a *safety* primitive: you verify a name before funding it
+- Makes Agentic ID (ERC-7857) an obvious fit — mini apps are ownable agents, and forking is cloning
+- Makes Substreams a correctness requirement rather than a nice-to-have: polling means a liquidation guard is up to 5 minutes late
+- Makes x402 native in both directions: an agent pays for its own data; a fork needs no shared API key
+- Hits three of Graph Track 2's six stated example ideas
+
+**Positioning added:** The Graph had everything to beat Dune and only ever served developers. This is the consumer surface. Inspirations named: [Opal](https://blog.google/technology/google-labs/opal-expansion/) (the creation surface) and [VibeOS](https://www.youtube.com/watch?v=7NfyZhV1dKM) (interfaces generated at runtime, not coded).
+
+**Restored from v1, now justified:** ratings/reviews, fork/remix, Substreams streaming, x402 creator earnings, mobile responsive. Under "dashboards" these were unscored surface; under "ecosystem of agents" they're the flywheel.
+
+**Creation moved in-app.** The Studio is the primary surface; `@graphminis/kit` is the engine beneath it and still ships to npm for Graph Track 1. Telling a consumer to `npm install` reproduces the exact failure this product exists to fix.
+
+**Added:** §7 agency and safety (mandatory once an LLM holds a wallet), action components in the catalog, §15 split between the product and the weekend.
+
+**0G:** privacy framing dropped per direction. Now compute + Agentic ID. Provenance survives — and matters more, since an agent that spends needs an audit trail.
+
+## v2 — factual corrections
 
 | v1 claim | Reality |
 |---|---|
-| ENS text records `app/prompt`, `app/version`, `app/schema` | Invented. ENSIP-26 defines `agent-context` and `agent-endpoint[<protocol>]`; ENSIP-25 defines `agent-registration[<registry>][<agentId>]` |
-| Mini apps get `*.graph.eth` subnames | You don't own `graph.eth`. Needs your own 2LD + issuance mechanism |
-| "A2UI framework (as specified by sponsor)" | **A2UI is not a sponsor at this event.** Google Apache-2.0 OSS. Zero sponsor points — budget it as cost, not credit |
-| x402 lets mini app authors "earn per query" | x402 pays The Graph's gateway. It does not route revenue to third parties |
-| Substreams → ClickHouse for live dashboards | Not in 36h. Substreams SKILLs are Claude Code *plugins*, not a deployable runtime |
-| Standardized subgraphs are a stable base | ~28% of deployments are dead at any moment. Now the #1 risk |
+| ENS records `app/prompt`, `app/version` | Invented. ENSIP-26 defines `agent-context`, `agent-endpoint[<protocol>]`; ENSIP-25 defines `agent-registration[<registry>][<agentId>]` |
+| `*.graph.eth` subnames | You don't own `graph.eth`. Needs your own 2LD + issuance mechanism |
+| "A2UI framework (as specified by sponsor)" | Not a sponsor. Google Apache-2.0 OSS — an implementation choice, no track credit |
+| x402 lets authors earn per query | The Graph's x402 pays its gateway. Creator earnings need our own facilitator (§12) |
+| Standardized subgraphs are a stable base | ~28% of deployments dead at any moment. Now the #2 risk |
 
-**Structural changes:**
-
-- **ENS promoted from bonus to thesis.** It's what makes this an artifact rather than a chat reply — and what makes ENS non-cosmetic.
-- **0G repointed from privacy to provenance.** Privacy is unverifiable on stage; provenance is visible.
-- **Registry killed.** Browse/rate/review/version was real cost for zero judging points.
-- **Scope cut from 7 layers to 3 primitives**, each mapping to a track's hard requirement.
-- **Submission options B and C deleted.** Rules give 3 partner selections; Graph + ENS + 0G covers 6 tracks with one repo. Splitting is strictly worse.
-- **Added:** compliance matrix, risk register, hour-by-hour plan, 2:50 video script that satisfies both Graph and 0G (v1's 3:30 script failed 0G's <3:00 rule).
+Also corrected: 0G needs contract addresses and a video under 3:00 (v1's script was 3:30 and failed 0G); ENS requires in-person Sunday booth presentation; ETHGlobal requires clean git history.
 
 ---
 
@@ -639,10 +982,17 @@ Kept for the record; [`prd-v1-original.md`](./prd-v1-original.md) is the archive
 
 Verified 2026-07-24.
 
-- [ENSIP-25 — AI Agent Registry ENS Name Verification](https://docs.ens.domains/ensip/25/)
-- [ENSIP-26 — Agent Text Records](https://docs.ens.domains/ensip/26/)
-- [ENS subname docs](https://docs.ens.domains/web/subdomains/) · [ens-cli](https://github.com/ensdomains/ens-cli) · [hackathon-registrar](https://github.com/ensdomains/hackathon-registrar) · [Durin](https://github.com/resolverworks/durin) · [NameStone](https://namestone.com/)
-- [The Graph — AI overview](https://thegraph.com/docs/en/ai-overview/) · [Standardized Subgraphs](https://thegraph.com/docs/en/subgraphs/existing-subgraphs/standard-subgraphs/) · [x402 payments](https://thegraph.com/docs/en/subgraphs/tooling/x402-payments/) · [90-protocol lending query](https://thegraph.com/blog/community-builder-queried-defi-lending-protocols-subgraphs-mcp/)
-- [graphops/subgraph-mcp](https://github.com/graphops/subgraph-mcp) · [PaulieB14/subgraph-registry](https://github.com/PaulieB14/subgraph-registry) · [PaulieB14/subgraph-mcp-skills](https://github.com/PaulieB14/subgraph-mcp-skills) · [substreams-skills](https://github.com/streamingfast/substreams-skills)
-- [google/A2UI](https://github.com/google/A2UI) · [A2UI v0.9 announcement](https://developers.googleblog.com/a2ui-v0-9-generative-ui/)
-- [0G Private Computer](https://0g.ai/blog/0g-private-computer) · [0G docs](https://docs.0g.ai/) · [Sealed Inference announcement](https://www.globenewswire.com/news-release/2026/03/06/3250768/0/en/0G-Introduces-Sealed-Inference-Cryptographically-Private-AI-Where-Every-Response-Is-Verified-Inside-a-Hardware-Enclave.html)
+**Positioning**
+[VibeOS at Microsoft Build 2026](https://www.youtube.com/watch?v=7NfyZhV1dKM) · [VibeOS writeup](https://www.hackster.io/news/this-ai-operating-system-hallucinates-pseudo-software-even-notepad-on-demand-f83e24b42ef9) · [Google Opal](https://blog.google/technology/google-labs/opal-expansion/)
+
+**A2UI**
+[a2ui.org](https://a2ui.org) · [protocol v0.9](https://a2ui.org/specification/v0.9-a2ui/) · [client-to-server actions](https://a2ui.org/concepts/client_to_server_actions/) · [handling user actions](https://a2ui.org/concepts/actions/) · [repo](https://github.com/a2ui-project/a2ui) · [v0.9 announcement](https://developers.googleblog.com/a2ui-v0-9-generative-ui/)
+
+**The Graph**
+[AI overview](https://thegraph.com/docs/en/ai-overview/) · [Standardized Subgraphs](https://thegraph.com/docs/en/subgraphs/existing-subgraphs/standard-subgraphs/) · [x402 payments](https://thegraph.com/docs/en/subgraphs/tooling/x402-payments/) · [90-protocol lending query](https://thegraph.com/blog/community-builder-queried-defi-lending-protocols-subgraphs-mcp/) · [substreams.dev](https://substreams.dev) · [substreams-skills](https://github.com/streamingfast/substreams-skills) · [subgraph-registry](https://github.com/PaulieB14/subgraph-registry) · [graphops/subgraph-mcp](https://github.com/graphops/subgraph-mcp)
+
+**ENS**
+[ENSIP-25](https://docs.ens.domains/ensip/25/) · [ENSIP-26](https://docs.ens.domains/ensip/26/) · [subname docs](https://docs.ens.domains/web/subdomains/) · [ens-cli](https://github.com/ensdomains/ens-cli) · [hackathon-registrar](https://github.com/ensdomains/hackathon-registrar) · [Durin](https://github.com/resolverworks/durin) · [NameStone](https://namestone.com/)
+
+**0G**
+[Private Computer](https://0g.ai/blog/0g-private-computer) · [docs](https://docs.0g.ai/) · [Agentic ID](https://docs.0g.ai/concepts/agentic-id) · [ERC-7857](https://docs.0g.ai/developer-hub/building-on-0g/inft/erc7857) · [sealed inference](https://www.globenewswire.com/news-release/2026/03/06/3250768/0/en/0G-Introduces-Sealed-Inference-Cryptographically-Private-AI-Where-Every-Response-Is-Verified-Inside-a-Hardware-Enclave.html)
