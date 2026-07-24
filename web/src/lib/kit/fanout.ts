@@ -194,6 +194,9 @@ export type DetailedFanOutResult = FanOutResult & {
   live: boolean;
   bySource: Record<string, number>;
   transport: Transport;
+  /** Rows carrying a USD value that cannot be true — see `_suspect`. Surfaced
+   *  so the UI can say so out loud instead of quietly reordering them. */
+  rowsSuspect: number;
 };
 
 /** Does the plan carry a query written for this specific family? */
@@ -224,6 +227,38 @@ function isSchemaMismatch(errors: string[]): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Above this, a USD figure is not a big number — it is a broken one.
+ *
+ * Total DeFi TVL across every chain is on the order of $100-200B, so a single
+ * protocol reporting $1T is impossible by roughly an order of magnitude, and
+ * the values we actually see are far past arguable: SushiSwap on Arbitrum
+ * reports totalValueLockedUSD of 7.2e22, and Camelot V2 4.1e17. These come from
+ * broken price feeds inside the standardized deployments themselves — the data
+ * is live and correctly fetched, it is simply wrong at the source.
+ *
+ * 14 of 74 rows tripped this on a routine two-family fan-out, so it is not an
+ * edge case, and the default TVL sort put the very worst row at the top of the
+ * table. A leaderboard opening with "$72 sextillion" reads as broken software
+ * rather than as bad upstream data.
+ */
+const USD_PLAUSIBILITY_CEILING = 1e12;
+
+/**
+ * USD fields on this row that cannot be true. Flagged, never deleted: dropping
+ * a row silently would be its own kind of lie, and the point of health-checking
+ * data is to say what is wrong with it, not to hide it.
+ */
+function suspectUsdFields(row: Record<string, unknown>): string[] {
+  const bad: string[] = [];
+  for (const [key, raw] of Object.entries(row)) {
+    if (!key.includes("USD")) continue;
+    const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    if (Number.isFinite(n) && Math.abs(n) > USD_PLAUSIBILITY_CEILING) bad.push(key);
+  }
+  return bad;
 }
 
 function numeric(row: Record<string, unknown>, key: string): number {
@@ -329,8 +364,12 @@ export async function fanOutDetailed(
       if (!Array.isArray(value)) continue;
       for (const item of value) {
         if (!isRecord(item)) continue;
+        const suspect = suspectUsdFields(item);
         extracted.push({
           ...item,
+          // Present only when something is wrong, so `_suspect in row` is a
+          // clean test and untouched rows stay byte-identical to the source.
+          ...(suspect.length > 0 ? { _suspect: suspect } : {}),
           // Provenance travels with every row. Without it a merged table across
           // 27 deployments is unattributable, and Graph Track 2 explicitly asks
           // which subgraphs were used.
@@ -395,11 +434,19 @@ export async function fanOutDetailed(
 
   // Biggest first. A merged cross-protocol table sorted by nothing reads as
   // noise, and TVL is the one field every family shares.
-  rows.sort((a, b) => numeric(b, "totalValueLockedUSD") - numeric(a, "totalValueLockedUSD"));
+  //
+  // Rows with impossible USD values rank last regardless of size. Sorting them
+  // by the very field that is broken is what put $7.2e22 at the top of the
+  // table; they stay in the result, they just stop leading it.
+  const byTvl = (a: Record<string, unknown>, b: Record<string, unknown>) => {
+    const aBad = "_suspect" in a ? 1 : 0;
+    const bBad = "_suspect" in b ? 1 : 0;
+    if (aBad !== bBad) return aBad - bBad;
+    return numeric(b, "totalValueLockedUSD") - numeric(a, "totalValueLockedUSD");
+  };
+  rows.sort(byTvl);
   for (const key of Object.keys(bySchema)) {
-    bySchema[key].sort(
-      (a, b) => numeric(b, "totalValueLockedUSD") - numeric(a, "totalValueLockedUSD"),
-    );
+    bySchema[key].sort(byTvl);
   }
 
   return {
@@ -416,6 +463,7 @@ export async function fanOutDetailed(
     live: isLive(transport),
     bySource,
     transport,
+    rowsSuspect: rows.reduce((n, r) => n + ("_suspect" in r ? 1 : 0), 0),
   };
 }
 
