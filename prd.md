@@ -534,20 +534,24 @@ Four backends ship behind one interface, selected by `ENS_REGISTRAR_MODE`, degra
 
 | Mechanism | Status |
 |---|---|
-| **Namespace** — offchain CCIP-Read, `POST /api/v1/subnames` | **Primary.** Implemented against their live OpenAPI spec |
-| Onchain NameWrapper + PublicResolver | Implemented. Slower, but records are genuinely onchain |
+| **Onchain NameWrapper + PublicResolver** | **Primary — this is what runs.** `graphminis.eth` registered and wrapped on Sepolia 2026-07-25; subnames issued and read back off the chain by a client that is not ours. Slower, and worth it: nothing about it depends on a third party staying up |
+| Namespace — offchain CCIP-Read, `POST /api/v1/subnames` | Implemented against their live OpenAPI spec. Needs an API key and the parent's resolver pointed at their hybrid resolver — a signup step and a propagation wait we no longer have to take |
 | NameStone | Implemented, **but see below — do not demo it** |
 | Local mock | Default with no keys |
 
+**Verified end to end**, `aave-health-guard.graphminis.eth` and `wallet-bound-guard.graphminis.eth`: `addr` → the mini app's own wallet, `contenthash` → a CID that decodes to exactly the published manifest, ENSIP-26 `agent-context` / `agent-endpoint[web]` / `agent-endpoint[mcp]`, and an ENSIP-25 `agent-registration` entry the 0G registry confirms in the other direction. Deployment record: `contracts/deployments/ens-sepolia.json`.
+
 **Three findings that changed this plan:**
 
-1. **NameStone shuts down 2026-08-03** (announced 2026-07-14). It works during the hackathon, but demoing infrastructure that dies in ten days is a bad look in a Q&A. **[Durin](https://github.com/resolverworks/durin) inherits the same risk** — it is now a NameStone repo with a NameStone-operated gateway. This is why Namespace is primary.
+1. **NameStone shuts down 2026-08-03** (announced 2026-07-14). It works during the hackathon, but demoing infrastructure that dies in ten days is a bad look in a Q&A. **[Durin](https://github.com/resolverworks/durin) inherits the same risk** — it is now a NameStone repo with a NameStone-operated gateway. This is why we stopped depending on a hosted issuer at all.
 2. **`ensdomains/hackathon-registrar` is a dead 2019 artifact and its npm package is compromised.** Do not use it. Struck from this document.
 3. **On Sepolia, `ETHRegistrarController.register()` reverts** — it is not an authorised controller, and `available()` still returns true, so it fails in a confusing way. Registering the parent requires `TestnetV1PremigrationRegistrar` at `0xdf60C561Ca35AD3C89D24BbA854654b1c3477078`. Documented as `SEPOLIA_PARENT_REGISTRATION` in `ens.ts`.
 
 Also worth knowing: NameStone's Sepolia base URL is a **different path** (`/api/public_v1_sepolia`), not a query parameter. Getting that wrong silently writes testnet names to mainnet.
 
-**To go live:** key from `app.namespace.ninja`, own the parent, point its resolver at Namespace's hybrid resolver, set `NAMESPACE_API_KEY` + `ENS_PARENT_DOMAIN`.
+**Already live**, and the sequence that got there, because trap 2 costs an hour if you meet it cold: register the parent through `TestnetV1PremigrationRegistrar` (single transaction, free, ≥28 days, `data: []`) → it comes back **unwrapped**, so `NameWrapper.setSubnodeRecord` reverts with `Unauthorised` → `BaseRegistrar.setApprovalForAll(NameWrapper, true)` then `wrapETH2LD` → set `ENS_REGISTRAR_MODE=onchain`, `ENS_REGISTRAR_PRIVATE_KEY`, `ENS_RPC_URL`.
+
+**To use Namespace instead:** key from `app.namespace.ninja`, own the parent, point its resolver at Namespace's hybrid resolver, set `NAMESPACE_API_KEY` + `ENS_PARENT_DOMAIN`.
 
 > **Still worth the booth conversation** — but as a "here's what we built, does this land?" rather than "what should we use?". ETHGlobal's own ENS prize pages list ENSIP-25/26 as resources, which is exactly what this implements.
 
@@ -581,14 +585,23 @@ Two uses, both in 0G Track 1's stated wheelhouse. No privacy framing — that wa
 
 ## Inference on 0G Compute
 
-Planning and UI composition run on [0G Private Computer](https://0g.ai/blog/0g-private-computer) — OpenAI-compatible at `https://router-api.0g.ai/v1`, so it's a one-line base-URL change. TEE-backed (Intel TDX + H100/H200). Models: DeepSeek Chat V3, Qwen3.6 Plus, GLM-5-FP8.
+Planning and UI composition run on [0G Private Computer](https://0g.ai/blog/0g-private-computer) — OpenAI-compatible at `https://router-api.0g.ai/v1`, so it's a one-line base-URL change. TEE-backed (Intel TDX + H100/H200).
+
+**Models — checked against a live `GET /v1/models` on 2026-07-25.** `deepseek-chat-v3`, named in every earlier revision of this document, **no longer exists on the router**; 23 models do, and that is not one of them. A dead model id is the worst kind of stale, because nothing fails until a real `ZEROG_API_KEY` is set — that is, during the demo and not before it. Current picks: **`0gm-1.0-35b-a3b`** (0G Foundation's own, tool-capable, likeliest to land on a TEE-attested provider), with `deepseek-v4-flash`, `qwen3.7-plus`, `glm-5.1` and `minimax-m3` as alternatives.
+
+**Getting a key:** `pc.0g.ai` → Console → API Keys, then deposit 0G into the compute ledger. Billing is per-token against that ledger; there is no card.
+
+**Trust mode is not optional.** The router's default is *Standard* routing, which explicitly spans community-hosted channels and is **not guaranteed verifiable** — so `verify_tee` in the request body is not sufficient on its own, and a response can come back with no attestation at all. Anything written into `provenance` must come from `verified` (TeeML/TeeTLS providers) or `private` (TEE enclaves only) routing, pinned per request:
 
 ```ts
 const openai = new OpenAI({
   baseURL: "https://router-api.0g.ai/v1",
   apiKey: process.env.ZEROG_API_KEY,
+  defaultHeaders: { "X-0G-Provider-Trust-Mode": "verified" },
 });
 ```
+
+A provenance record that silently degrades to unattested is worse than no provenance, because we would be showing it on stage as proof.
 
 The attestation is stored in the manifest's `provenance`. **This matters more now than it did as a dashboard tool:** if a generated UI can move money, "did this model really produce this plan, from this data" stops being a nicety and becomes an audit trail. Verifiable provenance for an agent that spends.
 
@@ -821,26 +834,28 @@ Agentic ID         ERC-7857. Deploy your own contract; oracle (TEE/ZKP) +
 
 Hard qualification requirements. **Anything unchecked at Sunday 07:00 is a disqualification, not a missing feature.**
 
+Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below was read back from the chain or the gateway, not inferred from the code.
+
 | # | Requirement | Track | Owner | Status |
 |---|---|---|---|---|
-| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | ☐ |
-| 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | ☐ |
-| 3 | Open source, clear README **or** SKILL.md | Graph 1 | | ☐ |
-| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | ☐ |
-| 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | ☐ |
-| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | ☐ |
+| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **◐** data plane live (18 sources, 13 healthy, 74 rows, $0.0014). **Seed apps still fabricated — this is the open half** |
+| 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | ☐ **not started** — no `packages/kit`, no MCP server, nothing on npm |
+| 3 | Open source, clear README **or** SKILL.md | Graph 1 | | ☐ `web/README.md` is still the stock Next.js one |
+| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **◐** acts, yes — policy gate → signer → journal. Reasoning is the deterministic stub until #11 |
+| 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **◐** every row carries `_source`/`_label`/`_schema`/`_network`; needs saying in the README |
+| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs + x402 live; Substreams not built |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
-| 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | ☐ |
-| 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | ☐ |
+| 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |
+| 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑** `addr` → the app's wallet, `contenthash` → the manifest CID, ENSIP-25/26 records, mutual verification with the 0G token |
 | 10 | **Present at ENS booth, Sunday morning, in person** | ENS 1/2 | **assign a name** | ☐ |
-| 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | ☐ |
-| 12 | **Contract deployment addresses** | 0G 1 | | ☐ |
-| 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | ☐ |
+| 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | ☐ **blocked on a key** — `pc.0g.ai` → Console → API Keys, deposit 0G. Code is ready and pins `verified` routing |
+| 12 | **Contract deployment addresses** | 0G 1 | | **☑** Galileo 16602 — AgenticId `0xeB2872…C3B0`, MiniAppRegistry `0x093319…8dA8`, Verifier `0x708aE7…aaD3` |
+| 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | **☑** token 6, `chainscan-galileo.0g.ai/token/0xeB2872…C3B0?a=6` |
 | 14 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
-| 15 | Live demo link | 0G 1 | | ☐ |
+| 15 | Live demo link | 0G 1 | | ☐ **and it gates #8/#9 quality** — published records currently carry `localhost:3000` |
 | 16 | Team names + Telegram/X | 0G 1 | | ☐ |
-| 17 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | ☐ |
-| 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | ☐ |
+| 17 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | **◐** on track |
+| 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | **◐** this document is the artifact — but `prd-v1-original.md` is currently *deleted* in the working tree and Appendix C links it |
 | 19 | Select exactly 3 partner prizes: Graph, ENS, 0G | submission | | ☐ |
 
 **Addressable:** $15,000 (Graph ×3) + $3,000 (ENS 1+2) + $6,000 (0G T1) = **$24,000 across 6 tracks, 3 selections.**
@@ -891,7 +906,7 @@ Each owns a directory, has a definition of done, and shares no mutable state wit
 | W3 | **Planner** | NL → plan, on 0G Compute, attestation capture | manifest, api | Arbitrary question → valid plan + stored attestation |
 | W4 | **Composer** | plan + data → A2UI doc, form-follows-data rules | catalog, a2ui | Every catalog component reachable from some data shape |
 | W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch; theme swap works |
-| W5b | **Shell** | desktop, windows, taskbar, tray, Start menu, Task Manager | — | Windows drag/resize/z-order; tray balloon fires; End Task kills an agent |
+| W5b | **Shell** | ~~desktop, windows, taskbar, tray, Start menu, Task Manager~~ **cut — see §6.** Board, Ledger, App | — | Board lists apps by tier; Ledger streams every action; global halt in the top bar |
 | W6 | **Agency** | policy engine, smart account + session keys, signer, kill switch, journal | policy, manifest | Action executes on testnet; every policy rejection path tested |
 | W7 | **Identity** | ENS issuance + records, ERC-7857 + oracle + mint, mutual verification | manifest | Name resolves to app; ENSIP-25 binding verifies both directions |
 | W8 | **Memory** | encrypted 0G Storage per app, action journal | manifest | App recalls prior runs; journal backs the on-screen log |
@@ -966,8 +981,8 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             the client picks the components. It cannot inject code."
                                                     ← technical execution
 
-1:12–1:50  THE LEAP. Drop the health factor on testnet. A balloon pops from the
-           system tray: "aave-guard.eth executed a swap." The trade log fills.
+1:12–1:50  THE LEAP. Drop the health factor on testnet. A line lands in the
+           Ledger: "aave-guard.eth executed a swap." The trade log fills.
            "This isn't a dashboard. It has a wallet, a $500 cap, and one
             allowlisted router."
            Open the enforcement panel — it states per constraint who enforces
@@ -979,9 +994,10 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
            [In stub mode the same panel says verifiedOnchain: false, so this
             cannot overstate by accident. Never claim a completed onchain-
             enforced trade until a userOp has actually landed.]
-           Then: Ctrl+Alt+Del. Task Manager. The agent is in the process list.
-           End Task.
-           "And that's the kill switch. Dune can't do any of this."
+           Then hit the kill switch on the app, and global halt in the top bar.
+           The Ledger shows the next trigger arriving and being refused.
+           "And that's the kill switch — the app is still running, it just
+            can't spend. Dune can't do any of this."
                                                     ← the differentiator
 
 1:50–2:08  IDENTITY. The title bar reads aave-guard.graphminis.eth — resolving
@@ -990,10 +1006,11 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
            Paste the name into a different agent — it resolves, reads
            agent-context, and runs.                 ← ENS T1 + T2, 0G T1
 
-2:08–2:28  THE ECOSYSTEM. Start menu → the registry. Fork one — an XP install
-           dialog, then a new icon on the desktop. Fresh wallet, fresh name, no
-           inherited spending authority. The creator earns $0.05 per run via
-           x402, on the same rail the agent uses to buy its own data.
+2:08–2:28  THE ECOSYSTEM. The registry. Fork one — it lands on the Board as a
+           new card. Fresh wallet, fresh name, no inherited spending authority;
+           show the forked app's addr differing from its parent's. The creator
+           earns $0.05 per run via x402, on the same rail the agent uses to buy
+           its own data.
                                                     ← Graph T1, ecosystem
 
 2:28–2:50  npm i @graphminis/kit — any agent gets this.
@@ -1023,14 +1040,15 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 | Judge: "an LLM with a wallet is reckless" | Med | Med | §7. Policy enforced onchain in the session key, not in the prompt — a compromised backend still can't exceed the cap. Have the table memorized |
 | Judge: "isn't this just Dune?" | Med | Low | §1 table. Dune dashboards can't trade, can't be run by an agent, and don't exist until a human writes SQL |
 | Breadth without depth — 10 schemas all shallow | Med | Med | Demo shows 2–3 families composing *well*; the other seven prove the resolver generalizes. Don't try to showcase all ten in 2:50 |
-| XP aesthetic reads as unserious for a product moving money | Med | Med | "Frame is 2001, data is 2026" (§6) — chrome is retro, plot areas and numbers are precise and modern. Judge it by screenshotting a window and asking whether the *content* looks credible |
-| Window manager underestimated as "a styling pass" | Med | Med | XP.css gives chrome and controls, not drag/resize/z-order. W5b owns it as real work with its own definition of done |
+| Brutalism reads as unfinished rather than deliberate | Med | Med | §6 — borders on containers not cells, one heavy frame per panel then get quiet, hard shadow reserved for things you can act on. Judge it by screenshotting one panel and asking whether the *content* looks credible |
+| Live standardized data contains impossible values | **High** | Med | Real: 13 of 74 rows on a routine fan-out, incl. SushiSwap TVL at 7.2e22 from a broken upstream price feed. Rows are flagged `_suspect` and ranked last, never dropped — sorting by the broken field once put the worst row at the top of the table |
+| Seed content is mistaken for live data | Med | **Fatal** | Matrix #1 says no mocks *anywhere in the demo*. The registry ships seed apps with fabricated numbers; either they run live before recording or they never appear on camera |
 
 ---
 
 # 18. Open questions — resolve at booths Friday morning
 
-1. **ENS:** we shipped Namespace (offchain CCIP-Read) as primary, with an onchain NameWrapper backend behind the same interface — after finding NameStone shuts down 2026-08-03 and Durin now runs on their gateway. Does that read right, or would you rather see the onchain path demoed?
+1. **ENS:** we demo the onchain NameWrapper path — parent registered and wrapped on Sepolia, subnames and records written by transaction — with Namespace's offchain CCIP-Read behind the same interface as the alternative. We went onchain after finding NameStone shuts down 2026-08-03 and Durin runs on their gateway. Does the onchain path read as the stronger choice to you, or do you want to see gasless CCIP-Read subnames instead?
 2. **ENS:** does "every mini app is an agent with a wallet, a name, and ENSIP-25/26 records" land better in Track 1 or Track 2? Which do you want us to lead with at the booth?
 3. **The Graph:** which standardized-schema deployments are reliably live on Arbitrum *right now*? Directly attacks the top risk.
 4. **The Graph:** is there a Substreams package we can subscribe to in an afternoon for price or lending events on Arbitrum, or should we poll and say so?
@@ -1187,7 +1205,19 @@ await publish(ui, {
 
 [`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
 
-## v5 — the interface is an operating system (current)
+## v6 — neo-brutalism, and the shell is cut (current)
+
+The OS metaphor is gone. §6 is the built design and this entry is why it changed:
+
+- **We do not control the composition.** An agent assembles the screen at runtime from a catalog, so the aesthetic had to hold together for six components it has never seen stacked together. A window manager makes that *harder*, not easier — it adds a second layout system on top of one we already cannot predict
+- **W5b was a whole workstream buying nothing the product needed.** XP.css gives chrome but no window manager, so drag/resize/z-order was real work, and none of it made a generated interface more legible or a policy decision more visible
+- **The three surfaces do the job the taskbar was there for.** Board answers "what do I have and what is it doing", the Ledger keeps background autonomy visible as it happens, global halt lives in the top bar. That is the whole "which agents are live" question, without simulating an OS to ask it
+- **"Frame is 2001, data is 2026" was a rule protecting against a risk we no longer take.** A product that moves money reads better as severe than as nostalgic
+- **What survives from v5:** the theme swap. It was always the load-bearing idea — same manifest, different catalog, rendered live — and it proves A2UI's core property regardless of which skin sits on top
+
+Also corrected here: §9 named `deepseek-chat-v3`, which no longer exists on the 0G router, and did not mention that the router's default routing is not verifiable. Both are fixed in §9 and both were the kind of error that surfaces only once real keys exist.
+
+## v5 — the interface is an operating system (superseded by v6)
 
 Windows XP, committed to fully. Load-bearing rather than decorative:
 
