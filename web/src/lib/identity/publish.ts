@@ -38,6 +38,7 @@ import {
   type Manifest,
 } from "@/lib/contracts/manifest";
 import type { Publish, PublishOptions, PublishResult, Resolve } from "@/lib/contracts/api";
+import { getApp, provisionWallet, registerApp } from "@/lib/agency/wallet";
 import { cidFromUri, fetchManifestJson, pinManifest, resolveIpfsMode } from "./ipfs";
 import {
   assertLabel,
@@ -164,15 +165,73 @@ export async function publishWithReport(
   const warnings: string[] = [];
 
   const prepared = applyOptions(manifest, options);
-  const parsed = zManifest.safeParse(prepared);
+  const label = options.name;
+
+  /* 0 — the mini app's wallet.
+
+     §8 makes `addr` the address a human funds *after* verifying what the name
+     is, so it has to exist before the manifest is pinned and before a single
+     record is written. Leaving it null published a name that asserted an
+     identity but not an address, which is the one thing the record set exists
+     to provide.
+
+     Provisioning here rather than lazily at the first action also keeps one
+     address in play. For any real signer kind `provisionWallet` generates fresh
+     key material, so calling it again from /api/agency/register would put one
+     address in ENS and spend from another — a name that tells you to fund
+     0xA while the app pays from 0xB. Registering it now makes that route's
+     first-write-wins check find this wallet instead of minting a second one. */
+  let walletAddress: string | null = prepared.agency.policy.wallet ?? null;
+  if (!walletAddress) {
+    try {
+      const existing = getApp(label);
+      if (existing) {
+        walletAddress = existing.wallet.address;
+      } else {
+        const provisioned = await provisionWallet({
+          appId: label,
+          tier: prepared.agency.tier,
+          policy: prepared.agency.policy,
+        });
+        registerApp({ appId: label, agency: prepared.agency, wallet: provisioned });
+        walletAddress = provisioned.address;
+      }
+    } catch (err) {
+      // provisionWallet refuses mainnet and refuses an incompletely scoped
+      // session. Both are correct refusals — publish the name without an addr
+      // rather than inventing an address nobody controls.
+      warnings.push(`wallet not provisioned, ENS addr left empty: ${errText(err)}`);
+    }
+  }
+
+  const withWallet: Manifest = walletAddress
+    ? {
+        ...prepared,
+        agency: {
+          ...prepared.agency,
+          policy: { ...prepared.agency.policy, wallet: walletAddress },
+        },
+      }
+    : prepared;
+
+  const parsed = zManifest.safeParse(withWallet);
   if (!parsed.success) {
     throw new Error(`publish: manifest failed validation — ${parsed.error.message}`);
   }
   const base = parsed.data;
 
   const backend = getEnsBackend();
-  const label = options.name;
   const name = `${label}.${backend.parent}`;
+  const origin = appOrigin();
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|$|\/)/.test(origin)) {
+    // These strings go into agent-endpoint[web] and url, and on the onchain
+    // backend that is a transaction. A published name whose endpoints point at
+    // a laptop resolves to nothing for anyone else, and it is silent — the
+    // publish succeeds and only a judge following the record finds out.
+    warnings.push(
+      `endpoints point at ${origin} — set NEXT_PUBLIC_APP_URL to the deployed origin before publishing anything you intend to demo, or the records are only resolvable on this machine`,
+    );
+  }
   const endpoints = endpointsFor(label);
 
   /* 1 — pin the canonical manifest. */
