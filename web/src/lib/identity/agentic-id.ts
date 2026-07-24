@@ -533,6 +533,41 @@ export function zeroGPublicClient(): PublicClient {
   }) as unknown as PublicClient;
 }
 
+/**
+ * Wait for a receipt by polling to a deadline.
+ *
+ * NOT `waitForTransactionReceipt`, deliberately. On 0G Galileo that action
+ * abandons a perfectly good transaction after ~3-5 seconds regardless of
+ * `retryCount`, `retryDelay` or `timeout`: the RPC answers `getTransaction`
+ * with a pending tx (`blockNumber: null`), viem's replacement-detection path
+ * treats the still-missing receipt as terminal, and throws
+ * `TransactionReceiptNotFoundError`. Measured against a fresh broadcast, a
+ * plain `getTransactionReceipt` poll returned the receipt 150ms after that
+ * throw — the transaction was never in doubt, only viem's heuristic was.
+ *
+ * The consequence of getting this wrong is the worst kind: three mints
+ * succeeded onchain while `publish` reported "Agentic ID mint failed",
+ * discarded the token id, and skipped the registry write that binds the ENS
+ * name to the token — leaving a name and a token that cannot verify each
+ * other. A broadcast transaction is not failed just because the first poll
+ * missed it.
+ */
+async function awaitReceipt(client: PublicClient, hash: Hex) {
+  const intervalMs = 2_000;
+  const deadline = Date.now() + 180_000;
+  for (;;) {
+    const receipt = await client.getTransactionReceipt({ hash }).catch(() => null);
+    if (receipt) return receipt;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `receipt for ${hash} did not appear within 180s — the transaction may still land, ` +
+          `check the explorer before assuming it failed`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 function deployerAccount(): PrivateKeyAccount {
   const raw = process.env.ZEROG_DEPLOYER_KEY;
   if (!raw) throw new Error("ZEROG_DEPLOYER_KEY is required to write to 0G Chain");
@@ -672,7 +707,7 @@ export async function mintAgenticId(input: MintInput): Promise<MintResult> {
     chain: zeroGChain(),
   });
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await awaitReceipt(publicClient, txHash);
   const logs = parseEventLogs({
     abi: AGENTIC_ID_ABI,
     eventName: "Minted",
@@ -760,7 +795,7 @@ export async function cloneAgenticId(
     args: [receiver.address, BigInt(parentTokenId), proofs],
     chain: zeroGChain(),
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await awaitReceipt(publicClient, txHash);
   const logs = parseEventLogs({
     abi: AGENTIC_ID_ABI,
     eventName: "Cloned",
@@ -849,7 +884,7 @@ export async function registerMiniApp(input: RegisterInput): Promise<RegisterRes
         chain: zeroGChain(),
       });
 
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await awaitReceipt(publicClient, txHash);
   return {
     mode: "live",
     txHash,
