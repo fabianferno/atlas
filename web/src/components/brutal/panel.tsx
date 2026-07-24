@@ -71,7 +71,7 @@ export function Panel({
             "border-b border-hairline",
             // Rule 1 chrome for monitor tier: a dashed live rule says
             // "this thing is watching" without a badge to read.
-            t === "monitor" && "border-b-2 border-dashed border-live/60",
+            t === "monitor" && "border-b-2 border-dashed border-live/50",
           )}
         >
           {title ? (

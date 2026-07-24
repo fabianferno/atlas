@@ -4,8 +4,11 @@
  * confirm_dialog — a Server Event gated on an explicit human confirmation.
  * Required whenever `policy.requireConfirm` is true.
  *
- * { label?, triggerLabel?, title, body?, event?, context?,
- *   confirmLabel?, cancelLabel?, amountUsd?, target?, summary?: [{k, v}] }
+ * Composer payload: { title, body, actionKey, requireConfirm }
+ * plus the component's declared `action.event` (name + context), which the
+ * renderer supplies — so this component does not need to know the event name.
+ * Fixtures may also pass { triggerLabel, confirmLabel, cancelLabel, amountUsd,
+ * target, summary: [{k, v}] }.
  *
  * Deliberately NOT a component that can be opened by the agent. The dialog
  * opens only from a user gesture — an agent that could raise its own modal
@@ -73,7 +76,7 @@ export function ConfirmDialog({ data, label, onAction, index }: CatProps) {
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-4 sm:items-center"
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}

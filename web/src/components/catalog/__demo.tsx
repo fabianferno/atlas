@@ -7,10 +7,15 @@
  *
  *     import { CatalogDemo } from "@/components/catalog/__demo";
  *
- * It renders three things:
+ * Every fixture below is in the shape `buildPayload()` produces in
+ * `lib/kit/composer.ts` — this doubles as a reference for what each component
+ * expects to receive from the composer.
+ *
+ * It renders four things:
  *   1. the tier ladder, so the Rule 1 chrome difference is visible side by side
- *   2. all 23 catalog components with fixture data
- *   3. the A2UI renderer resolving a real document, dispatching real events
+ *   2. all 16 display components with fixture payloads
+ *   3. all 7 action components under an autonomous policy
+ *   4. the A2UI renderer resolving a real document and dispatching real events
  */
 
 import { useState } from "react";
@@ -36,11 +41,12 @@ import {
   DEMO_JOURNAL,
   AAVE_V3_POOL,
   UNISWAP_V3_ROUTER,
-  type A2uiActionPayload,
+  type A2UIClientAction,
 } from "@/components/renderer";
 
 /* ────────────────────────────────────────────────────────────────────────────
-   Fixture data. Arbitrum DeFi, roughly plausible for July 2026.
+   Fixture payloads. Arbitrum DeFi, roughly plausible for July 2026.
+   Shapes match lib/kit/composer.ts `buildPayload()`.
    ──────────────────────────────────────────────────────────────────────────*/
 
 const hours = (n: number) => Date.UTC(2026, 6, 22, 0, 0, 0) / 1000 + n * 3600;
@@ -52,22 +58,31 @@ function wave(n: number, base: number, amp: number, drift: number, seed = 1) {
   }));
 }
 
+/** Base fields every block payload carries. */
+const meta = (shape: string, title: string, rowCount: number) => ({
+  shape,
+  title,
+  reason: `${shape} → selected by shape, not by keywords in the prompt.`,
+  confidence: 0.93,
+  rowCount,
+});
+
 const FIXTURES: Record<string, unknown> = {
   metric_card: {
-    label: "24h fees, Arbitrum DEXs",
+    ...meta("scalar_with_delta", "24h fees, Arbitrum DEXs", 168),
     value: 1_284_390,
+    delta: 0.124, // fraction, per the composer
+    label: "Fees Usd",
     unit: "usd",
-    deltaPct: 12.4,
-    sublabel: "across 7 dex-amm subgraphs",
-    source: "dex-amm@1.3.2",
   },
 
   bar_chart: {
-    label: "TVL by protocol — Arbitrum",
+    ...meta("categorical_one_metric", "TVL by protocol — Arbitrum", 6),
+    metric: "Tvl Usd",
     unit: "usd",
-    series: [
+    categories: [
       { label: "Aave v3", value: 812_400_000 },
-      { label: "Uniswap v3", value: 604_200_000, accent: true },
+      { label: "Uniswap v3", value: 604_200_000 },
       { label: "GMX v2", value: 431_900_000 },
       { label: "Pendle", value: 287_100_000 },
       { label: "Camelot v3", value: 141_600_000 },
@@ -76,43 +91,42 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   grouped_bar: {
-    label: "Fees vs revenue vs incentives, 7d",
-    unit: "usd",
-    metrics: ["fees", "revenue", "incentives"],
-    accentMetric: "revenue",
-    rows: [
-      { label: "Uniswap v3", values: [4_120_000, 0, 0] },
-      { label: "Camelot v3", values: [910_000, 273_000, 402_000] },
-      { label: "GMX v2", values: [3_480_000, 1_044_000, 620_000] },
-      { label: "Pendle", values: [740_000, 222_000, 1_180_000] },
+    ...meta("categorical_many_metrics", "Fees vs revenue vs incentives, 7d", 4),
+    metrics: ["Fees Usd", "Revenue Usd", "Incentives Usd"],
+    metricKeys: ["feesUsd", "revenueUsd", "incentivesUsd"],
+    categories: ["Uniswap v3", "Camelot v3", "GMX v2", "Pendle"],
+    series: [
+      { name: "Fees Usd", key: "feesUsd", accent: false, values: [4_120_000, 910_000, 3_480_000, 740_000] },
+      { name: "Revenue Usd", key: "revenueUsd", accent: true, values: [0, 273_000, 1_044_000, 222_000] },
+      { name: "Incentives Usd", key: "incentivesUsd", accent: false, values: [0, 402_000, 620_000, 1_180_000] },
     ],
   },
 
   time_series: {
-    label: "TVL, 96h — lending-cdp family",
+    ...meta("timeseries_many_metrics", "TVL, 96h — lending-cdp family", 48),
     unit: "usd",
-    live: true,
     series: [
-      { name: "Aave v3", accent: true, points: wave(48, 812e6, 24e6, 1.1e6, 2) },
-      { name: "Radiant", points: wave(48, 78e6, 9e6, -0.4e6, 5) },
-      { name: "Compound v3", points: wave(48, 212e6, 12e6, 0.3e6, 9) },
+      { name: "Aave v3", key: "aave", accent: true, points: wave(48, 812e6, 24e6, 1.1e6, 2) },
+      { name: "Radiant", key: "radiant", accent: false, points: wave(48, 78e6, 9e6, -0.4e6, 5) },
+      { name: "Compound v3", key: "compound", accent: false, points: wave(48, 212e6, 12e6, 0.3e6, 9) },
     ],
   },
 
   area_stack: {
-    label: "Borrows by collateral, 96h",
+    ...meta("timeseries_composition", "Borrows by collateral, 96h", 48),
     unit: "usd",
-    layers: [
-      { name: "WETH", accent: true, points: wave(48, 320e6, 18e6, 0.8e6, 1) },
-      { name: "WBTC", points: wave(48, 180e6, 11e6, 0.2e6, 4) },
-      { name: "USDC", points: wave(48, 240e6, 14e6, 0.5e6, 7) },
-      { name: "ARB", points: wave(48, 64e6, 8e6, -0.3e6, 11) },
+    metric: "Borrow Usd",
+    series: [
+      { name: "WETH", key: "WETH", accent: false, points: wave(48, 320e6, 18e6, 0.8e6, 1) },
+      { name: "WBTC", key: "WBTC", accent: false, points: wave(48, 180e6, 11e6, 0.2e6, 4) },
+      { name: "USDC", key: "USDC", accent: false, points: wave(48, 240e6, 14e6, 0.5e6, 7) },
+      { name: "ARB", key: "ARB", accent: false, points: wave(48, 64e6, 8e6, -0.3e6, 11) },
     ],
   },
 
   candlestick: {
-    label: "ARB / USDC — Uniswap v3 0.05%",
-    candles: Array.from({ length: 42 }, (_, i) => {
+    ...meta("ohlcv", "ARB / USDC — Uniswap v3 0.05%", 42),
+    points: Array.from({ length: 42 }, (_, i) => {
       const o = 1.18 + Math.sin(i / 3.7) * 0.09 + i * 0.004;
       const c = o + (Math.sin(i / 2.1) * 0.05 - 0.006);
       return {
@@ -127,77 +141,93 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   leaderboard: {
-    label: "Top pools by 24h fees",
+    ...meta("categorical_ranked", "Top pools by 24h fees", 5),
+    metric: "Fees Usd",
     unit: "usd",
     rows: [
-      { label: "WETH / USDC 0.05%", sublabel: "uniswap-v3 · arbitrum", value: 214_800, deltaPct: 8.2, accent: true },
-      { label: "WETH / ARB 0.30%", sublabel: "camelot-v3 · arbitrum", value: 96_400, deltaPct: -3.1 },
-      { label: "WBTC / WETH 0.05%", sublabel: "uniswap-v3 · arbitrum", value: 71_200, deltaPct: 1.4 },
-      { label: "GMX / WETH 1.00%", sublabel: "camelot-v3 · arbitrum", value: 44_900, deltaPct: 22.7 },
-      { label: "USDC / USDT 0.01%", sublabel: "uniswap-v3 · arbitrum", value: 38_150, deltaPct: -0.6 },
+      { rank: 1, label: "WETH / USDC 0.05%", value: 214_800, delta: 16_300 },
+      { rank: 2, label: "WETH / ARB 0.30%", value: 96_400, delta: -3_100 },
+      { rank: 3, label: "WBTC / WETH 0.05%", value: 71_200, delta: 980 },
+      { rank: 4, label: "GMX / WETH 1.00%", value: 44_900, delta: 8_300 },
+      { rank: 5, label: "USDC / USDT 0.01%", value: 38_150, delta: -230 },
     ],
   },
 
   gauge: {
-    label: "Health factor — Aave v3",
+    ...meta("bounded_ratio", "Health factor — Aave v3", 1),
     value: 1.28,
     min: 1,
     max: 3,
-    riskAt: 1.35,
-    dangerAt: 1.1,
+    target: 1.35,
+    label: "Health Factor",
+    unit: "ratio",
   },
 
   progress_bar: {
-    label: "Lifetime spend cap",
+    ...meta("scalar_vs_target", "Lifetime spend cap", 1),
     value: 312.4,
     target: 500,
+    pct: 0.6248,
+    label: "Spent Usd",
     unit: "usd",
     spend: true,
     deadline: "2026-07-31T09:00:00.000Z",
   },
 
   comparison_grid: {
-    label: "Lending markets — USDC",
+    ...meta("entities_shared_metrics", "Lending markets — USDC", 3),
+    metrics: ["Supply Apy", "Borrow Apy", "Utilisation", "Total Supply Usd", "Reserve Factor"],
+    metricKeys: ["supplyApy", "borrowApy", "utilisation", "totalSupplyUsd", "reserveFactor"],
+    units: ["pct", "pct", "pct", "usd", "pct"],
     entities: [
-      { name: "Aave v3", network: "arbitrum-one" },
-      { name: "Compound v3", network: "arbitrum-one" },
-      { name: "Radiant", network: "arbitrum-one" },
-    ],
-    rows: [
-      { metric: "Supply APY", unit: "%", values: [4.12, 3.88, 6.41] },
-      { metric: "Borrow APY", unit: "%", values: [5.63, 5.21, 9.02], higherIsBetter: false },
-      { metric: "Utilisation", unit: "%", values: [78.4, 71.2, 88.9], higherIsBetter: false },
-      { metric: "Total supply", unit: "usd", values: [412_000_000, 188_000_000, 41_000_000] },
-      { metric: "Reserve factor", unit: "%", values: [10, 15, 25], higherIsBetter: false },
+      { label: "Aave v3", values: [4.12, 5.63, 78.4, 412_000_000, 10] },
+      { label: "Compound v3", values: [3.88, 5.21, 71.2, 188_000_000, 15] },
+      { label: "Radiant", values: [6.41, 9.02, 88.9, 41_000_000, 25] },
     ],
   },
 
   heatmap: {
-    label: "24h volume — protocol × chain",
+    ...meta("two_categoricals_one_metric", "24h volume — protocol × chain", 16),
+    metric: "Volume Usd",
     unit: "usd",
-    rows: ["Uniswap v3", "Aave v3", "GMX", "Pendle"],
-    cols: ["arbitrum", "optimism", "base", "mainnet"],
+    rowLabels: ["Uniswap v3", "Aave v3", "GMX", "Pendle"],
+    colLabels: ["arbitrum", "optimism", "base", "mainnet"],
     cells: [
       [412e6, 88e6, 154e6, 1_240e6],
       [96e6, 31e6, 44e6, 380e6],
-      [212e6, 4e6, 9e6, 0],
+      [212e6, 4e6, 9e6, null],
       [64e6, 12e6, 38e6, 141e6],
     ],
   },
 
   distribution: {
-    label: "Borrow position size — Aave v3 Arbitrum",
+    ...meta("many_observations", "Borrow position size — Aave v3 Arbitrum", 260),
+    metric: "Borrow Usd",
     unit: "usd",
-    values: Array.from({ length: 260 }, (_, i) => {
-      const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
-      return Math.round(Math.pow(r, 2.6) * 480_000 + 400);
-    }),
+    count: 260,
+    total: 18_400_000,
+    buckets: [
+      { from: 400, to: 40_400, count: 168 },
+      { from: 40_400, to: 80_400, count: 41 },
+      { from: 80_400, to: 120_400, count: 21 },
+      { from: 120_400, to: 160_400, count: 12 },
+      { from: 160_400, to: 200_400, count: 7 },
+      { from: 200_400, to: 240_400, count: 4 },
+      { from: 240_400, to: 280_400, count: 3 },
+      { from: 280_400, to: 320_400, count: 2 },
+      { from: 320_400, to: 360_400, count: 1 },
+      { from: 360_400, to: 400_400, count: 1 },
+      { from: 400_400, to: 440_400, count: 0 },
+      { from: 440_400, to: 480_400, count: 1 },
+    ],
     markers: [{ label: "your size", value: 8420 }],
   },
 
   flow_diagram: {
-    label: "Bridge volume, 24h",
+    ...meta("source_target_volume", "Bridge volume, 24h", 5),
     unit: "usd",
+    metric: "Volume Usd",
+    nodes: ["mainnet", "arbitrum", "base", "optimism"],
     flows: [
       { source: "mainnet", target: "arbitrum", value: 184_000_000 },
       { source: "mainnet", target: "base", value: 121_000_000 },
@@ -208,62 +238,72 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   position_card: {
-    asset: "WETH",
-    side: "supply",
+    ...meta("held_position", "WETH supply on Aave v3", 1),
+    label: "WETH supply",
+    size: 15_320.4,
+    sizeLabel: "Collateral Usd",
+    risk: 1.28,
+    riskLabel: "Health Factor",
+    entries: [
+      { label: "Collateral Usd", value: 15_320.4, unit: "usd" },
+      { label: "Debt Usd", value: 8_420.55, unit: "usd" },
+      { label: "Liquidation Price", value: 2_870.4, unit: "usd" },
+      { label: "Supply Apy", value: 3.42, unit: "pct" },
+    ],
+    positions: [
+      { label: "WETH supply", size: 15_320.4, risk: 1.28 },
+      { label: "ARB supply", size: 2_410.9, risk: 1.28 },
+    ],
     protocol: "aave-v3",
     network: "arbitrum-one",
     account: "0x9C4f2b1a7E3d5F6a8B0c1D2e3F4a5B6c7D8e9F01",
-    size: 4.812,
-    sizeUsd: 15_320.4,
-    entry: 2740.1,
-    mark: 3183.75,
-    pnlUsd: 2134.6,
-    pnlPct: 16.19,
-    healthFactor: 1.28,
-    liquidationPrice: 2870.4,
   },
 
   data_table: {
-    label: "Recent swaps — WETH / USDC 0.05%",
-    columns: [
-      { key: "ts", label: "time" },
-      { key: "side", label: "side" },
-      { key: "amountUsd", label: "size", unit: "usd", align: "right" },
-      { key: "price", label: "price", unit: "usd", align: "right" },
-      { key: "account", label: "account" },
-    ],
+    ...meta("rows_arbitrary_columns", "Recent swaps — WETH / USDC 0.05%", 4),
+    columns: ["Time", "Side", "Amount Usd", "Price", "Account"],
+    columnKeys: ["ts", "side", "amountUsd", "price", "account"],
+    units: ["none", "none", "usd", "usd", "none"],
     rows: [
-      { ts: "09:14:04", side: "buy", amountUsd: 41_200, price: 3183.75, account: "0x9C4f2b1a7E3d5F6a8B0c1D2e3F4a5B6c7D8e9F01" },
-      { ts: "09:13:51", side: "sell", amountUsd: 8_940, price: 3182.9, account: "0x4A1b2C3d4E5f60718293a4B5c6D7e8F901234567" },
-      { ts: "09:13:48", side: "buy", amountUsd: 126_400, price: 3184.12, account: "0xDeAd00000000000000000000000000000000BeEf" },
-      { ts: "09:13:32", side: "sell", amountUsd: 2_310, price: 3181.4, account: "0x00Ff11223344556677889900AaBbCcDdEeFf0011" },
+      ["09:14:04", "buy", 41_200, 3183.75, "0x9C4f2b1a7E3d5F6a8B0c1D2e3F4a5B6c7D8e9F01"],
+      ["09:13:51", "sell", 8_940, 3182.9, "0x4A1b2C3d4E5f60718293a4B5c6D7e8F901234567"],
+      ["09:13:48", "buy", 126_400, 3184.12, "0xDeAd00000000000000000000000000000000BeEf"],
+      ["09:13:32", "sell", 2_310, 3181.4, "0x00Ff11223344556677889900AaBbCcDdEeFf0011"],
     ],
   },
 
   alert_banner: {
+    ...meta("triggered_condition", "Health factor crossed 1.35", 1),
+    triggered: true,
     severity: "risk",
-    title: "Health factor crossed 1.35",
-    message: "Guard armed. Next substream batch triggers a repay of 120 USDC to Aave v3.",
-    at: "2026-07-24T09:14:04.930Z",
-    source: "substreams · aave-v3-arbitrum",
+    condition: "Health Factor",
+    operator: "lt",
     value: 1.28,
     threshold: 1.35,
+    message:
+      "Guard armed. Next substream batch triggers a repay of 120 USDC to Aave v3.",
   },
 
   action_button: {
-    label: "Repay 120 USDC",
-    event: "repay_debt",
+    label: "Repay debt",
+    kind: "repay",
+    actionKey: "repay",
+    blocked: false,
+    blockedReason: "",
     amountUsd: 120,
     target: AAVE_V3_POOL,
-    context: { asset: "USDC" },
+    event: "execute_action",
+    hints: { accent: "spend" },
   },
 
   confirm_dialog: {
-    title: "Rebalance to target health factor",
+    title: "Confirm rebalance",
     body: "Sells 0.42 WETH and repays USDC to bring the health factor to 1.80.",
+    actionKey: "rebalance",
+    requireConfirm: true,
     triggerLabel: "Review rebalance",
     confirmLabel: "Sign and rebalance",
-    event: "rebalance_position",
+    event: "confirm_action",
     amountUsd: 134.2,
     target: UNISWAP_V3_ROUTER,
     summary: [
@@ -274,30 +314,41 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   amount_input: {
-    label: "Repay amount",
-    bind: "/repayAmount",
     value: 120,
-    token: "USDC",
-    priceUsd: 1,
-    balance: 1840.22,
+    min: 0,
+    max: 150,
+    step: 1,
+    unit: "usd",
+    cap: 150,
+    note: "Bounded by the per-transaction cap at render time, not just at signing.",
   },
 
   allowlist_picker: {
-    label: "Repay to",
-    bind: "/repayTarget",
-    value: AAVE_V3_POOL,
     options: [
-      { address: AAVE_V3_POOL, label: "Aave v3 Pool", network: "arbitrum-one" },
-      { address: UNISWAP_V3_ROUTER, label: "Uniswap v3 Router", network: "arbitrum-one" },
-      { address: "0xF403C135812408BFbE8713b5A23a04b3D48AAE31", label: "Convex Booster", network: "mainnet" },
+      { address: AAVE_V3_POOL, label: "Aave v3 Pool" },
+      { address: UNISWAP_V3_ROUTER, label: "Uniswap v3 Router" },
+      { address: "0xF403C135812408BFbE8713b5A23a04b3D48AAE31", label: "Convex Booster" },
     ],
+    selected: AAVE_V3_POOL,
+    empty: false,
+    note: "Only policy-approved targets are ever offered.",
   },
 
-  kill_switch: { halted: false, event: "kill_switch" },
+  kill_switch: { halted: false, scope: "app", global: false },
 
-  trade_log: { entries: DEMO_JOURNAL },
+  trade_log: { entries: DEMO_JOURNAL, streaming: true },
 
-  policy_badge: { policy: DEMO_POLICY, spentUsd: 312.4 },
+  policy_badge: {
+    tier: "autonomous",
+    maxSpendUsd: 500,
+    maxPerTxUsd: 150,
+    allowlist: [AAVE_V3_POOL, UNISWAP_V3_ROUTER],
+    expiresAt: "2026-07-31T09:00:00.000Z",
+    requireConfirm: true,
+    killSwitch: true,
+    halted: false,
+    spentUsd: 312.4,
+  },
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -305,14 +356,18 @@ const FIXTURES: Record<string, unknown> = {
    ──────────────────────────────────────────────────────────────────────────*/
 
 export function CatalogDemo() {
-  const [events, setEvents] = useState<A2uiActionPayload[]>([]);
+  const [events, setEvents] = useState<A2UIClientAction[]>([]);
   const [source, setSource] = useState<"doc" | "stream" | "hostile">("doc");
 
-  const push = (p: A2uiActionPayload) => setEvents((e) => [p, ...e].slice(0, 12));
+  const push = (p: A2UIClientAction) => setEvents((e) => [p, ...e].slice(0, 12));
   const gaps = missingComponents();
 
   const doc =
     source === "doc" ? HEALTH_GUARD_DOC : source === "stream" ? HEALTH_GUARD_STREAM : HOSTILE_DOC;
+
+  const actionNames = ALL_COMPONENTS.filter(
+    (n) => !DISPLAY_COMPONENTS.includes(n as (typeof DISPLAY_COMPONENTS)[number]),
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-8">
@@ -320,8 +375,8 @@ export function CatalogDemo() {
         <h1 className="display text-[1.75rem] leading-none">Component catalog</h1>
         <p className="max-w-prose text-[0.875rem] leading-snug text-[var(--muted-ink)]">
           {ALL_COMPONENTS.length} approved components — {DISPLAY_COMPONENTS.length} display,{" "}
-          {ALL_COMPONENTS.length - DISPLAY_COMPONENTS.length} action. The client holds this
-          catalog; the agent may only reference it by name.
+          {actionNames.length} action. The client holds this catalog; the agent may only
+          reference it by name.
         </p>
         {gaps.length > 0 ? (
           <Label className="text-loss">unimplemented: {gaps.join(", ")}</Label>
@@ -345,13 +400,24 @@ export function CatalogDemo() {
         <SectionTitle n="03" title="Action components" />
         <RuntimeProvider tier="autonomous" policy={DEMO_POLICY} spentUsd={312.4} live>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {ALL_COMPONENTS.filter(
-              (n) => !DISPLAY_COMPONENTS.includes(n as (typeof DISPLAY_COMPONENTS)[number]),
-            ).map((name, i) => (
-              <Slot key={name} name={name} index={i} onAction={(e) => push({
-                version: "v0.9",
-                action: { name: e.name, surfaceId: "demo", sourceComponentId: name, context: e.context },
-              })} />
+            {actionNames.map((name, i) => (
+              <Slot
+                key={name}
+                name={name}
+                index={i}
+                onAction={(e) =>
+                  push({
+                    version: "v0.9.1",
+                    action: {
+                      name: e.name,
+                      surfaceId: "demo",
+                      sourceComponentId: name,
+                      timestamp: new Date().toISOString(),
+                      context: e.context as A2UIClientAction["action"]["context"],
+                    },
+                  })
+                }
+              />
             ))}
           </div>
         </RuntimeProvider>
@@ -360,25 +426,35 @@ export function CatalogDemo() {
       <section className="flex flex-col gap-4">
         <SectionTitle n="04" title="A2UI renderer" />
         <div className="flex flex-wrap items-center gap-2">
-          <BrutalButton size="sm" intent={source === "doc" ? "primary" : "default"} onClick={() => setSource("doc")}>
+          <BrutalButton
+            size="sm"
+            intent={source === "doc" ? "primary" : "default"}
+            onClick={() => setSource("doc")}
+          >
             document
           </BrutalButton>
-          <BrutalButton size="sm" intent={source === "stream" ? "primary" : "default"} onClick={() => setSource("stream")}>
-            message stream
+          <BrutalButton
+            size="sm"
+            intent={source === "stream" ? "primary" : "default"}
+            onClick={() => setSource("stream")}
+          >
+            + streamed updates
           </BrutalButton>
-          <BrutalButton size="sm" intent={source === "hostile" ? "primary" : "default"} onClick={() => setSource("hostile")}>
-            unknown component
+          <BrutalButton
+            size="sm"
+            intent={source === "hostile" ? "primary" : "default"}
+            onClick={() => setSource("hostile")}
+          >
+            off-catalog name
           </BrutalButton>
-          <Label>autonomous tier · policy enforced client-side at render</Label>
+          <Label>tier comes from createSurface.theme.tier</Label>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
           <A2uiRenderer
             document={doc}
-            tier="autonomous"
-            policy={DEMO_POLICY}
-            spentUsd={312.4}
-            live
+            policy={source === "hostile" ? null : DEMO_POLICY}
+            spentUsd={120.04}
             journal={DEMO_JOURNAL}
             onAction={push}
           />
@@ -386,7 +462,7 @@ export function CatalogDemo() {
           <Panel title="Dispatched server events" flush>
             {events.length === 0 ? (
               <div className="p-3">
-                <Label>press something — payloads land here</Label>
+                <Label>press something — client_to_server payloads land here</Label>
               </div>
             ) : (
               <ol className="flex flex-col">

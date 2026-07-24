@@ -60,7 +60,7 @@ export function Leaderboard({ data, label, index }: CatProps) {
               aria-hidden
               className={cn(
                 "pointer-events-none absolute inset-y-0 left-0",
-                i === ai ? "bg-live/12" : "bg-ink/[0.05]",
+                i === ai ? "bg-live/10" : "bg-ink/[0.05]",
               )}
               style={{ width: `${Math.max(2, (Math.abs(r.value) / max) * 100)}%` }}
             />

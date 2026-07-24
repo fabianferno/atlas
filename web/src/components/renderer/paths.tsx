@@ -11,9 +11,10 @@
  * case, not an error, and half a screen rendering is better than none.
  */
 
+// `getPointer` / `isPathBinding` are re-exported from ./types (the single
+// namespace for the wire format) — deliberately not re-exported here too, or
+// the barrel would have two ambiguous star exports of the same name.
 import { getPointer, isPathBinding, setPointer, type JsonValue } from "@/lib/kit/a2ui";
-
-export { getPointer, isPathBinding };
 
 /**
  * Prototype-polluting tokens are rejected before they reach `setPointer`. The

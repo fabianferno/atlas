@@ -61,7 +61,7 @@ export function ProgressBar({ data, label, index }: CatProps) {
             <span
               key={t}
               aria-hidden
-              className="absolute top-0 h-full w-px bg-rule/25"
+              className="absolute top-0 h-full w-px bg-rule/20"
               style={{ left: `${t * 100}%` }}
             />
           ))}
