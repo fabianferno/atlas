@@ -903,7 +903,11 @@ const aaveGuard = build({
   ],
   blocks: [
     { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "Health factor 1.52, above the 1.40 trigger. Last rebalance 38 minutes ago." } },
-    { id: "b2", component: "gauge", label: "Health factor", data: { value: 1.52, min: 1, max: 3, threshold: 1.4, unit: "", status: "risk" } },
+    // 1.52 is above the 1.40 trigger, so this is `gain` — matching both the
+    // banner above it and what the live catalog gauge computes. Colour is
+    // semantic (Rule 2): the same fact cannot be green in one panel and amber
+    // in the next.
+    { id: "b2", component: "gauge", label: "Health factor", data: { value: 1.52, min: 1, max: 3, threshold: 1.4, unit: "", status: "gain" } },
     {
       id: "b3",
       component: "position_card",
@@ -924,7 +928,9 @@ const aaveGuard = build({
       component: "time_series",
       label: "Health factor, 24h",
       span: 3,
-      data: { unit: "", accent: "risk", xFirst: "09:41 yest", xLast: "09:41", points: [1.74, 1.68, 1.61, 1.55, 1.47, 1.38, 1.81, 1.77, 1.69, 1.58, 1.52] },
+      // The dip to 1.38 is the trigger firing; the recovery to 1.81 is the
+      // rebalance. Current state is healthy, so the series reads `gain`.
+      data: { unit: "", accent: "gain", xFirst: "09:41 yest", xLast: "09:41", points: [1.74, 1.68, 1.61, 1.55, 1.47, 1.38, 1.81, 1.77, 1.69, 1.58, 1.52] },
     },
   ],
 });

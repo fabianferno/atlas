@@ -284,6 +284,9 @@ function Skeleton({ count }: { count: number }) {
 function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished: (name: string) => void }) {
   const [name, setName] = useState(manifest.name);
   const [price, setPrice] = useState("0.05");
+  // Publishing pins the manifest, issues the subname and mints. Not instant,
+  // and double-submitting would mint twice.
+  const [publishing, setPublishing] = useState(false);
   const tier = manifest.agency.tier;
   const valid = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(name);
 
@@ -318,20 +321,22 @@ function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished
 
         <button
           type="button"
-          disabled={!valid}
+          disabled={!valid || publishing}
           className="btn press text-sm disabled:opacity-40"
           style={{ background: "var(--ink)", color: "var(--card-b)" }}
           onClick={() => {
             const priceUsd = Number(price) || 0;
-            const app = publishApp({
+            setPublishing(true);
+            void publishApp({
               ...manifest,
               name,
               pricing: priceUsd > 0 ? { x402: { enabled: true, priceUsd } } : null,
-            });
-            onPublished(app.manifest.name);
+            })
+              .then((app) => onPublished(app.manifest.name))
+              .finally(() => setPublishing(false));
           }}
         >
-          Publish
+          {publishing ? "Publishing…" : "Publish"}
         </button>
       </div>
 

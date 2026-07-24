@@ -35,7 +35,9 @@ import {
 } from "@/lib/seed";
 
 const STORAGE_KEY = "graphminis.board";
-const STORAGE_VERSION = 4;
+// Bump whenever seed content or the persisted shape changes. Without this a
+// returning browser keeps its old snapshot and silently never sees the fix.
+const STORAGE_VERSION = 5;
 const LEDGER_MAX = 220;
 
 export interface BoardState {
@@ -152,34 +154,66 @@ export function appendLedger(entries: LedgerLine[]): void {
 }
 
 /** Take a drafted manifest live. Named to match the button: Publish → Published. */
-export function publishApp(manifest: Manifest, opts?: { author?: string }): MiniApp {
+export async function publishApp(
+  manifest: Manifest,
+  opts?: { author?: string },
+): Promise<MiniApp> {
   const name = uniqueName(manifest.name);
   const now = new Date().toISOString();
   const autonomous = manifest.agency.tier === "autonomous";
-  // A published autonomous app gets its own session-key smart account. It is
-  // issued empty — funding it is a deliberate, separate act.
-  const wallet = autonomous ? mintAddress() : null;
-  const published: Manifest = {
+
+  const draft: Manifest = {
     ...manifest,
     name,
-    agency: {
-      ...manifest.agency,
-      policy: { ...manifest.agency.policy, wallet },
-    },
-    identity: {
-      ens: `${name}.graphminis.eth`,
-      agenticId: {
-        chain: "0g",
-        contract: "0x9f2d8a1c4b6e7f0a3d5c8b9e1f2a4c6d8e0b3f57",
-        tokenId: 400 + state.apps.length,
-      },
-      manifestCid: `bafybeig${name.replace(/-/g, "").padEnd(12, "x").slice(0, 12)}q7m4`,
-    },
-    provenance: { ...manifest.provenance, attestationRef: `0g://att/${name}-${Math.random().toString(16).slice(2, 6)}` },
-    author: opts?.author ?? state.wallet ?? "you.graphminis.eth",
+    author: opts?.author ?? state.wallet ?? null,
     createdAt: now,
     updatedAt: now,
   };
+
+  // The identity layer pins the manifest, issues the ENS subname, writes the
+  // ENSIP-25/26 records and mints the Agentic ID. It produces a real CID and a
+  // real token id even with no credentials — the backends fall back to mocks,
+  // the values are still computed rather than invented.
+  let published = draft;
+  try {
+    const res = await fetch("/api/publish", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manifest: draft,
+        options: {
+          name,
+          tier: draft.agency.tier,
+          priceUsd: draft.pricing?.x402.priceUsd,
+        },
+      }),
+    });
+    if (res.ok) {
+      const report = (await res.json()) as {
+        manifest?: Manifest;
+        ens?: string | null;
+        manifestCid?: string | null;
+        agenticIdTokenId?: number | null;
+      };
+      // The returned manifest already carries identity and provenance.
+      published = report.manifest ?? draft;
+    }
+  } catch {
+    // Publishing offline keeps the app local and unnamed rather than
+    // fabricating an ENS name and a CID that resolve to nothing.
+  }
+
+  // A published autonomous app gets its own session-key account. Issued empty
+  // on purpose — funding it is a deliberate, separate act.
+  if (autonomous && !published.agency.policy.wallet) {
+    published = {
+      ...published,
+      agency: {
+        ...published.agency,
+        policy: { ...published.agency.policy, wallet: mintAddress() },
+      },
+    };
+  }
 
   const app: MiniApp = {
     manifest: published,
