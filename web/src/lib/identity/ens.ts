@@ -36,11 +36,16 @@
  *
  * We do not own the parent name yet, and which issuance mechanism the ENS
  * booth wants to see is a Friday-morning question. So issuance sits behind
- * `EnsBackend` with three implementations selected by `ENS_REGISTRAR_MODE`:
+ * `EnsBackend` with four implementations selected by `ENS_REGISTRAR_MODE`:
  *
- *   `namestone` — offchain CCIP-Read subnames via NameStone's REST API. Gasless.
+ *   `namespace` — offchain CCIP-Read subnames via Namespace. Gasless. DEFAULT.
+ *   `namestone` — same idea, via NameStone. ⚠️ shuts down 2026-08-03.
  *   `onchain`   — NameWrapper `setSubnodeRecord` + PublicResolver, Sepolia.
  *   `mock`      — in-process. Zero config, deterministic, always available.
+ *
+ * `offchain` (the spelling in prd.md §8) resolves to whichever offchain
+ * backend has a key, preferring Namespace. Any mode with no key degrades to
+ * `mock` and says so, rather than throwing mid-demo.
  *
  * Reads are backend-independent: `readRecords()` always goes through a real
  * ENS resolver (viem universal resolver) when an RPC is configured, because a
@@ -1016,6 +1021,42 @@ export function ensDeployment(key: EnsChainKey = ensChainKey()) {
   return ENS_DEPLOYMENTS[key];
 }
 
+/**
+ * ⚠️ **Registering the parent 2LD on Sepolia does not work the documented way.**
+ *
+ * `ETHRegistrarController` (`0xfb3c…f968`) is **not** an authorised controller
+ * on Sepolia's `BaseRegistrarImplementation` — `controllers()` returns false
+ * for it, so `register()` reverts. `available()` still returns true, so there
+ * is no warning until the transaction burns gas, and `sepolia.app.ens.domains`
+ * cannot complete a registration either.
+ *
+ * The controller that *is* authorised:
+ *
+ *   TestnetV1PremigrationRegistrar  0xdf60C561Ca35AD3C89D24BbA854654b1c3477078
+ *
+ * Free, no commit/reveal (single transaction), minimum 28 days, label ≥ 3
+ * chars, same `register(Registration)` selector as the real controller.
+ *
+ * Three traps when using it:
+ *
+ *   1. Pass `resolver`, but leave `data: []`. A populated `data[]` reverts —
+ *      it assigns ownership to `registration.owner` *before* running the
+ *      resolver multicall, so the authorisation check fails. Set records in a
+ *      follow-up transaction.
+ *   2. Names come out **unwrapped**. `NameWrapper.setSubnodeRecord` on a fresh
+ *      parent reverts with `Unauthorised`. Either wrap it first, or issue
+ *      subnames through the registry instead.
+ *   3. It is testnet-only and not in the ENS docs. Verify it still answers
+ *      before relying on it.
+ *
+ * This is an operator step, not something this file does — it is recorded here
+ * because it is the single most likely way to lose an hour.
+ */
+export const SEPOLIA_PARENT_REGISTRATION = {
+  registrar: "0xdf60C561Ca35AD3C89D24BbA854654b1c3477078" as Address,
+  note: "ETHRegistrarController is not an authorised controller on Sepolia; register() reverts.",
+} as const;
+
 export type EnsChainKey = keyof typeof ENS_DEPLOYMENTS;
 
 export function ensChainKey(): EnsChainKey {
@@ -1089,12 +1130,26 @@ const PUBLIC_RESOLVER_ABI = [
 ] as const;
 
 /**
- * Onchain subnames. Slower and needs a funded key, but every record is where a
- * sceptical judge expects it: in the PublicResolver, readable by any client
- * with no gateway in the path.
+ * Onchain subnames. Slower (~24s for a name plus its records on Sepolia) and
+ * needs a funded key, but every record is where a sceptical judge expects it:
+ * in the PublicResolver, readable by any client with no gateway in the path.
  *
- * Requires: the parent 2LD wrapped in NameWrapper and owned by
- * `ENS_REGISTRAR_PRIVATE_KEY`, and PARENT_CAN_EXTEND-compatible fuses.
+ * Requires the parent 2LD wrapped in NameWrapper and owned by
+ * `ENS_REGISTRAR_PRIVATE_KEY`. See `SEPOLIA_PARENT_REGISTRATION` for how to
+ * get the parent in the first place — the documented path reverts.
+ *
+ * ### The authorisation trap this deliberately avoids
+ *
+ * `PublicResolver.isAuthorised` checks the **subname's** owner, and its
+ * approval maps are PublicResolver's own — *not* NameWrapper's. So the parent
+ * owner cannot write records for a subname owned by someone else; that call
+ * reverts.
+ *
+ * The consequence is that you cannot mint a subname straight to a user's
+ * wallet and then have the backend populate it. `issue()` therefore mints to
+ * the backend wallet, writes every record, and leaves ownership there; a
+ * later `setSubnodeOwner` can hand it to the user once the records exist.
+ * Doing it in the other order looks fine right up until `setText` reverts.
  */
 class OnchainBackend implements EnsBackend {
   readonly mode = "onchain" as const;
@@ -1362,18 +1417,36 @@ export function ensPublicClient(): PublicClient | null {
 /* selection + verification                                                   */
 /* ========================================================================== */
 
+/**
+ * A configured backend always beats an unconfigured one. Asking for
+ * `namespace` with no key silently falling back to `mock` is the right
+ * behaviour for a demo — a publish that half-works and reports why beats a
+ * publish that throws.
+ */
 export function resolveRegistrarMode(): EnsRegistrarMode {
   const raw = (process.env.ENS_REGISTRAR_MODE ?? "").toLowerCase();
-  // `offchain` is the name used in .env.example and prd.md §8; NameStone is
-  // the offchain implementation, so accept both spellings.
-  if (raw === "offchain" || raw === "namestone") {
-    return process.env.NAMESTONE_API_KEY ? "namestone" : "mock";
-  }
-  if (raw === "onchain") return process.env.ENS_REGISTRAR_PRIVATE_KEY ? "onchain" : "mock";
+  const hasNamespace = Boolean(process.env.NAMESPACE_API_KEY);
+  const hasNamestone = Boolean(process.env.NAMESTONE_API_KEY);
+  const hasOnchain = Boolean(process.env.ENS_REGISTRAR_PRIVATE_KEY);
+
+  if (raw === "namespace") return hasNamespace ? "namespace" : "mock";
+  if (raw === "namestone") return hasNamestone ? "namestone" : "mock";
+  if (raw === "onchain") return hasOnchain ? "onchain" : "mock";
   if (raw === "mock") return "mock";
-  // No explicit mode: pick the strongest backend that is actually configured.
-  if (process.env.NAMESTONE_API_KEY) return "namestone";
-  if (process.env.ENS_REGISTRAR_PRIVATE_KEY) return "onchain";
+
+  // `offchain` is the spelling in .env.example and prd.md §8. Namespace is the
+  // preferred offchain implementation; NameStone is the fallback because it
+  // has a published shutdown date (2026-08-03).
+  if (raw === "offchain") {
+    if (hasNamespace) return "namespace";
+    if (hasNamestone) return "namestone";
+    return "mock";
+  }
+
+  // No explicit mode: the strongest backend that is actually configured.
+  if (hasNamespace) return "namespace";
+  if (hasNamestone) return "namestone";
+  if (hasOnchain) return "onchain";
   return "mock";
 }
 
@@ -1387,7 +1460,9 @@ export function getEnsBackend(): EnsBackend {
   if (cachedBackend && cachedBackendKey === key) return cachedBackend;
 
   let backend: EnsBackend;
-  if (mode === "namestone" && process.env.NAMESTONE_API_KEY) {
+  if (mode === "namespace" && process.env.NAMESPACE_API_KEY) {
+    backend = new NamespaceBackend(parent, process.env.NAMESPACE_API_KEY);
+  } else if (mode === "namestone" && process.env.NAMESTONE_API_KEY) {
     backend = new NameStoneBackend(parent, process.env.NAMESTONE_API_KEY);
   } else if (mode === "onchain") {
     backend = new OnchainBackend(

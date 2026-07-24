@@ -3,7 +3,10 @@
 /**
  * kill_switch — mandatory in every autonomous app (REQUIRED_FOR_AUTONOMOUS).
  *
- * { halted?: boolean, event?: string, label?, note? }
+ * Composer payload: { halted: boolean, scope: "app", global: boolean }
+ * plus a component-level `action: serverEvent("halt_agent", …)` AND a
+ * `localAction: { call: "setHalted", args: { halted: true } }` — the composer's
+ * extension field for exactly this component. The renderer fires both.
  *
  * Two dispatches, in this order and for a reason:
  *   1. a LOCAL function call — the UI halts immediately, before any network
@@ -26,12 +29,13 @@ export function KillSwitch({ data, label, onAction, index }: CatProps) {
 
   const [halted, setHalted] = useState(declaredHalted);
   const [armResume, setArmResume] = useState(false);
-  const event = pickStr(d, ["event", "eventName"], "kill_switch");
+  const event = pickStr(d, ["event", "eventName"], "halt_agent");
+  const scope = pickStr(d, ["scope"], "app");
 
   const halt = () => {
     setHalted(true); // 1. local, immediate
     setArmResume(false);
-    onAction?.({ name: event, context: { halted: true } }); // 2. server
+    onAction?.({ name: event, context: { scope, halted: true } }); // 2. server
   };
 
   const resume = () => {
@@ -41,7 +45,7 @@ export function KillSwitch({ data, label, onAction, index }: CatProps) {
     }
     setHalted(false);
     setArmResume(false);
-    onAction?.({ name: event, context: { halted: false } });
+    onAction?.({ name: event, context: { scope, halted: false } });
   };
 
   return (

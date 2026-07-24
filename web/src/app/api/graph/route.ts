@@ -59,6 +59,13 @@ const zBody = z.discriminatedUnion("action", [
     transport: zTransport,
   }),
   z.object({
+    // Re-probe the sources baked into a stored or forked manifest. Their
+    // `healthy: true` is whatever was true when the manifest was written.
+    action: z.literal("refresh"),
+    sources: z.array(zSource).min(1),
+    transport: zTransport,
+  }),
+  z.object({
     action: z.literal("query"),
     subgraphId: z.string().min(1),
     query: z.string().min(1),
@@ -131,6 +138,7 @@ export async function POST(request: Request): Promise<Response> {
               live: resolution.sources.length,
               total: resolution.checked.length,
               elapsedMs: resolution.elapsedMs,
+              authFailed: resolution.authFailed,
             },
           },
           { headers: NO_STORE },
@@ -154,6 +162,22 @@ export async function POST(request: Request): Promise<Response> {
         });
         return NextResponse.json(
           { ...result, summary: fanOutSummary(result), resolution },
+          { headers: NO_STORE },
+        );
+      }
+
+      case "refresh": {
+        const resolution = await refreshSources(body.sources, { transport: body.transport });
+        return NextResponse.json(
+          {
+            ...resolution,
+            summary: {
+              live: resolution.sources.length,
+              total: resolution.checked.length,
+              elapsedMs: resolution.elapsedMs,
+              authFailed: resolution.authFailed,
+            },
+          },
           { headers: NO_STORE },
         );
       }

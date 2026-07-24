@@ -1,112 +1,72 @@
 /**
- * A2UI v0.9 wire types, narrowed to what this client accepts.
+ * The wire format lives in ONE place: `@/lib/kit/a2ui`. This module re-exports
+ * it under the renderer's namespace and adds only the types the renderer itself
+ * owns. Nothing here redeclares a field — if the renderer needs a new one, it
+ * goes in the kit first (see the header of lib/kit/a2ui.ts).
  *
- * Spec: https://a2ui.org/specification/v0.9-a2ui/
+ * Shape of what we render, restated so it is next to the code that consumes it:
  *
- * Two intake shapes are supported, both flat-list + data-model:
+ *   A2UIDocument = [
+ *     { version, createSurface:    { surfaceId, catalogId, theme: { tier },
+ *                                    sendDataModel, layout: { order, columns } } },
+ *     { version, updateComponents: { surfaceId, components: A2UIComponent[] } },
+ *     { version, updateDataModel:  { surfaceId, path: "/", value: <data model> } },
+ *     …further updateComponents / updateDataModel messages while streaming
+ *   ]
  *
- * 1. DOCUMENT (what our composer emits and what a Manifest stores in `ui`):
- *    {
- *      "version": "v0.9",
- *      "surfaceId": "app",
- *      "catalogId": "graphmini/1",
- *      "root": "root",
- *      "components": [ …A2uiComponent ],
- *      "dataModel": { … }
- *    }
- *
- * 2. STREAM (a list of server messages, each with exactly one of
- *    createSurface | updateComponents | updateDataModel | deleteSurface).
- *    `applyMessages()` folds a stream into a document.
- *
- * The tree is an adjacency list: components reference children by ID. There is
- * no nesting in the wire format, which is precisely why an agent cannot smuggle
- * markup through it.
+ * The catalog is LEAF-ONLY. There is no Row/Column/Card and no `id: "root"`.
+ * `layout.order` is the render order, and it is a flat permutation of the
+ * component ids — so this renderer does not walk a tree, it walks a list.
  */
 
-/** A component's declared action. Either goes to the agent, or stays local. */
-export interface A2uiAction {
-  /** Server Event — dispatched to the agent. */
-  event?: {
-    name: string;
-    context?: Record<string, unknown>;
-  };
-  /** Local Function Call — handled client-side, never leaves the browser. */
-  functionCall?: {
-    call: string;
-    args?: Record<string, unknown>;
-  };
-}
+export type {
+  A2UIAction,
+  A2UIClientAction,
+  A2UIClientError,
+  A2UIClientMessage,
+  A2UIComponent,
+  A2UICreateSurface,
+  A2UIDocument,
+  A2UIFunctionCall,
+  A2UIHints,
+  A2UILayout,
+  A2UIMessage,
+  A2UIPathBinding,
+  A2UIServerEvent,
+  A2UISurfaceView,
+  A2UITheme,
+  A2UIUpdateComponents,
+  A2UIUpdateDataModel,
+  A2UIValidation,
+  A2UIValidationIssue,
+  JsonValue,
+} from "@/lib/kit/a2ui";
 
-export interface A2uiComponent {
-  id: string;
-  /** A name from the client-held catalog, or a layout container. Never code. */
-  component: string;
-  /** Bindable props. May itself be a `{path}` binding. */
-  properties?: unknown;
-  children?: string[];
-  child?: string;
-  action?: A2uiAction;
-  /** Convenience: some composers put the label outside `properties`. */
-  label?: unknown;
-}
+export {
+  A2UI_VERSION,
+  GRAPHMINIS_CATALOG_ID,
+  bind,
+  buildDocument,
+  createSurface,
+  functionCall,
+  getPointer,
+  isA2UIDocument,
+  isClientAction,
+  isPathBinding,
+  isServerEvent,
+  readSurface,
+  serverEvent,
+  setPointer,
+  updateComponents,
+  updateDataModel,
+  validateDocument,
+} from "@/lib/kit/a2ui";
 
-export interface A2uiDocument {
-  version?: string;
-  surfaceId?: string;
-  catalogId?: string;
-  root?: string;
-  components: A2uiComponent[];
-  dataModel?: Record<string, unknown>;
-}
+/** A client-side function the renderer will run for a `functionCall`. */
+export type LocalFunction = (args: Record<string, unknown>) => void;
 
-export interface CreateSurfaceMsg {
-  version?: string;
-  createSurface: { surfaceId: string; catalogId?: string; root?: string };
-}
-export interface UpdateComponentsMsg {
-  version?: string;
-  updateComponents: {
-    surfaceId?: string;
-    components: A2uiComponent[];
-    root?: string;
-  };
-}
-export interface UpdateDataModelMsg {
-  version?: string;
-  updateDataModel: {
-    surfaceId?: string;
-    /** JSON Pointer. Absent or "/" replaces at the root (upsert semantics). */
-    path?: string;
-    contents: unknown;
-  };
-}
-export interface DeleteSurfaceMsg {
-  version?: string;
-  deleteSurface: { surfaceId: string };
-}
-
-export type A2uiMessage =
-  | CreateSurfaceMsg
-  | UpdateComponentsMsg
-  | UpdateDataModelMsg
-  | DeleteSurfaceMsg;
-
-/** What the client posts back when a Server Event fires. */
-export interface A2uiActionPayload {
-  version: string;
-  action: {
-    name: string;
-    surfaceId: string;
-    sourceComponentId: string;
-    context: Record<string, unknown>;
-  };
-}
-
-/** A data binding: `{"path": "/healthFactor"}`. */
-export interface A2uiBinding {
-  path: string;
-  default?: unknown;
-}
-
-export const A2UI_VERSION = "v0.9";
+/** What a catalog component emits; bridged to A2UI by the renderer. */
+export type CatalogDispatch = (event: {
+  name: string;
+  context: Record<string, unknown>;
+}) => void;

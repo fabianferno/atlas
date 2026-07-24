@@ -370,7 +370,7 @@ export async function healthCheck(
   }>({
     subgraphId,
     query: HEALTH_PROBE,
-    transport: options.transport ?? "gateway",
+    transport: probeTransport,
     timeoutMs: options.timeoutMs ?? HEALTH_TIMEOUT_MS,
   });
 

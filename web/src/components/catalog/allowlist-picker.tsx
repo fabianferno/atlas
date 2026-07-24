@@ -4,8 +4,12 @@
  * allowlist_picker — chooses a target for a subsequent action. Writes into the
  * data model.
  *
- * { label?, bind: "/target", value?,
- *   options: [{ address, label?, network?, protocol? }] }
+ * Composer payload:
+ *   { options: [{ address, label }], selected: string|null,
+ *     empty: boolean, note }
+ * The composer's action reads `/inputs/target`, so that is the default bind
+ * pointer. `empty: true` means the policy allowlist is empty, which means the
+ * app cannot act at all — say so rather than showing an empty list.
  *
  * SECURITY: this component renders the INTERSECTION of the composer's options
  * and `policy.allowlist`. An option the policy has not approved is dropped and
@@ -23,7 +27,7 @@ import { bindValue, dict, list, pickStr, type CatProps } from "./_shared";
 export function AllowlistPicker({ data, label, onAction, index }: CatProps) {
   const d = dict(data);
   const { policy } = useRuntime();
-  const bind = pickStr(d, ["bind", "path", "binding"]);
+  const bind = pickStr(d, ["bind", "path", "binding"], "/inputs/target");
 
   const proposed = list(d.options ?? d.targets ?? d.items).map((o) => {
     const t = dict(o);
@@ -41,7 +45,7 @@ export function AllowlistPicker({ data, label, onAction, index }: CatProps) {
   const dropped = proposed.length - permitted.length;
 
   const [selected, setSelected] = useState(() => {
-    const v = pickStr(d, ["value", "selected"]);
+    const v = pickStr(d, ["selected", "value"]);
     return permitted.some((o) => o.address === v) ? v : (permitted[0]?.address ?? "");
   });
 

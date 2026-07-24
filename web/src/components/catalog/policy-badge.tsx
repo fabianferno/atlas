@@ -4,7 +4,12 @@
  * policy_badge — mandatory in every autonomous app. Answers "what is this
  * thing allowed to do?" without the user having to ask.
  *
- * { policy?: Policy, spentUsd?: number, tier? }
+ * Composer payload is `ComposePolicyView` (lib/kit/composer.ts) inlined:
+ *   { tier, maxSpendUsd, maxPerTxUsd, allowlist: string[], expiresAt,
+ *     requireConfirm, killSwitch, halted, spentUsd }
+ * Note there is no `wallet` — the composer renders a policy, it never grants
+ * one, so a wallet only exists once the publish step binds a smart account.
+ *
  * Falls back to the client-held runtime policy when the composer omits one —
  * an agent must not be able to hide the policy by simply not emitting it.
  *
@@ -57,7 +62,7 @@ export function PolicyBadge({ data, label, index }: CatProps) {
     now > 0 && policy.expiresAt && new Date(policy.expiresAt).getTime() <= now,
   );
   const frac = policy.maxSpendUsd > 0 ? clamp(spent / policy.maxSpendUsd, 0, 1) : 0;
-  const dead = policy.halted || expired || policy.allowlist.length === 0 || !policy.wallet;
+  const dead = policy.halted || expired || policy.allowlist.length === 0;
 
   return (
     <Panel
@@ -133,7 +138,7 @@ export function PolicyBadge({ data, label, index }: CatProps) {
               {shortAddr(policy.wallet, 8, 6)}
             </Tag>
           ) : (
-            <Tag tone="loss">no wallet</Tag>
+            <Tag className="border-hairline text-[var(--muted-ink)]">wallet at publish</Tag>
           )}
         </div>
 

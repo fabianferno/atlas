@@ -44,7 +44,18 @@ export interface Resolution {
   emptySchemas: SchemaFamily[];
   emptyNetworks: Network[];
   live: boolean;
+  /** Every probe failed on credentials. Distinguishes "your key is wrong" from
+   *  "The Graph is having a bad day" — they look identical in the counts and
+   *  demand opposite responses. */
+  authFailed: boolean;
   elapsedMs: number;
+}
+
+function detectAuthFailure(details: HealthDetail[]): boolean {
+  if (details.length === 0) return false;
+  return details.every(
+    (d) => !d.source.healthy && /auth|unauthor|api key|forbidden|401|403/i.test(d.reason ?? ""),
+  );
 }
 
 function capPerPair(entries: RegistryEntry[], max: number): RegistryEntry[] {
@@ -99,6 +110,7 @@ export async function resolveSourcesDetailed(
     emptySchemas: schemas.filter((s) => !liveSchemas.has(s)),
     emptyNetworks: networks.filter((n) => !liveNetworks.has(n)),
     live: isLive(options.transport ?? "gateway"),
+    authFailed: detectAuthFailure(details),
     elapsedMs: Date.now() - started,
   };
 }
@@ -132,6 +144,7 @@ export async function refreshSources(
     emptySchemas: [],
     emptyNetworks: [],
     live: isLive(options.transport ?? "gateway"),
+    authFailed: detectAuthFailure(details),
     elapsedMs: Date.now() - started,
   };
 }

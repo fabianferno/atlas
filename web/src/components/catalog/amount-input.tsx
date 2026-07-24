@@ -4,8 +4,12 @@
  * amount_input — writes into the A2UI data model; its value feeds the context
  * of a sibling action.
  *
- * { label?, bind: "/amount", value?, token?, priceUsd?, balance?,
- *   min?, max?, step?, maxUsd? }
+ * Composer payload:
+ *   { value: 0, min: 0, max: <maxPerTxUsd>, step: 1, unit: "usd",
+ *     cap: <maxPerTxUsd>, note }
+ * The composer's action is `serverEvent("amount_changed", { amount:
+ * bind("/inputs/amount") })`, so this writes to `/inputs/amount` by default —
+ * that is the pointer the action_button's context reads.
  *
  * IMPORTANT (Appendix A): the input is bounded by the policy caps AT RENDER
  * TIME, not only at signing. The effective ceiling is
@@ -22,11 +26,12 @@ export function AmountInput({ data, label, onAction, index }: CatProps) {
   const d = dict(data);
   const { policy, spentUsd } = useRuntime();
 
-  const bind = pickStr(d, ["bind", "path", "binding"]);
-  const token = pickStr(d, ["token", "symbol", "asset", "unit"], "USDC");
+  const bind = pickStr(d, ["bind", "path", "binding"], "/inputs/amount");
+  const rawUnit = pickStr(d, ["token", "symbol", "asset", "unit"], "USDC");
+  const token = rawUnit === "usd" || rawUnit === "none" ? "USD" : rawUnit;
   const price = numOr(pick(d, "priceUsd", "price"), 1);
   const balance = num(pick(d, "balance", "available"), NaN);
-  const declaredMax = num(pick(d, "max", "maxAmount"), NaN);
+  const declaredMax = num(pick(d, "max", "maxAmount", "cap"), NaN);
   const min = numOr(pick(d, "min"), 0);
   const step = numOr(pick(d, "step"), 0.01);
 
