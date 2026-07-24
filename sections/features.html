@@ -1,0 +1,301 @@
+<div class="features-layout">
+  <div class="features-flow" id="featuresFlow">
+    <svg class="flow-svg" id="flowSvg" viewBox="0 0 560 600" preserveAspectRatio="xMidYMid meet">
+      <!-- Connections between nodes -->
+      <!-- Row 1 to Row 2 -->
+      <path d="M140,100 C140,150 420,150 420,200" class="accent" id="conn-1-2" />
+      <path d="M140,100 C140,160 140,200 140,200" id="conn-2-2" />
+
+      <!-- Row 2 to Row 3 -->
+      <path d="M420,260 C420,310 280,310 280,360" class="accent" id="conn-3-3" />
+      <path d="M140,260 C140,310 280,310 280,360" id="conn-4-3" />
+
+      <!-- Row 3 to Row 4 -->
+      <path d="M280,420 C280,470 420,470 420,520" class="accent" id="conn-5-4" />
+      <path d="M280,420 C280,470 140,470 140,520" id="conn-6-4" />
+
+      <!-- Arrow heads -->
+      <polygon points="420,200 410,188 430,188" class="arrow-head" />
+      <polygon points="140,200 130,188 150,188" class="arrow-head" />
+      <polygon points="280,360 270,348 290,348" class="arrow-head" />
+      <polygon points="280,360 270,348 290,348" class="arrow-head" />
+      <polygon points="420,520 410,508 430,508" class="arrow-head" />
+      <polygon points="140,520 130,508 150,508" class="arrow-head" />
+    </svg>
+
+    <div class="flow-nodes">
+      <div class="flow-node anim from-left delay-1" data-feature="runtime" onclick="selectFeature('runtime')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">⚡</div>
+          <div class="flow-node-title">Mini App Runtime</div>
+        </div>
+        <div class="flow-node-brief">A2UI engine that renders live blockchain dashboards from natural language</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+
+      <div class="flow-node anim from-right delay-2" data-feature="registry" onclick="selectFeature('registry')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">📋</div>
+          <div class="flow-node-title">Mini App Registry</div>
+        </div>
+        <div class="flow-node-brief">Publish, discover, and instantiate shareable mini app artifacts</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+
+      <div class="flow-node anim from-left delay-3" data-feature="graph" onclick="selectFeature('graph')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">🔗</div>
+          <div class="flow-node-title">Graph Integration</div>
+        </div>
+        <div class="flow-node-brief">Subgraph studio, MCP aggregation, x402, Substreams, cross-protocol routing</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+
+      <div class="flow-node anim from-right delay-4" data-feature="agent" onclick="selectFeature('agent')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">🧠</div>
+          <div class="flow-node-title">Agent Intelligence</div>
+        </div>
+        <div class="flow-node-brief">Intent parsing, multi-source composition, memory, auto-recommendation</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+
+      <div class="flow-node anim from-left delay-5" data-feature="ens" onclick="selectFeature('ens')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">🏷️</div>
+          <div class="flow-node-title">ENS Integration</div>
+        </div>
+        <div class="flow-node-brief">ENS subnames, text records for metadata, agent identity resolution</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+
+      <div class="flow-node anim from-right delay-6" data-feature="0g" onclick="selectFeature('0g')">
+        <div class="flow-node-header">
+          <div class="flow-node-icon">🔒</div>
+          <div class="flow-node-title">0G Integration</div>
+        </div>
+        <div class="flow-node-brief">Sealed inference, encrypted memory, micropayments, provenance</div>
+        <div class="flow-node-arrow">Details →</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-detail" id="flowDetail">
+    <!-- Empty State -->
+    <div class="flow-detail-empty" id="detailEmpty">
+      <div class="empty-icon">👆</div>
+      <h4>Click a module to explore</h4>
+      <p>Each module connects to the others — click to see how they work together</p>
+    </div>
+
+    <!-- Runtime Detail -->
+    <div class="flow-detail-content" id="detail-runtime">
+      <div class="detail-header">
+        <div class="detail-icon">⚡</div>
+        <div class="detail-title">Mini App Runtime</div>
+      </div>
+      <p class="detail-desc">The core rendering layer. Agents describe UI in natural language → A2UI framework renders live, interactive components. Data binds to The Graph subgraph queries so everything updates as onchain data changes.</p>
+      <ul class="detail-features">
+        <li>A2UI component generation from natural language prompts</li>
+        <li>Live data bindings to The Graph subgraph queries</li>
+        <li>Pre-built component library: charts, tables, balance cards, leaderboards</li>
+        <li>Snapshot mode for shareable point-in-time renders</li>
+        <li>Fork & remix any mini app with modified queries or prompts</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">A2UI Components</span>
+        <span class="tag">Live Data Bindings</span>
+        <span class="tag">Snapshot Mode</span>
+        <span class="tag">Fork & Remix</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>"Show me Uniswap V3 revenue on Arbitrum for the last 7 days" → Agent generates an A2UI bar chart + data table, data binds to Standardized DEX schema → live chart with clickable bars for details.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">← Graph Integration <span class="chip-arrow">(data)</span></span>
+          <span class="connection-chip">→ Registry <span class="chip-arrow">(publish)</span></span>
+          <span class="connection-chip">→ Agent Intelligence <span class="chip-arrow">(generation)</span></span>
+          <span class="connection-chip">→ 0G <span class="chip-arrow">(inference)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Registry Detail -->
+    <div class="flow-detail-content" id="detail-registry">
+      <div class="detail-header">
+        <div class="detail-icon">📋</div>
+        <div class="detail-title">Mini App Registry</div>
+      </div>
+      <p class="detail-desc">A catalog where mini apps are published and discovered. Every app is defined by prompt, query config, UI spec, and metadata — making it a truly shareable "dashboard as code" artifact.</p>
+      <ul class="detail-features">
+        <li>Publish with prompt, query config, UI spec, and metadata (author ENS)</li>
+        <li>Discover / browse with filters by category, chain, protocol, or tag</li>
+        <li>One-click instantiate: runs prompt + queries and renders A2UI</li>
+        <li>Community ratings for usefulness, accuracy, and design</li>
+        <li>Versioning when prompts or queries change</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">Publish</span>
+        <span class="tag">Discover</span>
+        <span class="tag">Rate & Review</span>
+        <span class="tag">Versioning</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>"Arbitrum DEX Revenue Comparator" — published with prompt, Standardized DEX schema on Arbitrum, tagged #defi #arbitrum #dex, used by 142 institutions, rated 4.7/5.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">← Runtime <span class="chip-arrow">(consumes)</span></span>
+          <span class="connection-chip">→ ENS <span class="chip-arrow">(identity)</span></span>
+          <span class="connection-chip">→ Agent Intelligence <span class="chip-arrow">(suggestions)</span></span>
+          <span class="connection-chip">→ Graph Integration <span class="chip-arrow">(query config)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graph Integration Detail -->
+    <div class="flow-detail-content" id="detail-graph">
+      <div class="detail-header">
+        <div class="detail-icon">🔗</div>
+        <div class="detail-title">The Graph Integration</div>
+      </div>
+      <p class="detail-desc">Deep integration with The Graph's data and AI tooling — subgraph studio, MCP aggregation, x402 pay-per-query, standardized auto-binding, Substreams streaming, and cross-protocol routing.</p>
+      <ul class="detail-features">
+        <li>Subgraph Studio integration with auto-configured API keys</li>
+        <li>MCP Server Aggregation — unified interface across lending, DEX, CDP</li>
+        <li>x402 Pay-per-Query — authors earn per query</li>
+        <li>Standardized Subgraph Auto-Binding to Messari schemas</li>
+        <li>Substreams Data Streaming for real-time dashboards</li>
+        <li>Cross-Protocol Query Router — one prompt, multiple subgraphs</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">Subgraph Studio</span>
+        <span class="tag">x402</span>
+        <span class="tag">MCP</span>
+        <span class="tag">Substreams</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>"Total value locked across all lending protocols on Optimism?" → Resolves to Standardized Lending Subgraph → queries Subgraph Studio → aggregates TVL across Aave, Morpho → renders TVL card.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">→ Runtime <span class="chip-arrow">(feeds data)</span></span>
+          <span class="connection-chip">→ Agent Intelligence <span class="chip-arrow">(resolution)</span></span>
+          <span class="connection-chip">→ Registry <span class="chip-arrow">(query config)</span></span>
+          <span class="connection-chip">→ 0G <span class="chip-arrow">(payment)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Intelligence Detail -->
+    <div class="flow-detail-content" id="detail-agent">
+      <div class="detail-header">
+        <div class="detail-icon">🧠</div>
+        <div class="detail-title">Agent Intelligence Layer</div>
+      </div>
+      <p class="detail-desc">The reasoning layer — agents that understand queries, compose data from multiple sources, remember user preferences, auto-recommend, and deploy via SKILL-based one-prompt deployment.</p>
+      <ul class="detail-features">
+        <li>Query Intent Parser — maps natural language to subgraph schemas</li>
+        <li>Multi-Source Compositor — combines multiple subgraphs/MCPs into unified view</li>
+        <li>Agent Memory — remembers preferences, past queries, interactions</li>
+        <li>Auto-Recommendation — suggests relevant mini apps based on patterns</li>
+        <li>SKILL-Based Deployment — one-prompt deployment</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">Intent Parser</span>
+        <span class="tag">Memory</span>
+        <span class="tag">SKILLs</span>
+        <span class="tag">Auto-Rec</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>"I've been looking at GMX on Arbitrum. What's the top perp DEX by open interest?" → Remembers GMX query → resolves perpetuals schema → queries data → renders comparison mini app → suggests tracking over time.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">→ Runtime <span class="chip-arrow">(generates UI)</span></span>
+          <span class="connection-chip">→ Graph Integration <span class="chip-arrow">(queries data)</span></span>
+          <span class="connection-chip">→ Registry <span class="chip-arrow">(recommends)</span></span>
+          <span class="connection-chip">→ 0G <span class="chip-arrow">(memory storage)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENS Detail -->
+    <div class="flow-detail-content" id="detail-ens">
+      <div class="detail-header">
+        <div class="detail-icon">🏷️</div>
+        <div class="detail-title">ENS Integration</div>
+      </div>
+      <p class="detail-desc">ENS-powered identity and discovery — mini apps get ENS subnames, metadata stored in text records, agents resolve identities via onchain ENSIP-25 verification, and agent fleets register subname trees.</p>
+      <ul class="detail-features">
+        <li>Mini App ENS Names — e.g., "top-dexs.graph.eth"</li>
+        <li>ENS Text Records for app/prompt, app/query, app/version, app/author</li>
+        <li>Agent Name Resolution — resolve ENS → protocol identity & metadata</li>
+        <li>Subname Registry for Agent Fleets — "agent-a.graph.eth"</li>
+        <li>ENSIP-25 Agent Verification via onchain name ownership</li>
+        <li>ENSIP-26 Agent Text Records — standardized metadata</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">Subname Registry</span>
+        <span class="tag">Text Records</span>
+        <span class="tag">ENSIP-25</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>Agent resolves "dex-comparator.graph.eth" → looks up text records → fetches prompt and query config → instantiates mini app with live Graph data.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">→ Registry <span class="chip-arrow">(identity)</span></span>
+          <span class="connection-chip">→ Runtime <span class="chip-arrow">(name resolution)</span></span>
+          <span class="connection-chip">→ Agent Intelligence <span class="chip-arrow">(fleet mgmt)</span></span>
+          <span class="connection-chip">→ 0G <span class="chip-arrow">(Agentic ID)</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 0G Detail -->
+    <div class="flow-detail-content" id="detail-0g">
+      <div class="detail-header">
+        <div class="detail-icon">🔒</div>
+        <div class="detail-title">0G Integration</div>
+      </div>
+      <p class="detail-desc">0G-powered inference, storage, and verifiable compute — sealed inference for private queries, encrypted agent memory, micropayments on 0G Chain, and cryptographic proof of model provenance.</p>
+      <ul class="detail-features">
+        <li>Sealed Inference via 0G Private Computer (TEE-sealed)</li>
+        <li>0G Storage for encrypted agent memory persistence</li>
+        <li>Agentic ID for mini app authors on 0G</li>
+        <li>Onchain Micropayments via 0G Chain (x402 + 0G)</li>
+        <li>Verifiable Model Provenance — cryptographic proof of inference</li>
+      </ul>
+      <div class="detail-tags">
+        <span class="tag">TEE Sealed</span>
+        <span class="tag">0G Storage</span>
+        <span class="tag">Provenance</span>
+      </div>
+      <div class="detail-example">
+        <div class="detail-example-label">Example</div>
+        <p>Private portfolio risk analysis → wallet kept private via TEE → agent queries Graph for holdings → inference runs on 0G → results rendered as risk dashboard. Wallet never leaves the TEE.</p>
+      </div>
+      <div class="detail-connections">
+        <h5>Connected to</h5>
+        <div class="connection-chips">
+          <span class="connection-chip">→ Runtime <span class="chip-arrow">(render)</span></span>
+          <span class="connection-chip">→ Agent Intelligence <span class="chip-arrow">(memory/inference)</span></span>
+          <span class="connection-chip">→ Graph Integration <span class="chip-arrow">(payments)</span></span>
+          <span class="connection-chip">→ ENS <span class="chip-arrow">(Agentic ID)</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
