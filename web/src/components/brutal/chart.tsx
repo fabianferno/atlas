@@ -224,7 +224,7 @@ export function Legend({
         <span key={it.name} className="inline-flex items-center gap-1.5">
           <span
             aria-hidden
-            className="inline-block h-2 w-3 border border-rule"
+            className="inline-block h-2 w-3 rounded-[2px] border border-hairline"
             style={{ background: it.color }}
           />
           <span

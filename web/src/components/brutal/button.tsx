@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 export type ButtonIntent = "default" | "primary" | "spend" | "danger" | "quiet";
 
 const intentClass: Record<ButtonIntent, string> = {
-  default: "bg-[var(--card-b)] text-ink",
-  primary: "bg-ink text-[var(--card-b)]",
+  default: "",
+  primary: "btn--primary",
   spend: "btn--spend",
   danger: "btn--danger",
-  quiet: "bg-transparent text-ink shadow-none border-hairline",
+  quiet: "btn--quiet",
 };
 
 export interface BrutalButtonProps
@@ -49,7 +49,7 @@ export function BrutalButton({
         size === "sm" ? "px-2.5 py-1 text-[0.6875rem]" : "px-4 py-2 text-[0.8125rem]",
         intentClass[intent],
         full && "w-full",
-        disabled && "cursor-not-allowed opacity-40 shadow-none active:translate-x-0 active:translate-y-0",
+        disabled && "cursor-not-allowed",
         className,
       )}
       {...rest}
@@ -67,8 +67,10 @@ export function BrutalInput({
   return (
     <input
       className={cn(
-        "fig w-full border-2 border-rule bg-[var(--card-b)] px-2.5 py-2 text-[1rem] outline-none",
-        "placeholder:text-[var(--muted-ink)]",
+        "fig w-full bg-[var(--card-b)] px-2.5 py-2 text-[1rem] outline-none",
+        "rounded-[calc(var(--radius)*0.6)] border border-hairline",
+        "shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)] placeholder:text-[var(--muted-ink)]",
+        "focus-visible:border-[color:var(--action)]",
         className,
       )}
       {...rest}
