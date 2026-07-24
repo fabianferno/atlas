@@ -3,20 +3,24 @@
 /**
  * The generated body of a mini app.
  *
- * TODO(integrator): W5 owns the real A2UI renderer at `@/components/renderer`.
- * This is a local stand-in so the Studio, the app route and the registry all
- * run today with fixture data. It draws the same catalog component names as
- * `lib/contracts/catalog.ts`, so the swap is one line:
+ * Two document shapes reach here and both are real:
  *
- *     <AppBody doc={manifest.ui as UiDoc} />   →   <Renderer doc={manifest.ui} />
+ *   - An A2UI document from the composer (`ComposeResult.ui`) — the live path.
+ *     Handed straight to the renderer, which owns the catalog, the bindings
+ *     and the action loop.
+ *   - The local fixture shape (`UiDoc`) used by the 16 seed mini apps, so the
+ *     board and registry stay populated without a planner round trip.
  *
- * Rule 3 is respected here: charts are ink at varying weight with exactly one
+ * Rule 3 holds in both: charts are ink at varying weight with exactly one
  * semantic accent — the series the question was about. No protocol colours.
  */
 import type { ReactNode } from "react";
 import type { Accent, UiBlock, UiDoc } from "@/lib/seed";
+import type { Policy } from "@/lib/contracts/manifest";
+import type { JournalEntry } from "@/lib/contracts/policy";
 import { fmtNum, fmtUsd } from "@/lib/store";
 import { Fig, Label } from "@/components/board/chrome";
+import { A2uiRenderer } from "@/components/renderer";
 import { cn } from "@/lib/utils";
 
 /** True for the local fixture shape. A real A2UI document has `components`. */
@@ -28,21 +32,36 @@ export function AppBody({
   doc,
   animate = false,
   compact = false,
+  policy = null,
+  spentUsd = 0,
+  journal,
+  onAction,
 }: {
   doc: unknown;
   /** The assembling sequence. Components snap into place one at a time. */
   animate?: boolean;
   compact?: boolean;
+  /** Feeds policy_badge. Null renders "wallet at publish". */
+  policy?: Policy | null;
+  spentUsd?: number;
+  /** Feeds trade_log. */
+  journal?: JournalEntry[];
+  /** Receives a complete client_to_server action, ready to POST to /api/act. */
+  onAction?: (action: unknown) => void;
 }) {
   if (!isUiDoc(doc)) {
-    // A real A2UI document arrived. W5's renderer owns this path — swap the
-    // call site for `@/components/renderer` once it exports a surface.
+    // The live path: a real A2UI document from the composer. The renderer owns
+    // the catalog, path bindings, local functions and the action loop, and it
+    // degrades to a reasoned fallback on a malformed document rather than
+    // throwing — so no guard is needed here.
     return (
-      <div className="panel p-4">
-        <p className="mono text-[0.6875rem] text-[var(--muted-ink)]">
-          A2UI document present — hand it to the renderer.
-        </p>
-      </div>
+      <A2uiRenderer
+        document={doc}
+        policy={policy}
+        spentUsd={spentUsd}
+        journal={journal}
+        onAction={onAction}
+      />
     );
   }
   return (

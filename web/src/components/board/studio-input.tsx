@@ -27,7 +27,8 @@ const EXAMPLES = [
 /** Playback speed for the plan. 1 is the authored timing. */
 const SPEED = 0.6;
 
-type Phase = "idle" | "planning" | "ready";
+/** `resolving` covers the real round trip: plan → fan-out → compose. */
+type Phase = "idle" | "resolving" | "planning" | "ready";
 
 interface State {
   phase: Phase;
@@ -37,15 +38,18 @@ interface State {
 }
 
 type Action =
-  | { type: "start"; intent: string; draft: Draft }
+  | { type: "submit"; intent: string }
+  | { type: "start"; draft: Draft }
   | { type: "land" }
   | { type: "finish" }
   | { type: "reset" };
 
 function reducer(s: State, a: Action): State {
   switch (a.type) {
+    case "submit":
+      return { phase: "resolving", intent: a.intent, draft: null, landed: 0 };
     case "start":
-      return { phase: "planning", intent: a.intent, draft: a.draft, landed: 0 };
+      return { ...s, phase: "planning", draft: a.draft, landed: 0 };
     case "land":
       return { ...s, landed: s.landed + 1 };
     case "finish":
@@ -81,10 +85,21 @@ export function StudioInput() {
     return () => window.clearTimeout(t);
   }, [state.phase, state.landed, state.draft, steps, reduced]);
 
+  // Abort an in-flight plan if the user submits again — otherwise a slow
+  // fan-out can land after a newer one and overwrite it.
+  const inflight = useRef<AbortController | null>(null);
+  useEffect(() => () => inflight.current?.abort(), []);
+
   function submit(intent: string) {
     const trimmed = intent.trim();
     if (trimmed.length < 4) return;
-    dispatch({ type: "start", intent: trimmed, draft: draftApp(trimmed) });
+    inflight.current?.abort();
+    const ctrl = new AbortController();
+    inflight.current = ctrl;
+    dispatch({ type: "submit", intent: trimmed });
+    void draftApp(trimmed, ctrl.signal).then((draft) => {
+      if (!ctrl.signal.aborted) dispatch({ type: "start", draft });
+    });
   }
 
   if (state.phase === "idle") {
@@ -93,7 +108,7 @@ export function StudioInput() {
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-[1.5px] border-rule bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
           <span className="mono text-[0.625rem] uppercase tracking-[0.12em]">Studio</span>
           <span className="mono text-[0.625rem] tracking-[0.02em] opacity-70">
-            15,000+ subgraphs · 11 standardized schemas · 4 chains
+            15,000+ subgraphs · 9 standardized schemas · 4 chains
           </span>
         </div>
 
@@ -158,8 +173,28 @@ export function StudioInput() {
     );
   }
 
+  // The real round trip is in flight: plan on 0G, fan-out across standardized
+  // schemas, compose. Show the question rather than a bare spinner — the wait
+  // is the product working, so name what it is doing.
+  if (state.phase === "resolving" || !state.draft) {
+    return (
+      <section className="panel panel--monitor">
+        <div className="flex items-center gap-2 border-b-[2.5px] border-rule bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
+          <span className="live-dot" aria-hidden />
+          <span className="mono text-[0.625rem] uppercase tracking-[0.12em]">Resolving</span>
+        </div>
+        <div className="px-3 py-5 sm:px-5">
+          <p className="display text-base leading-snug sm:text-lg">{state.intent}</p>
+          <p className="mono mt-3 text-[0.6875rem] text-[var(--muted-ink)]">
+            planning intent · resolving standardized schemas · health-checking
+            deployments
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   const draft = state.draft;
-  if (!draft) return null;
   const tier = draft.manifest.agency.tier;
   const assembled = state.phase === "ready";
 

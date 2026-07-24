@@ -944,12 +944,18 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             developers — so everyone else went to Dune. We built the surface
             The Graph never did."
 
-0:18–0:50  THE OPAL MOMENT. An XP desktop. Double-click "New Mini App", type:
-           "Watch my Aave position on Arbitrum. If health factor drops under
-            1.4, sell ETH to bring it back to 1.8."
-           A window opens. The plan streams inside it: two standardized schemas
-           resolved, dead deployments skipped, Substreams subscribed.
+0:18–0:50  THE OPAL MOMENT. Type into the Studio, verbatim:
+           "Watch my lending positions and DEX exposure across Arbitrum,
+            Optimism and Base. Rebalance if health factor drops under 1.4."
+           The plan streams: classified autonomous, two standardized schema
+           families across three chains, and — say this number out loud —
+           18 of 22 deployments live, 4 skipped as dead.
                                                     ← Graph T2 + T3
+
+           [Use this question. Measured: autonomous tier, 2 schemas x 3 nets,
+            18/22 live, 70 rows. The single-chain variants resolve 9 of 9 and
+            the dead-source story never appears on camera, which throws away
+            the Track 3 argument.]
 
 0:50–1:12  THE VIBEOS MOMENT. The UI assembles — health gauge, position table,
            trade log, policy badge.
