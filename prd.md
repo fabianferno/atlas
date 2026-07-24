@@ -21,7 +21,7 @@
 12. [The ecosystem layer](#12-the-ecosystem-layer)
 13. [Verified technical ground truth](#13-verified-technical-ground-truth)
 14. [Track compliance matrix](#14-track-compliance-matrix)
-15. [The 36-hour cut](#15-the-36-hour-cut--what-actually-ships)
+15. [Build plan — parallel execution](#15-build-plan--parallel-execution)
 16. [Demo script](#16-demo-script--250)
 17. [Risk register](#17-risk-register)
 18. [Open questions](#18-open-questions--resolve-at-booths-friday-morning)
@@ -175,9 +175,9 @@ MCP server config, SKILL library, and the generator all live inside this app. A 
 
 ## P2 — The Runtime → Graph Track 2 + 3
 
-Generative UI over live Graph data, with actions. NL → intent → standardized schema resolution → parallel fan-out across ≥2 schema families → Substreams subscription where freshness matters → A2UI document with interactive components → rendered, live, acting.
+Generative UI over live Graph data, with actions. NL → intent → standardized schema resolution → parallel fan-out across **all ten standardized schema families** → Substreams subscription for anything event-driven → A2UI document with interactive components → rendered, live, acting.
 
-Track 3's bar is *"compose two or more Graph products, OR build meaningfully on a standardized schema."* We do both, several times over (§10).
+Track 3's bar is *"compose two or more Graph products, OR build meaningfully on a standardized schema."* We do both, several times over (§10). Track 3 also scores **Breadth at 20%** — so full schema coverage across ≥3 chains is directly rewarded, not just thoroughness for its own sake.
 
 ## P3 — Identity → ENS Track 1 + 2, 0G Track 1
 
@@ -365,13 +365,15 @@ proposed action
 
 Each mini app gets its own wallet. Options, in order of speed-to-demo:
 
-| Approach | Speed | Notes |
-|---|---|---|
-| **Session-key EOA derived per mini app** | Fastest | Simple, fully in your control, easy to explain. Recommended for the weekend |
-| **Embedded wallet (Privy / Turnkey)** | Medium | Better UX for real users, adds a dependency and a signup flow |
-| **Smart account + session keys (ERC-4337 / 7702)** | Slowest | The correct long-term answer. Real policy enforcement onchain. Too much for 36h |
+| Approach | Notes |
+|---|---|
+| **Smart account + session keys (ERC-4337 / EIP-7702)** | **Build this.** Policy enforced onchain, not just in our process — allowlist, spend cap, and expiry live in the session key itself |
+| Embedded wallet (Privy / Turnkey) | Better consumer onboarding UX; layer it over the smart account for signup |
+| Session-key EOA | Fallback only if the account stack fights you |
 
-Recommendation: **session-key EOA now, smart accounts in "what's next."** Say the upgrade path out loud in the demo — judges reward knowing where you cut.
+**Build the smart account version.** The distinction matters more than it looks: with a session-key EOA, "the policy stopped it" means *our server chose not to sign*. With onchain session keys, the policy is enforced by the account itself — a compromised backend still can't exceed the cap or touch a non-allowlisted contract. That's a real security property and a much better answer when a judge pushes on "what if your server is owned?"
+
+Say that distinction out loud in the demo. It's the difference between a safety story and a safety *mechanism*.
 
 ---
 
@@ -442,7 +444,15 @@ Every published mini app is minted as an **Agentic ID** on 0G Chain — 0G's ERC
 
 0G Track 1's extra qualification says: *"For Agentic ID projects: link to minted Agentic ID on 0G explorer."* Minting satisfies that **and** the contract-deployment-address requirement in one move.
 
-> **Scope warning.** Full ERC-7857 wants a TEE/ZKP oracle, 0G Storage for encrypted metadata, and AES-256-GCM. That is a 6–10 hour rabbit hole. **Timebox to 3 hours.** Fallback: deploy a minimal ERC-7857-shaped registry that mints a real token with a manifest CID and skips encrypted-metadata transfer. You still get a minted token, a real contract address, and an explorer link — say plainly in the README which parts of the standard you implemented. Judges respect a scoped implementation far more than a broken full one.
+**Implement the full standard**, not a shaped-alike: deploy the ERC-7857 contract to 0G Chain, wire a TEE-based oracle, store encrypted metadata in 0G Storage with AES-256-GCM, and support the re-encryption handoff on transfer. The reason to do the whole thing is that **transfer and cloning are product features here, not spec trivia** — forking a mini app *is* an ERC-7857 clone, and selling one is a transfer. A partial implementation would leave the ecosystem layer (§12) unable to actually change hands.
+
+## Agent memory on 0G Storage
+
+Every mini app keeps encrypted memory in 0G Storage: past runs, decisions and why it made them, user corrections, and the full action journal that backs the on-screen trade log.
+
+This is not a bolt-on. An autonomous app that rebalances a position needs to know what it already did — otherwise it re-trades on the same signal. Memory is a correctness requirement for anything in the autonomous tier, and it makes the trade log verifiable rather than cosmetic.
+
+It also lands squarely on a 0G Track 1 stated example: *"Agent minted as Agentic ID with encrypted memory."* Memory + Agentic ID together are the exact shape 0G asked for.
 
 ---
 
@@ -481,7 +491,9 @@ intent → schema resolution → live-deployment lookup (health-checked)
        → merge → normalize → compose
 ```
 
-Minimum for Track 3 qualification: **DEX AMM 1.3.2 + Lending/CDP 3.1.0.** Track 3 explicitly warns that *"simply querying one Subgraph with no composition does not qualify."* Build the fan-out first, before anything visual.
+Track 3 explicitly warns that *"simply querying one Subgraph with no composition does not qualify."* The fan-out is the qualification — build it before anything visual.
+
+Coverage target: **all ten schema families, three chains.** The demo only needs to *show* two or three families composing, but the resolver should handle any of them, because the whole claim is that a question you haven't thought of yet still resolves. A resolver that only knows DEX and Lending is a demo; one that knows all ten is a product.
 
 ---
 
@@ -602,11 +614,13 @@ MCP client config:
 
 ## Standardized schemas (Messari, via The Graph)
 
-**Pick two. Don't survey all ten.**
+**Support all ten.** Track 3 scores Breadth at 20%, and every additional family widens the range of questions that resolve without a custom adapter.
 
-`Generic 3.0.0` · **`DEX AMM 1.3.2`** · `DEX AMM Extended 4.0.1` · `DEX Aggregator 1.0.2` · **`Lending/CDP 3.1.0`** · `Yield Aggregator 1.3.1` · `NFT Marketplace 2.1.0` · `Network 1.2.0` · `Bridge 1.2.0` · `Perp Futures 1.3.4` · `Options 1.3.2`
+`Generic 3.0.0` · `DEX AMM 1.3.2` · `DEX AMM Extended 4.0.1` · `DEX Aggregator 1.0.2` · `Lending/CDP 3.1.0` · `Yield Aggregator 1.3.1` · `NFT Marketplace 2.1.0` · `Network 1.2.0` · `Bridge 1.2.0` · `Perp Futures 1.3.4` · `Options 1.3.2`
 
-Supports real-time entity queries, time-travel queries, and time-series snapshots.
+Supports real-time entity queries, time-travel queries, and time-series snapshots. Time-travel is worth using explicitly — it gives historical comparison without maintaining your own snapshots, and it's a standards feature most submissions won't touch.
+
+**Chains:** Arbitrum and Optimism minimum, Base third. Multi-chain is where standardized schemas actually pay off — the same query shape across three networks is the composability argument made visible.
 
 ## A2UI
 
@@ -669,60 +683,84 @@ Hard qualification requirements. **Anything unchecked at Sunday 07:00 is a disqu
 
 ---
 
-# 15. The 36-hour cut — what actually ships
+# 15. Build plan — parallel execution
 
-**The vision above is the product. This section is the weekend.** They are different documents and conflating them is how teams submit nothing.
+Build capacity is not the constraint; **coordination is.** Everything below is organized around that: freeze the seams first, fan out wide, and defend the integration points.
 
-The scope in §1–§12 is roughly three times what fits in the ~30 working hours left. That's fine — a PRD should describe the product — but the build has to be sequenced so that **every hour produces something demoable**, and so that the things which are *qualification requirements* land before the things which are *impressive*.
+## Phase 0 — freeze the contracts (blocks everything, do it first)
 
-## The spine — nothing ships without this
+The highest-leverage hour in the whole build. N agents can only produce composable work if the interfaces between them are defined *before* they start. Write these as real, committed artifacts — not prose in this document:
 
-1. **Cross-schema fan-out**, health-checked (Graph T3 qualification)
-2. **NL → plan → A2UI render**, live data (Graph T2 qualification)
-3. **One action that executes** with policy enforcement (the entire differentiator)
-4. **ENS name written and resolvable** (ENS T1+T2 qualification)
-5. **A contract deployed on 0G Chain** with an address (0G qualification)
-
-If only these five exist Sunday morning, you have a complete, qualifying submission for six tracks.
-
-## Degrade in this order if you're behind
-
-| Cut | When | Cost |
+| Artifact | Location | Why it blocks |
 |---|---|---|
-| Full ERC-7857 → minimal minting contract | If §9 exceeds 3h | Low — still get a token + explorer link |
-| Substreams stream → 15s polling, same interface | If streaming exceeds 3h | **Medium** — weakens the T3 story. Keep the manifest field so it reads as designed-for |
-| Ratings + reviews | Saturday evening | Low — registry survives without it |
-| Creator x402 payouts → show inbound x402 only | Saturday evening | Low — inbound x402 still demos the rail |
-| Conversational refinement → regenerate from scratch | Anytime | Low — user barely notices in a demo |
-| Autonomous trigger → button-triggered action | **Last resort** | **High** — this is the differentiator. Protect it |
+| Manifest JSON Schema (`graphmini/2`) | `packages/kit/src/contracts/manifest.schema.json` | Every workstream reads or writes it |
+| Component + action catalog | `packages/kit/src/contracts/catalog.ts` | Composer emits against it; renderer implements it. Mismatch = nothing renders |
+| Kit public API signatures | `packages/kit/src/contracts/api.ts` | `plan · fanOut · compose · publish · policy` — Studio and MCP both bind to it |
+| Policy engine interface | `packages/kit/src/contracts/policy.ts` | Signer, triggers, and UI all call through it |
+| A2UI document shape emitted | `packages/kit/src/contracts/a2ui.ts` | The composer/renderer seam — the most likely place a parallel build silently diverges |
+| Data-source descriptor | `packages/kit/src/contracts/source.ts` | Resolver, fan-out, and streams all traffic in it |
 
-Never cut: the fan-out, one working action, the ENS write, the 0G contract.
+**Rule: no workstream starts before its contracts exist.** Stub implementations that satisfy the types are fine and expected — an agent building the renderer should be able to work against a fixture manifest with no data plane in existence.
 
-## Hour by hour
+## The serial critical path — start these at hour zero
 
-**Fri 10:00–13:00 · de-risk before building**
-ENS booth — pick the subname mechanism, register the 2LD now (propagation isn't instant). Graph API key; verify a standardized-schema query returns real data on Arbitrum. 0G: one successful `/v1/chat/completions` call. Spike the A2UI React renderer **including a Button with a server event** — actions are the whole product; find out today if they fight you. Commit after each.
+These are **queues, not work.** No amount of parallelism speeds them up, and every one of them blocks a qualification requirement. Kick all of them off before writing a line of code:
 
-**Fri 13:00–20:00 · the qualifying spine**
-Resolver + health check + parallel fan-out across DEX AMM and Lending/CDP. Planner: NL → plan, on 0G. Ten hardcoded intent patterns beat a general parser — ship those, generalize only if time allows. Target: type a question, see real numbers in a terminal. Ugly is fine.
+- **ENS 2LD registration** — plus propagation. Also the booth conversation (§18 Q1) that decides the issuance mechanism
+- **Graph gateway API key** — Studio, wallet connect
+- **0G testnet access** — faucet, RPC, Private Computer API key
+- **npm org/package name** — claim `@graphminis` before someone else does
+- **Domain + deploy target** — the live demo link is a 0G requirement
 
-**Fri 20:00 – Sat 02:00 · it becomes a product**
-Composer → A2UI doc with interactive components. Manifest v2 serialization. Studio page: describe → watch it build → render. **Checkpoint 02:00 — does a sentence produce a live rendered app?** If no, cut everything in §12 and protect the spine.
+## Workstreams — fully parallel once Phase 0 lands
 
-**Sat 09:00–14:00 · the differentiator**
-Policy engine + session-key signer. One action end-to-end on testnet. Kill switch. Trade log in the UI. **This is the demo. Do not let it slip past 14:00.**
+Each owns a directory, has a definition of done, and shares no mutable state with its siblings.
 
-**Sat 14:00–18:00 · identity**
-Pin manifest → IPFS. Write ENS records (`addr`, `contenthash`, `agent-context`, `agent-endpoint[web|mcp]`). Deploy contracts to 0G Chain, **record addresses**. Mint one Agentic ID; grab the explorer link. Write `agent-registration[…]` back to ENS to close the ENSIP-25 loop.
+| # | Workstream | Owns | Depends on | Done when |
+|---|---|---|---|---|
+| W1 | **Data plane** | resolver, health checks, fan-out | source, manifest | Any of 10 schemas, 3 chains, dead deployments skipped, parallel merge |
+| W2 | **Streams** | Substreams packages, subscription, trigger evaluation | source | A block-level event fires a trigger callback |
+| W3 | **Planner** | NL → plan, on 0G Compute, attestation capture | manifest, api | Arbitrary question → valid plan + stored attestation |
+| W4 | **Composer** | plan + data → A2UI doc, form-follows-data rules | catalog, a2ui | Every catalog component reachable from some data shape |
+| W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch |
+| W6 | **Agency** | policy engine, smart account + session keys, signer, kill switch, journal | policy, manifest | Action executes on testnet; every policy rejection path tested |
+| W7 | **Identity** | ENS issuance + records, ERC-7857 + oracle + mint, mutual verification | manifest | Name resolves to app; ENSIP-25 binding verifies both directions |
+| W8 | **Memory** | encrypted 0G Storage per app, action journal | manifest | App recalls prior runs; journal backs the on-screen log |
+| W9 | **Studio** | describe · build · refine · configure · publish | api | Sentence → live app → published, no terminal |
+| W10 | **Ecosystem** | registry, fork/remix, ratings, x402 creator payouts | manifest, api | Fork produces fresh wallet/name/ID with zero inherited authority |
+| W11 | **Distribution** | npm publish, MCP server, SKILL.md | api | A stranger installs it and gets a rendered app |
+| W12 | **Seed content** | 12–15 mini apps spanning the full range | W9 | Registry is populated across analytics → monitor → autonomous |
+| W13 | **Submission** | README, architecture diagram, video | — | §14 matrix fully checked |
 
-**Sat 18:00–21:00 · platform + tooling**
-Publish `@graphminis/kit` to npm for real. MCP server + SKILL.md. Registry grid, fork button, ratings. Mobile pass (Tailwind — should be cheap). Seed 6–8 good mini apps spanning analytics → monitor → autonomous, so the range slide is real.
+**W12 deserves more respect than it usually gets.** A registry with three apps in it looks like a prototype; one with fifteen spanning the whole range looks like a platform. It's also the cheapest possible credibility given parallel capacity — and it's what makes the §2 range diagram real rather than aspirational.
 
-**Sat 21:00 – Sun 02:00 · ship the story**
-Record the video — **budget three hours, it always takes three.** README with data sources, AI attribution, pre-existing-work disclosure. Architecture diagram.
+## Integration checkpoints — where parallel builds actually fail
 
-**Sun 02:00–08:00 · freeze and submit**
-**Feature freeze 02:00.** Demo-path bugs only. Submit by **08:00**, not 08:55. The ENS booth presenter sleeps — and is not the person fixing bugs at 02:00.
+Parallel agents rarely fail by writing bad code. They fail by writing code that doesn't compose, and nobody notices until the end. Three hard sync points, each requiring a human to look at the whole thing end-to-end:
+
+**Checkpoint 1 — the vertical slice.** One question → plan → data → A2UI doc → rendered. No actions, no identity. This proves W1/W3/W4/W5 agree on the seams. Until this passes, every other workstream is building on an unverified assumption.
+
+**Checkpoint 2 — the action loop.** A button in a rendered app dispatches a server event, hits the policy engine, gets signed, lands on testnet, and appears in the journal. This is the differentiator and it crosses four workstreams (W5/W6/W8/W9) — the highest-risk seam in the build.
+
+**Checkpoint 3 — the full artifact.** Publish → ENS records written → Agentic ID minted → resolve the name from a *different* client → it runs. Proves W7/W9/W10/W11 compose.
+
+Anything not exercised by a checkpoint is unverified, regardless of how done it looks.
+
+## What parallelism does not buy you
+
+Worth naming so it doesn't surprise anyone at 3am:
+
+- **The serial critical path above.** ENS propagation takes what it takes.
+- **Third-party discovery blockers.** When A2UI's action loop or ERC-7857's oracle behaves unexpectedly, ten agents mostly reproduce the same confusion. Assign one owner, let them go deep, don't fan out on an unknown.
+- **The integration checkpoints.** Serial by nature, human-judged.
+- **The recording.** Budget three hours. It always takes three hours.
+- **The Sunday 09:00 deadline**, which is fixed.
+
+## A note on the AI-tool policy
+
+ETHGlobal permits AI tools with attribution, and states plainly that **AI should assist, not wholly create the project** — while explicitly blessing spec-driven workflows *provided all specs, prompts, and planning artifacts are committed to the repo.*
+
+That second clause is your protection, and this document is the artifact it's describing. Keep committing the specs. Keep human decisions visible in the history — the architectural calls, the booth conversations, the scope judgments. A repo where the reasoning is legible reads as spec-driven engineering; one that's only generated output reads as the thing the policy is aimed at. Given how much of this build is agent-executed, this is worth being deliberate about rather than hoping it looks fine.
 
 ---
 
@@ -754,7 +792,9 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 1:10–1:45  THE LEAP. Drop the health factor on testnet. The app fires:
            policy check, session key signs, trade lands, log updates live.
            "This isn't a dashboard. It has a wallet, a $500 cap, one allowlisted
-            router, and a kill switch. Dune can't do this."
+            router, and a kill switch — enforced by the account onchain, not by
+            our server. Even if you owned our backend, it can't exceed that.
+            Dune can't do this."
                                                     ← the differentiator
 
 1:45–2:05  IDENTITY. It's aave-guard.graphminis.eth — resolving to the UI, the
@@ -782,19 +822,19 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 
 | Risk | P | Impact | Mitigation |
 |---|---|---|---|
-| **Scope.** Vision is ~3× the remaining hours | **High** | **Fatal** | §15 spine + degrade order. Re-read the degrade table at every checkpoint, not at 04:00 Sunday |
+| **Parallel work doesn't compose.** Workstreams finish individually, nothing runs end-to-end | **High** | **Fatal** | Phase 0 contracts before any workstream starts. Three integration checkpoints (§15). The composer/renderer catalog seam is the likeliest divergence — pin it hardest |
 | **Dead standardized subgraph mid-demo** — ~65 of 90 deployments live at any time | **High** | Fatal | Health-check before every fan-out; skip dead sources; re-verify demo queries 30 min before recording; keep one known-good pinned |
-| Action/policy path not done by Sat 14:00 | Med | **Fatal** | It's the differentiator. Protect the slot. Fall back to button-triggered, never cut entirely |
-| A2UI action loop harder than the render loop | Med | High | Spike the Button server-event Friday morning, not Saturday. Fallback: local action handler that calls our API directly, same UX |
-| ERC-7857 full spec rabbit hole (oracle + encryption + Storage) | **High** | Med | Hard 3h timebox → minimal minting contract. Document what you scoped |
-| Substreams streaming eats a day | Med | Med | 3h timebox → 15s polling behind the same interface. Keep the manifest field |
-| ENS subname issuance eats a day | Med | High | Booth Friday morning; offchain CCIP-Read as fast path |
-| 0G key/quota delay | Low | Med | OpenAI-compatible — swap via env var. Build on OpenAI, flip to 0G, show the flip |
-| Venue wifi dies during recording | **High** | High | Record core flow early Saturday. Keep fallback clips |
-| Git history looks AI-generated | Med | **Fatal** | Commit every 20–30 min with real messages. Pre-event commits ("test", "Iniit") are a clean pre-existing-work boundary — cite the hash in the README |
-| Demo agent does something embarrassing with real money | Low | **Fatal** | Testnet. If mainnet, $20 wallet and say the number |
-| Judge: "an LLM with a wallet is reckless" | Med | Med | §7 is the answer. Policy at the signer, not the prompt; allowlist; caps; expiry; kill switch. Have the table memorized |
+| **Serial critical path started late** — ENS propagation, npm name, 0G access | Med | **Fatal** | These are queues, not work. All kicked off at hour zero (§15), before any code |
+| Checkpoint 2 (the action loop) slips | Med | **Fatal** | It's the differentiator and it crosses four workstreams. Highest-risk seam — schedule it early and treat a miss as a stop-the-line event |
+| A2UI action loop behaves unexpectedly | Med | High | One owner goes deep; do **not** fan out on an unknown. Fallback: local action handler calling our API directly, identical UX |
+| ERC-7857 oracle + encrypted metadata is fiddly | Med | Med | One owner, deep. Transfer/clone is a product feature (§12), so partial implementation has downstream cost — but a documented partial beats a broken full |
+| Venue wifi dies during recording | **High** | High | Record core flow early Saturday. Keep fallback clips of the live query and the firing trade |
+| **AI-tool policy** — repo reads as wholly generated rather than assisted | Med | **Fatal** | Commit specs and planning artifacts (policy explicitly blesses this). Keep human architectural decisions visible in history. See §15 closing note |
+| Git history looks synthetic — bulk commits, no reasoning | Med | **Fatal** | Frequent commits with real messages. Pre-event commits ("test", "Iniit") are a clean pre-existing-work boundary — cite the hash in the README |
+| Demo agent does something embarrassing with real money | Low | **Fatal** | Testnet. If mainnet, $20 wallet and say the number out loud |
+| Judge: "an LLM with a wallet is reckless" | Med | Med | §7. Policy enforced onchain in the session key, not in the prompt — a compromised backend still can't exceed the cap. Have the table memorized |
 | Judge: "isn't this just Dune?" | Med | Low | §1 table. Dune dashboards can't trade, can't be run by an agent, and don't exist until a human writes SQL |
+| Breadth without depth — 10 schemas all shallow | Med | Med | Demo shows 2–3 families composing *well*; the other seven prove the resolver generalizes. Don't try to showcase all ten in 2:50 |
 
 ---
 
@@ -814,30 +854,44 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 
 A2UI requires the **client** to hold the approved catalog; the agent may only reference it by name. That's the security property and your scope fence — a finite catalog means a finite output space.
 
-## Display components — ship six
+Catalog size is a design decision, not a budget one: a wider catalog means richer generated UI, but every component must be reachable from some data shape or the composer will never emit it. **Rule: no component ships without a rule that selects it** (W4's definition of done).
+
+## Display components
 
 | Component | Data shape that triggers it |
 |---|---|
 | `metric_card` | single scalar, optional delta |
 | `bar_chart` | categorical × one metric |
+| `grouped_bar` | categorical × multiple metrics |
 | `time_series` | timestamped × one-or-more metrics |
+| `area_stack` | timestamped × composition-of-a-whole |
+| `candlestick` | OHLCV — price series with open/high/low/close |
 | `leaderboard` | categorical, ranked — the most common question shape |
 | `gauge` | **bounded ratio** — health factors, utilization, LTV |
+| `progress_bar` | scalar against a known target |
 | `comparison_grid` | ≥2 entities × shared metrics — **the cross-schema shot** |
+| `heatmap` | two categoricals × one metric — protocol × chain |
+| `distribution` | one metric, many observations — holder concentration |
+| `flow_diagram` | source → destination with volume — bridges, routing |
+| `position_card` | a held position: size, entry, PnL, risk |
 | `data_table` | fallback when nothing else fits |
+| `alert_banner` | a triggered condition needing attention |
 
-## Action components — ship four
+## Action components
 
 | Component | Emits | Notes |
 |---|---|---|
 | `action_button` | Server Event → policy engine → signer | The core primitive |
 | `confirm_dialog` | Server Event, gated on user confirm | Required when `requireConfirm: true` |
+| `amount_input` | data-model binding, feeds action context | Bounded by policy caps at render time, not just at signing |
+| `allowlist_picker` | data-model binding | Only ever renders policy-approved targets |
 | `kill_switch` | Local Function Call + Server Event | Must render in every autonomous app |
-| `trade_log` | display-only, streams from the action journal | Non-negotiable — an agent that spends must show its work |
+| `trade_log` | display-only, streams from the action journal (W8) | Non-negotiable — an agent that spends must show its work |
+| `policy_badge` | display-only | Surfaces caps, expiry, allowlist. The user should never have to ask what it can do |
 
-**Composer rule:** components are chosen from the *shape of the data*, never from keywords in the prompt. A bounded ratio becomes a gauge whether or not the user said "gauge." That's the defensible version of generative UI.
+**Composer rule:** components are chosen from the *shape of the data*, never from keywords in the prompt. A bounded ratio becomes a gauge whether or not the user said "gauge." That's the defensible version of generative UI — and the reason the catalog can grow without the output becoming arbitrary.
 
-Deferred (say so in the README): OHLCV candles, Sankey/flow diagrams, portfolio treemaps, multi-step approval flows.
+`policy_badge` and `trade_log` are the two that make the safety story visible rather than asserted. Neither is optional in an autonomous app.
 
 ---
 
@@ -943,7 +997,19 @@ await publish(ui, {
 
 [`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
 
-## v3 — the repositioning (current)
+## v4 — built for parallel execution (current)
+
+Build capacity stopped being the constraint (agent-executed build), so the plan is now organized around **coordination** instead of hours:
+
+- §15 rewritten from "what to cut" into **Phase 0 contracts → 13 parallel workstreams → 3 integration checkpoints.** Parallel builds fail at the seams, not in the code, so the seams are frozen before anyone starts
+- **Serial critical path** called out separately — ENS propagation, npm name, 0G access. Queues, not work; unaffected by parallelism
+- Scope restored where labor was the only reason to trim: **all ten standardized schemas** (Track 3 scores Breadth at 20%), three chains, full Substreams, expanded component catalog
+- **Smart accounts + session keys** instead of a session-key EOA — policy enforced onchain, so a compromised backend still can't exceed the cap. A mechanism, not a story
+- **Full ERC-7857** rather than a shaped-alike, because transfer and cloning are product features here — forking a mini app *is* a clone
+- **Agent memory on 0G Storage** restored — an autonomous app that re-trades on a signal it already acted on is broken, so memory is a correctness requirement. Also hits 0G Track 1's stated example verbatim
+- Risk register swapped from labor risks to **integration and attribution risks**, including ETHGlobal's "AI should assist, not wholly create" rule — which spec-driven workflows satisfy *if* the specs are committed
+
+## v3 — the repositioning
 
 **Mini apps are agents, not dashboards.** They hold wallets and act. This is the change that makes everything else cohere:
 
