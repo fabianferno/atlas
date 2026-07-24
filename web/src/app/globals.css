@@ -1,0 +1,302 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+/* ============================================================================
+   GRAPH MINI APPS — DESIGN SYSTEM
+   Neo-brutalism, tuned to this product. See prd.md §6.
+
+   Five rules, all enforced here:
+   1. Border weight encodes agency tier — chrome gets heavier as an app gets
+      more dangerous. This is the signature.
+   2. Colour is semantic, never decorative. Five accents, one meaning each.
+      --spend appears ONLY when value leaves a wallet.
+   3. Charts are monochrome ink plus one accent. Do not colour-code protocols.
+   4. Mono is a primary voice, not an accent.
+   5. Light mode, deliberately.
+   ========================================================================= */
+
+:root {
+  /* --- ground --- */
+  --paper:  #EFEEE9;
+  --card-b: #FFFFFF;
+  --ink:    #0A0A0A;
+  --rule:   #000000;
+  --muted-ink: #75736C;
+  --hairline: #DEDCD4;
+
+  /* --- semantic accents: one meaning each, never decorative --- */
+  --live:  #0047FF;   /* streaming, subscribed, running */
+  --gain:  #007A3D;   /* value up, healthy, policy passed */
+  --loss:  #D6220F;   /* value down, policy rejected, source dead */
+  --risk:  #FFB800;   /* approaching threshold, degraded, stale */
+  --spend: #7B2FF7;   /* value LEAVING a wallet — nothing else */
+
+  /* --- agency tier: border weight (Rule 1) --- */
+  --bw-readonly:   1.5px;
+  --bw-monitor:    2.5px;
+  --bw-autonomous: 5px;
+
+  /* --- hard offset shadow, reserved for actionable surfaces --- */
+  --drop:    5px 5px 0 var(--rule);
+  --drop-sm: 3px 3px 0 var(--rule);
+
+  /* Kill every rounded corner shadcn ships with. Without this, components
+     drift back to generic on every `shadcn add`. */
+  --radius: 0rem;
+
+  /* Remap shadcn's tokens onto ours so its primitives inherit the system. */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--card-b);
+  --card-foreground: var(--ink);
+  --popover: var(--card-b);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--card-b);
+  --secondary: var(--paper);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper);
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--live);
+  --accent-foreground: var(--card-b);
+  --destructive: var(--loss);
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--live);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-rule: var(--rule);
+  --color-hairline: var(--hairline);
+  --color-live: var(--live);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-risk: var(--risk);
+  --color-spend: var(--spend);
+  --shadow-drop: var(--drop);
+  --shadow-drop-sm: var(--drop-sm);
+}
+
+@layer base {
+  /* Brutalism needs black rules on light ground. No dark variant. */
+  .dark { color-scheme: light; }
+
+  html { font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif; }
+  body { background: var(--paper); color: var(--ink); }
+
+  h1, h2, h3, .display {
+    font-family: var(--font-archivo), ui-sans-serif, sans-serif;
+    font-stretch: 118%;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  /* Rule 4 — every figure, address, hash and log line. Tabular always. */
+  .mono, code, kbd, samp, pre, td.num, .fig {
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible { outline: 3px solid var(--live); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  /* --- Rule 1: the signature. Tier drives chrome weight. --- */
+  .panel {
+    background: var(--card-b);
+    border: var(--bw-readonly) solid var(--rule);
+  }
+  .panel--monitor    { border-width: var(--bw-monitor); }
+  .panel--autonomous { border-width: var(--bw-autonomous); }
+
+  /* Only autonomous apps carry a policy strip, pinned to the top edge. */
+  .policy-strip {
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+    padding: .4rem .7rem;
+    border-bottom: var(--bw-autonomous) solid var(--rule);
+    background: var(--ink); color: var(--card-b);
+    font-size: .6875rem; letter-spacing: .06em; text-transform: uppercase;
+  }
+
+  /* Actionable only. Never on static panels — that is what makes it mean
+     something. */
+  .raise    { box-shadow: var(--drop); }
+  .raise-sm { box-shadow: var(--drop-sm); }
+  .press:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  .btn {
+    border: 2px solid var(--rule); background: var(--card-b); color: var(--ink);
+    padding: .5rem 1rem; font-weight: 600; box-shadow: var(--drop-sm);
+    transition: transform 80ms linear, box-shadow 80ms linear;
+  }
+  .btn:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn--danger { background: var(--loss); color: #fff; }
+  .btn--spend  { background: var(--spend); color: #fff; }
+
+  /* Rule 3 — charts are ink at varying weight, one accent for the series
+     the question was about. */
+  .bar      { background: var(--ink); }
+  .bar--60  { background: color-mix(in srgb, var(--ink) 60%, var(--paper)); }
+  .bar--35  { background: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
+  .bar--accent { background: var(--live); }
+
+  /* Density: borders on containers, hairlines inside. */
+  .cells tr + tr { border-top: 1px solid var(--hairline); }
+
+  .tag {
+    border: 1.5px solid var(--rule); padding: .15rem .45rem;
+    font-size: .6875rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .live-dot {
+    width: .5rem; height: .5rem; background: var(--live);
+    animation: blip 1.6s steps(1, end) infinite;
+  }
+  @keyframes blip { 50% { opacity: .25; } }
+
+  /* The one place the animation budget goes: an interface assembling itself.
+     Sharp easing, no bounce, no fade. */
+  .snap-in {
+    animation: snap 220ms cubic-bezier(.2,.9,.2,1) both;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+  @keyframes snap {
+    from { opacity: 0; transform: translateY(10px); clip-path: inset(0 0 100% 0); }
+    to   { opacity: 1; transform: none;             clip-path: inset(0 0 0 0); }
+  }
+}

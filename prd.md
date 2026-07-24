@@ -327,108 +327,117 @@ A `Button` carries an `action` that is either a **Server Event** (dispatched to 
 
 ---
 
-## The visual system — Windows XP
+## The visual system
 
-**The product is an operating system for onchain agents. So it looks like one.**
+### The design problem, stated honestly
 
-This is not a costume. Four things it does that a conventional web app doesn't:
+This is not a normal UI brief, because **we do not control the composition.** An agent assembles the screen at runtime from a catalog. So the system has to hold together no matter what gets combined — which rules out any aesthetic that depends on careful, hand-tuned arrangement. Whatever we choose must look deliberate when a machine stacks six components it has never stacked before.
 
-1. **It makes the lineage explicit.** The stated inspiration is VibeOS — an OS whose applications have no code beneath them. Building the desktop makes the reference legible in one screenshot instead of one paragraph.
-2. **Windows solve the multiplicity problem.** A user has many mini apps, several open at once, each with its own identity and state. Thirty years of window management already solved that, and nothing in modern web UI does it as well.
-3. **The taskbar and tray solve the hardest problem in the product.** Autonomous mini apps run whether or not you're looking at them. *Which of my agents are live right now, and what did they just do?* An OS answers that natively — running tasks in the taskbar, background processes in the tray, a balloon when something happens. No dashboard idiom comes close.
-4. **XP was the last era software felt ownable.** Discrete things you installed, that lived somewhere, that were yours. That is precisely the mini-app claim, and it's the opposite of a SaaS tab.
+Three more constraints, all in tension:
 
-### The mapping
-
-Every OS affordance carries product meaning. Nothing here is skin-deep:
-
-| Windows XP | Graph Mini Apps |
+| Constraint | Pull |
 |---|---|
-| Desktop icons | Your installed mini apps |
-| Double-click | Launch and run |
-| Window | One running mini app |
-| Title bar | Its ENS name, plus live status |
-| Taskbar | Agents currently running |
-| System tray | Autonomous agents working in the background |
-| Balloon tooltip | A trigger fired — "aave-guard.eth executed a swap" |
-| Start menu | Registry (browse, install) · wallet · settings |
-| Install dialog | Fork or publish a mini app |
-| Control Panel | Policy: caps, allowlist, expiry |
-| **Task Manager** | **Running agents, with End Task as the kill switch** |
+| An LLM is holding a wallet | must read as **trustworthy** |
+| The audience is Dune's, not Bloomberg's | must read as **approachable**, not institutional |
+| Financial data is tabular and dense | must be **information-dense**, not airy |
+| Thirteen parallel agents are building it | must be **hard to get subtly wrong** |
 
-### Signature: Task Manager
+### Direction: neo-brutalism, tuned to this product
 
-Spend the boldness here. **Ctrl+Alt+Del brings up Task Manager, your autonomous agents are the process list, and "End Task" is the kill switch.**
+Flat fills, hard black rules, offset shadows with no blur, no gradients, no glass.
 
-It's the funniest thing in the build and also the most serious: it's the correct UX for stopping a runaway agent, it makes §7's safety story something you can *see* rather than assert, and it's the answer to "what if it goes rogue?" delivered as a visual instead of a paragraph. Every judge who has ever force-quit a frozen program understands it instantly.
+**Why it fits, structurally:** it's the most *constraint-native* system available. Brutalism is defined by a small set of hard rules, which means an agent composing from the catalog physically cannot produce something incoherent — everything belongs by construction. It's also the easiest system for thirteen parallel builders to hit consistently, because there is almost nothing to drift on. No gradient stops, no shadow blur radii, no elevation scale to disagree about.
 
-The tray balloon is the supporting moment — the thing that happens constantly during the demo. Task Manager is the thing people repeat to someone else afterwards.
+**Why it fits the thesis:** brutalism's original claim was *show the structure, don't hide it.* That is this product's argument. Here is the query plan, here are the live sources, here is the policy, here is the journal, here is the attestation. Nothing decorative, nothing concealed.
 
-### The rule that keeps it from being kitsch
+**The honest risk:** neo-brutalism is close to a default in crypto by 2026. Chunky borders on a yellow field is a look people have seen. So the direction only works if it is *specifically ours* — which is what the next four rules are for. Without them we ship a template.
 
-**The frame is 2001. The data is 2026.**
+### Rule 1 — border weight encodes agency (the signature)
 
-XP chrome is fully authentic — bevels, gradients, the Luna title bar, Bliss on the desktop. But inside the window, the content is precise and contemporary: real charts, tabular figures, legible type. The retro treatment stops at the plot area.
+**Chrome gets heavier as an app gets more dangerous.**
 
-That contrast is what signals this is a serious tool wearing a good coat, and it's what keeps a product that moves real money from reading as a joke. Any agent building UI should treat this as a hard rule, not a preference.
+| Tier | Border | Chrome |
+|---|---|---|
+| `readonly` — analytics, cannot act | 1.5px | nothing extra |
+| `monitor` — watches, alerts, cannot spend | 2.5px | dashed live rule, watch indicator |
+| `autonomous` — **holds a wallet, can spend** | 5px | solid policy strip pinned to the top edge |
 
-### Tokens
+Scan a grid of fifteen mini apps and you know instantly which ones can move money. Nobody has to read a badge. This is the one structural device that encodes something true, it's unique to this product, and it makes §7's safety story visible at a glance instead of buried in a settings panel.
 
-**Color — authentic Luna, and it is not up for reinterpretation:**
+### Rule 2 — colour is semantic, never decorative
 
-```
---xp-desktop        #3A6EA5    classic desktop blue (Bliss wallpaper over it)
---xp-face           #ECE9D8    window/dialog face
---xp-title-active   #0058E6 → #3F8CF3    Luna gradient
---xp-title-inactive #7A96DF
---xp-frame          #0831D9
---xp-taskbar        #245EDC → #3F8CF3
---xp-start-green    #39823B
---xp-selection      #316AC5
---xp-text           #000000    /  --xp-text-disabled  #808080
-```
-
-**Data palette — modern, tuned to read on `#ECE9D8`.** Deeper and less neon than a default web palette, which unifies it with the chrome without becoming retro:
+Five accents. Each has exactly one meaning and appears nowhere else.
 
 ```
-categorical   #0B5FA5  #C4461E  #2E7D4F  #8A5CB8  #B8860B  #4A6572
-positive      #2E7D4F        negative   #C4461E
-warning       #B8860B        live/streaming  #0B5FA5 (pulse)
+--live    #0047FF   streaming, subscribed, currently running
+--gain    #007A3D   value up, position healthy, policy passed
+--loss    #D6220F   value down, policy rejected, source dead
+--risk    #FFB800   approaching a threshold, degraded, stale
+--spend   #7B2FF7   value LEAVING a wallet — this colour and nothing else
 ```
 
-**Type — all websafe, so zero font loading:**
+Violet is the important one. It appears only when money moves, so a single glance across the board tells you whether anything has spent today. A palette where colour is load-bearing is what separates this from decorative brutalism.
+
+```
+--paper   #EFEEE9   canvas
+--card    #FFFFFF   surfaces
+--ink     #0A0A0A   text
+--rule    #000000   borders — always pure black, never a tint
+--muted   #75736C   secondary text
+```
+
+### Rule 3 — charts are monochrome plus one accent
+
+Do not colour-code ten protocols. With ten standardized schemas the categorical palette breaks down immediately, and rainbow charts are the fastest way to look generic.
+
+**Bars and lines are ink at varying weight; exactly one series carries a semantic accent — the one the question was about.** Position and labels do the rest. This is more brutalist, more legible, and it scales to any number of series.
+
+### Rule 4 — mono is a primary voice
+
+Onchain data is tabular: figures, addresses, hashes, timestamps, log lines. Mono is not an accent here, it's half the interface. It also solves the density problem — mono stays legible at small sizes where the heavy borders are eating space.
 
 | Role | Face | Notes |
 |---|---|---|
-| UI | **Tahoma** | XP's actual UI font. 13px base, not XP's 11px — projector legibility wins |
-| Title bars | **Trebuchet MS Bold** | Authentic Luna title typography |
-| Numeric, addresses, journal | **Lucida Console** | XP's console font. Tabular figures for the trade log and hashes |
+| Display | **Archivo Expanded** (700–800) | Headlines, app names. Real character, not Inter |
+| UI | **Archivo** (400–600) | Labels, body, buttons |
+| Data | **IBM Plex Mono** (400–500) | Every figure, address, hash, and journal line. Tabular numerals always |
 
-Tahoma / Trebuchet MS / Lucida Console is a type stack nobody else at this hackathon will have, and it costs nothing to load.
+### Rule 5 — light mode, deliberately
 
-**Motion — XP-authentic and restrained.** Window open scales up fast. Minimize shrinks toward the taskbar. Balloons slide up from the tray. Nothing else. Respect `prefers-reduced-motion` — and note XP's dotted focus outlines are both period-correct and genuinely accessible, so keep them.
+Every other project in the room is a dark dashboard with a gradient. Brutalism needs black rules on light ground to read at all, and going light is the risk worth taking. It also photographs better for the ETHGlobal showcase.
 
-### Mobile
+### Density discipline
 
-The metaphor survives translation better than most, because phone home screens descend from this:
+The failure mode of brutalism with financial data is boxes inside boxes. **Borders belong on containers, not on cells.** Inside a data block use hairline rules and spacing. One heavy frame per panel, then get quiet.
 
-- Desktop → icon grid (already what a phone is)
-- Window → full-bleed sheet, title bar retained as the header
-- Taskbar → fixed bottom bar; Start becomes primary nav
-- Tray balloons → toasts
-- Drag, resize, and z-order → dropped entirely below 768px
+Hard offset shadow (`5px 5px 0 var(--rule)`) is reserved for things you can *act on* — cards you can open, buttons you can press. Never on static panels. Restraint is what makes the shadow mean something.
+
+### Motion
+
+The signature moment is **an interface assembling itself.** Components snap in one at a time as the plan resolves, borders drawing before fills. Sharp easing, no bounce, no fade. That is the product's most distinctive second and it's where the entire animation budget goes.
+
+Everything else is instant. Honour `prefers-reduced-motion` by rendering the assembled state directly.
+
+### Information architecture
+
+Without an OS metaphor, three surfaces carry the load:
+
+- **The Board** — the home surface. Studio input at the top, the live activity ledger, then the grid of your mini apps sorted by tier. Answers "what do I have and what is it doing?"
+- **The Ledger** — a running feed of every agent action, styled as a receipt. Mono, timestamped, with cost per query and violet on any line that spent. This is how background autonomy stays visible, and it's what makes the product feel alive in a demo.
+- **The App** — one running mini app, full width. Generated body, with the policy strip and journal always present for autonomous tier.
+
+Global halt lives in the top bar, always reachable. Per-app kill switch lives in the app.
 
 ### Build notes
 
-- **[XP.css](https://github.com/botoxparty/XP.css)** (`npm i xp.css`) gives authentic window chrome and form controls as pure CSS — framework-agnostic, works with React. Import `xp.css/dist/98.css` then `xp.css/dist/XP.css`.
-- It does **not** ship a window manager. Drag, resize, and z-order need `react-rnd` or equivalent. Budget that as real work in W5, not a styling pass.
-- The component catalog (Appendix A) needs XP-skinned implementations. **The catalog contract does not change** — only the rendering. That separation is what makes the next section possible.
+- Tailwind + shadcn/ui as the base, restyled to the tokens. shadcn is unstyled primitives, so it takes a brutalist skin cleanly — but **override the default radius to 0 and the default shadows to hard offsets globally**, or every component drifts back to generic.
+- The catalog (Appendix A) is where the tokens get applied. **The catalog contract does not change with the theme** — components are semantic; the styling is one layer over them. That separation is what makes the theme swap possible.
 
 ### The theme swap — a demo beat worth five seconds
 
-The agent has no idea any of this exists. It emits semantic A2UI; the client chooses the components. So you can swap the catalog and render the *same manifest* in a plain modern theme, live.
+The agent has no idea what any of this looks like. It emits semantic A2UI; the client picks the components. Swap the catalog and the *same manifest* renders in a completely different skin, live.
 
-That's the entire point of A2UI demonstrated in one gesture — and it preempts "isn't the retro thing a gimmick?" before anyone asks. The gimmick is a theme. The protocol is the product.
+That demonstrates A2UI's entire design property in one gesture — and it proves the aesthetic is a choice sitting on real architecture, not the architecture itself.
 
 ---
 
