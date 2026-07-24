@@ -603,6 +603,10 @@ const openai = new OpenAI({
 
 A provenance record that silently degrades to unattested is worse than no provenance, because we would be showing it on stage as proof.
 
+**Thinking must be switched off, and this is not a tuning preference.** 0G's models reason by default and reasoning tokens come out of the *same* budget as the answer — measured live, `{"ok":true}` cost 123 reasoning tokens before 6 of content, and a realistic planner prompt cost 1172. The planner's 700-token ceiling meant the JSON was truncated away, the call returned nothing, and every caller read that as "no model configured" and quietly used the rules engine. **A paid, attested, live inference path looked identical to an unconfigured one.** Pass `chat_template_kwargs: { enable_thinking: false }` — it yields 0 reasoning tokens. `reasoning_effort: "low"` (248) and `chat_template_kwargs: { thinking: false }` (223) both make it *worse* than the default.
+
+**What "proof of inference" actually means here** (§14 #11): the TEE returns a request id, it becomes `provenance.attestationRef`, and its keccak256 is written onchain into `MiniAppRegistry.attestationHash` alongside the token and the name. Verified: `keccak256("0g://f1ade7e8-e9ca-4fb2-b5c9-79cd400e3195")` = `0xa651240d…52f1`, which is what the registry returns for `attested-market-guard.graphminis.eth`. A judge can check that without trusting the UI.
+
 The attestation is stored in the manifest's `provenance`. **This matters more now than it did as a dashboard tool:** if a generated UI can move money, "did this model really produce this plan, from this data" stops being a nicety and becomes an audit trail. Verifiable provenance for an agent that spends.
 
 ## Agentic ID (ERC-7857)
@@ -841,14 +845,14 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **◐** data plane live (18 sources, 13 healthy, 74 rows, $0.0014). **Seed apps still fabricated — this is the open half** |
 | 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | ☐ **not started** — no `packages/kit`, no MCP server, nothing on npm |
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | ☐ `web/README.md` is still the stock Next.js one |
-| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **◐** acts, yes — policy gate → signer → journal. Reasoning is the deterministic stub until #11 |
+| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both — plan and compose run on 0G (`0gm-1.0-35b-a3b`), and the action loop is policy gate → signer → journal |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **◐** every row carries `_source`/`_label`/`_schema`/`_network`; needs saying in the README |
 | 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs + x402 live; Substreams not built |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |
 | 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑** `addr` → the app's wallet, `contenthash` → the manifest CID, ENSIP-25/26 records, mutual verification with the 0G token |
 | 10 | **Present at ENS booth, Sunday morning, in person** | ENS 1/2 | **assign a name** | ☐ |
-| 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | ☐ **blocked on a key** — `pc.0g.ai` → Console → API Keys, deposit 0G. Code is ready and pins `verified` routing |
+| 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | **☑** live on `verified` routing with `tee_verified: true`. The proof is a chain, not a screenshot: TEE request id → `provenance.attestationRef` → its keccak256 stored onchain in MiniAppRegistry against token 7 |
 | 12 | **Contract deployment addresses** | 0G 1 | | **☑** Galileo 16602 — AgenticId `0xeB2872…C3B0`, MiniAppRegistry `0x093319…8dA8`, Verifier `0x708aE7…aaD3` |
 | 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | **☑** token 6, `chainscan-galileo.0g.ai/token/0xeB2872…C3B0?a=6` |
 | 14 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
