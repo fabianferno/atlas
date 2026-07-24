@@ -487,7 +487,34 @@ Each mini app gets its own wallet. Options, in order of speed-to-demo:
 
 **Build the smart account version.** The distinction matters more than it looks: with a session-key EOA, "the policy stopped it" means *our server chose not to sign*. With onchain session keys, the policy is enforced by the account itself — a compromised backend still can't exceed the cap or touch a non-allowlisted contract. That's a real security property and a much better answer when a judge pushes on "what if your server is owned?"
 
-Say that distinction out loud in the demo. It's the difference between a safety story and a safety *mechanism*.
+### Enforcement status — as built
+
+Four signer modes behind one interface, selected by `AGENCY_WALLET_MODE`:
+
+| Mode | Enforcement |
+|---|---|
+| `stub` | server-side; no keys needed, demoable cold |
+| `session-eoa` | server-side; real testnet txs from a non-root key |
+| `smart-account` | server-side; ERC-4337, but the session key is an account *owner* |
+| **`smart-session`** | **onchain** — ERC-7579 + Rhinestone Smart Sessions, session key as a *scoped permission* |
+
+**`onchainEnforced` is the return value of an `isSessionEnabled()` call against the live validator — a fact read from the chain, never a constant.** That matters: the UI cannot overstate by accident.
+
+**Enforcement is deliberately not uniform, and the UI reports it per constraint:**
+
+| Constraint | Enforced by |
+|---|---|
+| allowlist (target + selector) | **chain** |
+| expiry | **chain** |
+| lifetime cap | **chain**, in token units |
+| per-tx cap | **chain** when the action declares `amountParamOffset`, else server |
+| USD → token conversion | server — no oracle in the validator, so the chain enforces the *token* amount, not the dollar figure |
+| `requireConfirm` / tier | server — no validator models "a human pressed Confirm" |
+| kill switch | server — the onchain counterpart is `getRemoveSessionAction` |
+
+**Verified live on Base Sepolia:** all ten Rhinestone contracts deployed, a real `permissionId` computed, `isSessionEnabled()` read from the validator, and the signer refusing to sign with `SessionNotEnabled` rather than falling back to owner signing. **Not verified: the happy path** — a userOp actually landing needs a funded ERC-7579 account, a bundler URL, and the owner's enable transaction. Do not claim a completed onchain-enforced trade until one lands.
+
+**A bug worth knowing about**, because it would have produced a false security claim: Smart Sessions' `getPermissionId()` hashes only `(sessionValidator, initData, salt)` — *not the policies*. Two sessions with the same key and wildly different spending limits share a permission id, so raising a cap locally would leave `isSessionEnabled()` answering `true` for limits the chain never agreed to. Fixed by deriving the salt from a canonical fingerprint of the whole grant: change an allowlist entry, a cap, or the expiry and the permission id changes, the session reads as disabled, and the signer refuses until the owner re-enables. The chain and the server cannot drift apart silently.
 
 ---
 
@@ -908,9 +935,17 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 
 1:12–1:50  THE LEAP. Drop the health factor on testnet. A balloon pops from the
            system tray: "aave-guard.eth executed a swap." The trade log fills.
-           "This isn't a dashboard. It has a wallet, a $500 cap, one allowlisted
-            router — enforced by the account onchain, not by our server. Even if
-            you owned our backend, it can't exceed that."
+           "This isn't a dashboard. It has a wallet, a $500 cap, and one
+            allowlisted router."
+           Open the enforcement panel — it states per constraint who enforces
+           what, read live from the validator.
+           "The allowlist and the expiry are enforced by the account itself.
+            Here's the permission id, and the app checked with the validator
+            before it signed. The dollar conversion is still ours — we show you
+            which is which."
+           [In stub mode the same panel says verifiedOnchain: false, so this
+            cannot overstate by accident. Never claim a completed onchain-
+            enforced trade until a userOp has actually landed.]
            Then: Ctrl+Alt+Del. Task Manager. The agent is in the process list.
            End Task.
            "And that's the kill switch. Dune can't do any of this."
