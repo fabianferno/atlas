@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which carries no secrets and is the only record of
+# what a clone actually needs to set. `.env*` was hiding it from git entirely.
+!.env.example
 
 # vercel
 .vercel

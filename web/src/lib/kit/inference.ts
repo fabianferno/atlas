@@ -30,7 +30,28 @@ import type { z } from "zod";
 export type ComputeBackend = "0g-private-computer" | "openai" | "local";
 
 export const ZEROG_DEFAULT_BASE_URL = "https://router-api.0g.ai/v1";
-export const ZEROG_DEFAULT_MODEL = "deepseek-chat-v3";
+/**
+ * `deepseek-chat-v3` is GONE from the router — checked against a live
+ * `GET /v1/models` on 2026-07-25, which lists 23 models and not that one. It is
+ * still named in prd.md §9; the PRD is stale, not this file. A stale default is
+ * worse than an obviously missing key, because it fails only once a real
+ * ZEROG_API_KEY exists — i.e. during the demo.
+ *
+ * `0gm-1.0-35b-a3b` is 0G Foundation's own model, supports tools, and is the
+ * one most likely to be served by TEE-attested providers, which is the whole
+ * point of routing planning through 0G. `deepseek-v4-flash` and `qwen3.7-plus`
+ * are the cheap alternatives if latency matters more than the attestation.
+ */
+export const ZEROG_DEFAULT_MODEL = "0gm-1.0-35b-a3b";
+/**
+ * Standard routing is the router's default and is explicitly NOT guaranteed
+ * verifiable — it spans community-hosted channels. Requesting `verified`
+ * restricts routing to TeeML/TeeTLS providers, which is the only way the
+ * attestation we write into `Manifest.provenance` means anything. `private`
+ * narrows further to TEE enclaves only. Never leave this to the key's default:
+ * a provenance record that silently degrades to unattested is worse than none.
+ */
+export const ZEROG_DEFAULT_TRUST_MODE = "verified";
 export const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
 export const OPENAI_DEFAULT_MODEL = "gpt-4o-mini";
 /** Reported in provenance when no key is configured. */
@@ -211,11 +232,21 @@ let clientKey = "";
 
 function getClient(cfg: InferenceConfig): OpenAI | null {
   if (!cfg.apiKey) return null;
-  const key = `${cfg.baseURL}::${cfg.apiKey.slice(0, 8)}`;
+  const trustMode = env("ZEROG_TRUST_MODE") ?? ZEROG_DEFAULT_TRUST_MODE;
+  const key = `${cfg.baseURL}::${cfg.apiKey.slice(0, 8)}::${trustMode}`;
   if (!client || clientKey !== key) {
     // One retry, not the SDK's default two: on a demo stage the rules
     // fallback is faster and more reliable than a third attempt.
-    client = new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey, maxRetries: 1 });
+    client = new OpenAI({
+      baseURL: cfg.baseURL,
+      apiKey: cfg.apiKey,
+      maxRetries: 1,
+      // Pin routing on the 0G Router. Harmless elsewhere: stock OpenAI ignores
+      // an unknown request header rather than rejecting it.
+      ...(cfg.backend === "0g-private-computer"
+        ? { defaultHeaders: { "X-0G-Provider-Trust-Mode": trustMode } }
+        : {}),
+    });
     clientKey = key;
   }
   return client;
