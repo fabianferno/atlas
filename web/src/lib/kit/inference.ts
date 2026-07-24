@@ -290,9 +290,22 @@ export async function chatJson<T>(
         { role: "user", content: opts.user },
       ],
     };
-    // 0G Router extension: synchronously verify the provider's TEE signature.
-    // Sending it to stock OpenAI would 400, so it is gated on the backend.
-    if (cfg.backend === "0g-private-computer") request.verify_tee = true;
+    // 0G Router extensions. Sending either to stock OpenAI would 400, so both
+    // are gated on the backend.
+    if (cfg.backend === "0g-private-computer") {
+      // Synchronously verify the provider's TEE signature.
+      request.verify_tee = true;
+      // Turn thinking OFF. 0G's models reason by default, and reasoning tokens
+      // are drawn from the SAME budget as the answer: measured on the live
+      // router, a prompt as trivial as `{"ok":true}` spent 123 reasoning tokens
+      // before emitting 6 of content. The planner asks for JSON with
+      // maxTokens 700, so the answer was being truncated away and chatJson
+      // returned null — which looks exactly like "no key configured" and fell
+      // back to the deterministic stub while a real key was set and billing.
+      // `reasoning_effort: "low"` and `chat_template_kwargs.thinking` both made
+      // it *worse* (248 and 223 tokens). This is the one that works: 0.
+      request.chat_template_kwargs = { enable_thinking: false };
+    }
 
     // `create` is typed against the OpenAI request shape, which has no
     // `verify_tee`. The cast is to OpenAI's own params type, not to `any`.
@@ -302,7 +315,20 @@ export async function chatJson<T>(
     );
 
     const text = completion.choices?.[0]?.message?.content;
-    if (typeof text !== "string" || text.trim().length === 0) return null;
+    if (typeof text !== "string" || text.trim().length === 0) {
+      // Never fail silently here. Every caller treats null as "no model
+      // available" and falls back to rules, so a truncated answer is
+      // indistinguishable from an unconfigured key — which is precisely how a
+      // live, billing 0G key sat behind a deterministic stub without anyone
+      // noticing. Say which one it was.
+      if (completion.choices?.[0]?.finish_reason === "length") {
+        console.warn(
+          `[inference] ${cfg.model} hit the token ceiling before returning content ` +
+            `(reasoning tokens consume the same budget) — raise maxTokens or disable thinking`,
+        );
+      }
+      return null;
+    }
 
     let parsedJson: unknown;
     try {
