@@ -423,6 +423,106 @@ export function setHalted(halted: boolean): void {
 }
 
 /** Per-app kill switch. */
+export interface ActOutcome {
+  ok: boolean;
+  allowed: boolean;
+  rejection?: { reason: string; detail: string };
+  txHash?: string | null;
+  simulated?: boolean;
+  enforcement?: unknown;
+  spentUsd?: number;
+  remainingUsd?: number;
+  entries: JournalEntry[];
+  error?: string;
+}
+
+/**
+ * The action loop. An A2UI server event → the policy gate → a signature or a
+ * rejection → the journal → the board's ledger.
+ *
+ * A rejection is a normal outcome, not an error. It journals, it renders, and
+ * it is exactly what you want visible when an agent holds a wallet.
+ */
+export async function dispatchAction(
+  manifest: Manifest,
+  event: { name: string; context: Record<string, unknown> },
+  opts: { userInitiated?: boolean; confirmed?: boolean } = {},
+): Promise<ActOutcome> {
+  const appId = manifest.name;
+
+  const post = (body: unknown) =>
+    fetch("/api/act", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const payload = {
+    appId,
+    event,
+    userInitiated: opts.userInitiated ?? true,
+    confirmed: opts.confirmed ?? false,
+  };
+
+  try {
+    let res = await post(payload);
+
+    // The server has never seen this manifest — apps are published locally
+    // today. Seed the registry from it, then retry once.
+    if (res.status === 404) {
+      await fetch("/api/agency/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ manifest }),
+      });
+      res = await post(payload);
+    }
+
+    const out = (await res.json()) as ActOutcome;
+    mergeJournal(appId, out.entries ?? []);
+    return out;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "unknown";
+    const entry = line(appId, "ERROR", `action failed — ${detail}`, { ok: false });
+    set({ ledger: [...state.ledger, entry].slice(-LEDGER_MAX) });
+    return { ok: false, allowed: false, entries: [], error: detail };
+  }
+}
+
+/** Kill switch, server side. The local flag flips first so the UI is instant. */
+export async function haltRemote(manifest: Manifest, halted: boolean): Promise<void> {
+  setAppHalted(manifest.name, halted);
+  try {
+    const res = await fetch("/api/act", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ appId: manifest.name, control: halted ? "halt" : "resume" }),
+    });
+    if (res.ok) {
+      const out = (await res.json()) as { entries?: JournalEntry[] };
+      mergeJournal(manifest.name, out.entries ?? []);
+    }
+  } catch {
+    // The local halt already took effect. A failed round trip must not
+    // un-halt an agent — failing closed is the only safe direction here.
+  }
+}
+
+/** Folds server journal entries into the board ledger without duplicating. */
+function mergeJournal(app: string, entries: JournalEntry[]): void {
+  if (entries.length === 0) return;
+  const seen = new Set(state.ledger.map((l) => `${l.app}|${l.ts}|${l.message}`));
+  const fresh: LedgerLine[] = entries
+    .filter((e) => !seen.has(`${app}|${e.ts}|${e.message}`))
+    .map((e) => ({ ...e, id: `${app}-${e.ts}-${e.kind}-${e.message.slice(0, 12)}`, app }));
+  if (fresh.length === 0) return;
+  set({
+    ledger: [...state.ledger, ...fresh]
+      .sort((a, b) => a.ts.localeCompare(b.ts))
+      .slice(-LEDGER_MAX),
+  });
+}
+
 export function setAppHalted(name: string, halted: boolean): void {
   set({
     apps: state.apps.map((a) =>

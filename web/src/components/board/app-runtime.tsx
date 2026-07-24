@@ -13,7 +13,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { TIER_BLURB } from "@/lib/seed";
-import { fmtDate, fmtNum, fmtUsd, runApp, setAppHalted, useApp, useBoard } from "@/lib/store";
+import {
+  dispatchAction,
+  fmtDate,
+  fmtNum,
+  fmtUsd,
+  haltRemote,
+  runApp,
+  useApp,
+  useBoard,
+} from "@/lib/store";
 import { AppBody } from "@/components/board/app-body";
 import { TradeLog } from "@/components/board/ledger";
 import { Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
@@ -56,6 +65,9 @@ export function AppRuntime({ name }: { name: string }) {
   const tier = m.agency.tier;
   const policy = m.agency.policy;
   const autonomous = tier === "autonomous";
+  // This app's slice of the board ledger, feeding trade_log inside the
+  // generated body as well as the panel below it.
+  const journal = board.ledger.filter((l) => l.app === m.name);
 
   return (
     <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-5 sm:py-6">
@@ -76,7 +88,7 @@ export function AppRuntime({ name }: { name: string }) {
               {policy.halted ? <span style={{ color: "var(--loss)" }}>halted</span> : <span style={{ color: "var(--gain)" }}>armed</span>}
               <button
                 type="button"
-                onClick={() => setAppHalted(m.name, !policy.halted)}
+                onClick={() => void haltRemote(m, !policy.halted)}
                 className="border-2 border-[var(--card-b)] px-2 py-0.5 text-[0.625rem] uppercase tracking-[0.08em]"
                 style={policy.halted ? { background: "var(--card-b)", color: "var(--ink)" } : { background: "var(--loss)", color: "#fff" }}
               >
@@ -107,7 +119,24 @@ export function AppRuntime({ name }: { name: string }) {
         </header>
 
         <div className="p-3 sm:p-4">
-          <AppBody doc={m.ui} animate />
+          <AppBody
+            doc={m.ui}
+            animate
+            policy={policy}
+            spentUsd={app.stats.spentUsd}
+            journal={journal}
+            onAction={(action) => {
+              const a = action as { name?: string; context?: Record<string, unknown> };
+              if (!a?.name) return;
+              // requireConfirm is satisfied here only because a human pressed
+              // the button. A trigger-fired action goes through the signal
+              // path and never sets this.
+              void dispatchAction(m, { name: a.name, context: a.context ?? {} }, {
+                userInitiated: true,
+                confirmed: !policy.requireConfirm,
+              });
+            }}
+          />
         </div>
       </div>
 
