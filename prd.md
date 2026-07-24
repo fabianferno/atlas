@@ -755,13 +755,27 @@ MCP client config:
 
 ## Standardized schemas (Messari, via The Graph)
 
-**Support all ten.** Track 3 scores Breadth at 20%, and every additional family widens the range of questions that resolve without a custom adapter.
+**Support every family that actually has deployments.** Track 3 scores Breadth at 20%, and each additional family widens the range of questions that resolve without a custom adapter.
 
 `Generic 3.0.0` · `DEX AMM 1.3.2` · `DEX AMM Extended 4.0.1` · `DEX Aggregator 1.0.2` · `Lending/CDP 3.1.0` · `Yield Aggregator 1.3.1` · `NFT Marketplace 2.1.0` · `Network 1.2.0` · `Bridge 1.2.0` · `Perp Futures 1.3.4` · `Options 1.3.2`
 
-Supports real-time entity queries, time-travel queries, and time-series snapshots. Time-travel is worth using explicitly — it gives historical comparison without maintaining your own snapshots, and it's a standards feature most submissions won't touch.
+**Verified coverage as built — 86 real deployment IDs**, taken from `messari/subgraphs` `deployment/deployment.json` and cross-checked against a crawl of The Graph Network meta-subgraph, each carrying a reliability score and indexer allocation count:
 
-**Chains:** Arbitrum and Optimism minimum, Base third. Multi-chain is where standardized schemas actually pay off — the same query shape across three networks is the composability argument made visible.
+| | Reality |
+|---|---|
+| Families with live deployments | **9 of 11** |
+| Networks | Arbitrum, Optimism, Base, mainnet |
+| Arbitrum | 10 lending · 5 dex · 5 perp |
+| Optimism | 5 lending · 5 dex · 3 perp |
+| Base | 4 lending · 1 dex |
+
+**Two families have zero standardized deployments anywhere** — `dex-aggregator@1.0.2` and `network@1.2.0`. `nft-marketplace` exists on mainnet only. Do not claim eleven in the demo; claim nine, and the number is defensible because every ID was checked.
+
+**One query shape works across families** because the Messari `Protocol` interface is present in lending, dex-amm, dex-amm-extended, dex-agg, yield, bridge, perp and options. Three exceptions found by reading the real schemas, all of which would have failed silently on stage: `nft-marketplace` has no `Protocol` interface (root is `marketplaces`), `network` has none either (root is `networks`), and `DerivPerpProtocol` has no `openInterestUSD` — only `longOpenInterestUSD` / `shortOpenInterestUSD`.
+
+Supports real-time entity queries, time-travel queries, and time-series snapshots. Time-travel is worth using explicitly — historical comparison without maintaining your own snapshots, and a standards feature most submissions won't touch.
+
+**Show the health check working.** Fixture mode deliberately reports ~25 of 35 sources live rather than a perfect board, because a demo where everything is always green never teaches the audience what problem the health check solves. Resist the urge to make it 35/35 for the video — the honest number *is* the Track 3 argument.
 
 ## A2UI
 

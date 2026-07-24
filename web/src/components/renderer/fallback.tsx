@@ -10,10 +10,12 @@
  *   - rendering nothing: the interface silently loses a component, which in an
  *     autonomous app could be the kill switch or the policy badge.
  * So: render a visible, inert placeholder that names what was asked for, and
- * keep going. The unknown name is printed as text — it is data, never markup.
+ * keep going. The unknown name is printed as text — it is data, never markup,
+ * and it is truncated so a 4KB "component name" cannot blow out the layout.
  */
 
 import { Panel, Fig, Label } from "@/components/brutal";
+import type { A2UIValidationIssue } from "./types";
 
 export function UnknownComponent({
   id,
@@ -42,23 +44,22 @@ export function UnknownComponent({
   );
 }
 
-/** A child ID that points at nothing. Usually a truncated stream. */
-export function DanglingRef({ id, index = 0 }: { id: string; index?: number }) {
+/** The document itself did not fold into anything renderable. */
+export function EmptySurface({
+  reason,
+  issues = [],
+}: {
+  reason: string;
+  issues?: A2UIValidationIssue[];
+}) {
   return (
-    <Panel index={index} title="Missing component">
-      <Label>
-        referenced id <span className="fig">{String(id).slice(0, 64)}</span> is not in
-        this surface
-      </Label>
-    </Panel>
-  );
-}
-
-/** The document itself did not parse into anything renderable. */
-export function EmptySurface({ reason }: { reason: string }) {
-  return (
-    <div className="panel flex min-h-32 items-center justify-center p-6">
+    <div className="panel flex min-h-32 flex-col items-center justify-center gap-2 p-6">
       <Label>{reason}</Label>
+      {issues.slice(0, 4).map((i, n) => (
+        <Fig key={n} size="xs" className="text-[var(--muted-ink)]">
+          {i.code} — {i.message}
+        </Fig>
+      ))}
     </div>
   );
 }
