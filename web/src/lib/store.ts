@@ -275,7 +275,12 @@ export async function draftApp(intent: string, signal?: AbortSignal): Promise<Dr
 
     // Sources omitted on purpose — the graph route resolves them from
     // plan.schemas × plan.networks and health-checks in the same round trip.
-    const data = await postJson<FanOutResult>(
+    // `resolution` is present whenever we let the route resolve sources for us,
+    // which is the branch above. `resolution.sources` is the health-checked
+    // subset — `live` on the fan-out itself is a boolean (is the gateway keyed),
+    // not a source list, and conflating the two writes `sources: true` into the
+    // manifest and fails zSource at publish time.
+    const data = await postJson<FanOutResult & { resolution?: { sources: Source[] } }>(
       "/api/graph",
       { action: "fanout", plan },
       signal,
@@ -290,7 +295,7 @@ export async function draftApp(intent: string, signal?: AbortSignal): Promise<Dr
         ...local.manifest.data,
         schemas: plan.schemas,
         networks: plan.networks,
-        sources: (data as FanOutResult & { live?: Source[] }).live ?? local.manifest.data.sources,
+        sources: data.resolution?.sources ?? local.manifest.data.sources,
         queries: plan.queries,
         variables: plan.variables,
       },
