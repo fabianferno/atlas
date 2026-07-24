@@ -12,7 +12,7 @@
 3. [Users](#3-users)
 4. [The product — four primitives](#4-the-product--four-primitives)
 5. [The Mini App Manifest](#5-the-mini-app-manifest)
-6. [Generative UI and actions](#6-generative-ui-and-actions)
+6. [The interface](#6-the-interface)
 7. [Agency and safety](#7-agency-and-safety)
 8. [ENS binding](#8-ens-binding)
 9. [0G — compute and Agentic ID](#9-0g--compute-and-agentic-id)
@@ -278,7 +278,7 @@ The single most important object in the system. Registry, ENS, forking, provenan
 
 ---
 
-# 6. Generative UI and actions
+# 6. The interface
 
 ## The A2UI loop
 
@@ -324,6 +324,111 @@ A `Button` carries an `action` that is either a **Server Event** (dispatched to 
 **The agent cannot inject code.** A2UI is declarative data, not executable code. The client holds the approved component catalog; the agent may only reference it by name. A generated interface that can move money *must* have this property, and it's ~15 seconds of demo that separates you from every "LLM writes React" project in the room.
 
 **Form follows data, not keywords.** The composer picks components from the *shape* of the returned data — a bounded ratio becomes a gauge, a ranked categorical becomes a leaderboard, two entities over shared metrics become a comparison grid. Not from words in the prompt. That's the defensible version of "generative UI," and it's the answer when a judge says "couldn't you just draw a chart?"
+
+---
+
+## The visual system — Windows XP
+
+**The product is an operating system for onchain agents. So it looks like one.**
+
+This is not a costume. Four things it does that a conventional web app doesn't:
+
+1. **It makes the lineage explicit.** The stated inspiration is VibeOS — an OS whose applications have no code beneath them. Building the desktop makes the reference legible in one screenshot instead of one paragraph.
+2. **Windows solve the multiplicity problem.** A user has many mini apps, several open at once, each with its own identity and state. Thirty years of window management already solved that, and nothing in modern web UI does it as well.
+3. **The taskbar and tray solve the hardest problem in the product.** Autonomous mini apps run whether or not you're looking at them. *Which of my agents are live right now, and what did they just do?* An OS answers that natively — running tasks in the taskbar, background processes in the tray, a balloon when something happens. No dashboard idiom comes close.
+4. **XP was the last era software felt ownable.** Discrete things you installed, that lived somewhere, that were yours. That is precisely the mini-app claim, and it's the opposite of a SaaS tab.
+
+### The mapping
+
+Every OS affordance carries product meaning. Nothing here is skin-deep:
+
+| Windows XP | Graph Mini Apps |
+|---|---|
+| Desktop icons | Your installed mini apps |
+| Double-click | Launch and run |
+| Window | One running mini app |
+| Title bar | Its ENS name, plus live status |
+| Taskbar | Agents currently running |
+| System tray | Autonomous agents working in the background |
+| Balloon tooltip | A trigger fired — "aave-guard.eth executed a swap" |
+| Start menu | Registry (browse, install) · wallet · settings |
+| Install dialog | Fork or publish a mini app |
+| Control Panel | Policy: caps, allowlist, expiry |
+| **Task Manager** | **Running agents, with End Task as the kill switch** |
+
+### Signature: Task Manager
+
+Spend the boldness here. **Ctrl+Alt+Del brings up Task Manager, your autonomous agents are the process list, and "End Task" is the kill switch.**
+
+It's the funniest thing in the build and also the most serious: it's the correct UX for stopping a runaway agent, it makes §7's safety story something you can *see* rather than assert, and it's the answer to "what if it goes rogue?" delivered as a visual instead of a paragraph. Every judge who has ever force-quit a frozen program understands it instantly.
+
+The tray balloon is the supporting moment — the thing that happens constantly during the demo. Task Manager is the thing people repeat to someone else afterwards.
+
+### The rule that keeps it from being kitsch
+
+**The frame is 2001. The data is 2026.**
+
+XP chrome is fully authentic — bevels, gradients, the Luna title bar, Bliss on the desktop. But inside the window, the content is precise and contemporary: real charts, tabular figures, legible type. The retro treatment stops at the plot area.
+
+That contrast is what signals this is a serious tool wearing a good coat, and it's what keeps a product that moves real money from reading as a joke. Any agent building UI should treat this as a hard rule, not a preference.
+
+### Tokens
+
+**Color — authentic Luna, and it is not up for reinterpretation:**
+
+```
+--xp-desktop        #3A6EA5    classic desktop blue (Bliss wallpaper over it)
+--xp-face           #ECE9D8    window/dialog face
+--xp-title-active   #0058E6 → #3F8CF3    Luna gradient
+--xp-title-inactive #7A96DF
+--xp-frame          #0831D9
+--xp-taskbar        #245EDC → #3F8CF3
+--xp-start-green    #39823B
+--xp-selection      #316AC5
+--xp-text           #000000    /  --xp-text-disabled  #808080
+```
+
+**Data palette — modern, tuned to read on `#ECE9D8`.** Deeper and less neon than a default web palette, which unifies it with the chrome without becoming retro:
+
+```
+categorical   #0B5FA5  #C4461E  #2E7D4F  #8A5CB8  #B8860B  #4A6572
+positive      #2E7D4F        negative   #C4461E
+warning       #B8860B        live/streaming  #0B5FA5 (pulse)
+```
+
+**Type — all websafe, so zero font loading:**
+
+| Role | Face | Notes |
+|---|---|---|
+| UI | **Tahoma** | XP's actual UI font. 13px base, not XP's 11px — projector legibility wins |
+| Title bars | **Trebuchet MS Bold** | Authentic Luna title typography |
+| Numeric, addresses, journal | **Lucida Console** | XP's console font. Tabular figures for the trade log and hashes |
+
+Tahoma / Trebuchet MS / Lucida Console is a type stack nobody else at this hackathon will have, and it costs nothing to load.
+
+**Motion — XP-authentic and restrained.** Window open scales up fast. Minimize shrinks toward the taskbar. Balloons slide up from the tray. Nothing else. Respect `prefers-reduced-motion` — and note XP's dotted focus outlines are both period-correct and genuinely accessible, so keep them.
+
+### Mobile
+
+The metaphor survives translation better than most, because phone home screens descend from this:
+
+- Desktop → icon grid (already what a phone is)
+- Window → full-bleed sheet, title bar retained as the header
+- Taskbar → fixed bottom bar; Start becomes primary nav
+- Tray balloons → toasts
+- Drag, resize, and z-order → dropped entirely below 768px
+
+### Build notes
+
+- **[XP.css](https://github.com/botoxparty/XP.css)** (`npm i xp.css`) gives authentic window chrome and form controls as pure CSS — framework-agnostic, works with React. Import `xp.css/dist/98.css` then `xp.css/dist/XP.css`.
+- It does **not** ship a window manager. Drag, resize, and z-order need `react-rnd` or equivalent. Budget that as real work in W5, not a styling pass.
+- The component catalog (Appendix A) needs XP-skinned implementations. **The catalog contract does not change** — only the rendering. That separation is what makes the next section possible.
+
+### The theme swap — a demo beat worth five seconds
+
+The agent has no idea any of this exists. It emits semantic A2UI; the client chooses the components. So you can swap the catalog and render the *same manifest* in a plain modern theme, live.
+
+That's the entire point of A2UI demonstrated in one gesture — and it preempts "isn't the retro thing a gimmick?" before anyone asks. The gimmick is a theme. The protocol is the product.
 
 ---
 
@@ -722,7 +827,8 @@ Each owns a directory, has a definition of done, and shares no mutable state wit
 | W2 | **Streams** | Substreams packages, subscription, trigger evaluation | source | A block-level event fires a trigger callback |
 | W3 | **Planner** | NL → plan, on 0G Compute, attestation capture | manifest, api | Arbitrary question → valid plan + stored attestation |
 | W4 | **Composer** | plan + data → A2UI doc, form-follows-data rules | catalog, a2ui | Every catalog component reachable from some data shape |
-| W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch |
+| W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch; theme swap works |
+| W5b | **Shell** | desktop, windows, taskbar, tray, Start menu, Task Manager | — | Windows drag/resize/z-order; tray balloon fires; End Task kills an agent |
 | W6 | **Agency** | policy engine, smart account + session keys, signer, kill switch, journal | policy, manifest | Action executes on testnet; every policy rejection path tested |
 | W7 | **Identity** | ENS issuance + records, ERC-7857 + oracle + mint, mutual verification | manifest | Name resolves to app; ENSIP-25 binding verifies both directions |
 | W8 | **Memory** | encrypted 0G Storage per app, action journal | manifest | App recalls prior runs; journal backs the on-screen log |
@@ -775,40 +881,45 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             developers — so everyone else went to Dune. We built the surface
             The Graph never did."
 
-0:18–0:50  THE OPAL MOMENT. Type into the Studio:
+0:18–0:50  THE OPAL MOMENT. An XP desktop. Double-click "New Mini App", type:
            "Watch my Aave position on Arbitrum. If health factor drops under
             1.4, sell ETH to bring it back to 1.8."
-           Watch the plan stream: two standardized schemas resolved, dead
-           deployments skipped, Substreams subscribed, components chosen.
+           A window opens. The plan streams inside it: two standardized schemas
+           resolved, dead deployments skipped, Substreams subscribed.
                                                     ← Graph T2 + T3
 
-0:50–1:10  THE VIBEOS MOMENT. The UI appears — health gauge, position table,
-           trade log, kill switch.
+0:50–1:12  THE VIBEOS MOMENT. The UI assembles — health gauge, position table,
+           trade log, policy badge.
            "Nobody built this screen. It chose a gauge because a health factor
-            is a bounded ratio. And it can't inject code — A2UI is declarative,
-            it can only use components we approved."
+            is a bounded ratio."
+           Swap the theme live — same manifest, modern rendering, instantly.
+           "The agent has no idea what it looks like. It emits semantic A2UI;
+            the client picks the components. It cannot inject code."
                                                     ← technical execution
 
-1:10–1:45  THE LEAP. Drop the health factor on testnet. The app fires:
-           policy check, session key signs, trade lands, log updates live.
+1:12–1:50  THE LEAP. Drop the health factor on testnet. A balloon pops from the
+           system tray: "aave-guard.eth executed a swap." The trade log fills.
            "This isn't a dashboard. It has a wallet, a $500 cap, one allowlisted
-            router, and a kill switch — enforced by the account onchain, not by
-            our server. Even if you owned our backend, it can't exceed that.
-            Dune can't do this."
+            router — enforced by the account onchain, not by our server. Even if
+            you owned our backend, it can't exceed that."
+           Then: Ctrl+Alt+Del. Task Manager. The agent is in the process list.
+           End Task.
+           "And that's the kill switch. Dune can't do any of this."
                                                     ← the differentiator
 
-1:45–2:05  IDENTITY. It's aave-guard.graphminis.eth — resolving to the UI, the
-           wallet address, and Agentic ID #142 on 0G Chain. The ENS record and
-           the onchain token verify each other.
+1:50–2:08  IDENTITY. The title bar reads aave-guard.graphminis.eth — resolving
+           to the UI, the wallet address, and Agentic ID #142 on 0G Chain. The
+           ENS record and the onchain token verify each other.
            Paste the name into a different agent — it resolves, reads
            agent-context, and runs.                 ← ENS T1 + T2, 0G T1
 
-2:05–2:25  THE ECOSYSTEM. Registry. Fork it — new wallet, new name, no inherited
-           spending authority. Refine in one sentence. Publish. The creator
-           earns $0.05 per run via x402, on the same rail the agent uses to buy
-           its own data.                            ← Graph T1, ecosystem
+2:08–2:28  THE ECOSYSTEM. Start menu → the registry. Fork one — an XP install
+           dialog, then a new icon on the desktop. Fresh wallet, fresh name, no
+           inherited spending authority. The creator earns $0.05 per run via
+           x402, on the same rail the agent uses to buy its own data.
+                                                    ← Graph T1, ecosystem
 
-2:25–2:50  npm i @graphminis/kit — any agent gets this.
+2:28–2:50  npm i @graphminis/kit — any agent gets this.
            "15,000 subgraphs. Every question is an app now, and every app can
             act. That's The Graph, finally pointed at everyone."
                                                     ← Graph T1
@@ -835,6 +946,8 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 | Judge: "an LLM with a wallet is reckless" | Med | Med | §7. Policy enforced onchain in the session key, not in the prompt — a compromised backend still can't exceed the cap. Have the table memorized |
 | Judge: "isn't this just Dune?" | Med | Low | §1 table. Dune dashboards can't trade, can't be run by an agent, and don't exist until a human writes SQL |
 | Breadth without depth — 10 schemas all shallow | Med | Med | Demo shows 2–3 families composing *well*; the other seven prove the resolver generalizes. Don't try to showcase all ten in 2:50 |
+| XP aesthetic reads as unserious for a product moving money | Med | Med | "Frame is 2001, data is 2026" (§6) — chrome is retro, plot areas and numbers are precise and modern. Judge it by screenshotting a window and asking whether the *content* looks credible |
+| Window manager underestimated as "a styling pass" | Med | Med | XP.css gives chrome and controls, not drag/resize/z-order. W5b owns it as real work with its own definition of done |
 
 ---
 
@@ -997,7 +1110,18 @@ await publish(ui, {
 
 [`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
 
-## v4 — built for parallel execution (current)
+## v5 — the interface is an operating system (current)
+
+Windows XP, committed to fully. Load-bearing rather than decorative:
+
+- **The OS metaphor solves the product's hardest UX problem.** Autonomous agents run in the background; a taskbar, a system tray, and balloon notifications answer "which agents are live and what did they just do?" better than any dashboard idiom
+- **Task Manager is the signature.** Ctrl+Alt+Del → your agents are the process list → End Task is the kill switch. Funny, and simultaneously the correct UX plus a visible answer to "what if it goes rogue?"
+- **The theme swap proves A2UI.** Same manifest, different catalog, rendered live — the agent never knew what it looked like. Demonstrates the protocol's core property in one gesture and preempts "isn't the retro thing a gimmick?"
+- **"Frame is 2001, data is 2026"** is the hard rule that keeps a money-moving product from reading as a joke
+- Type stack is Tahoma / Trebuchet MS / Lucida Console — period-correct, distinctive, and zero font loading
+- Added W5b (shell) as its own workstream: XP.css gives chrome and controls but no window manager, so drag/resize/z-order is real work
+
+## v4 — built for parallel execution
 
 Build capacity stopped being the constraint (agent-executed build), so the plan is now organized around **coordination** instead of hours:
 
