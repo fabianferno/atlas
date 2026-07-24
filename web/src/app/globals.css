@@ -130,46 +130,53 @@
 }
 /* ============================================================================
    GRAPH MINI APPS — DESIGN SYSTEM
-   Neo-brutalism, tuned to this product. See prd.md §6.
+   Skeuomorphic, Dieter Rams / Braun. Tactile plastic + warm charcoal controls,
+   one orange action accent. Meaning is preserved but re-expressed as material:
 
-   Five rules, all enforced here:
-   1. Border weight encodes agency tier — chrome gets heavier as an app gets
-      more dangerous. This is the signature.
+   1. Agency tier = DEPTH. readonly sits flush (inset groove); monitor lifts
+      with a soft bevel + a live-blue rim; autonomous stands proud — tall bevel,
+      deep shadow, warm orange rim. (was: border weight)
    2. Colour is semantic, never decorative. Five accents, one meaning each.
-      --spend appears ONLY when value leaves a wallet.
-   3. Charts are monochrome ink plus one accent. Do not colour-code protocols.
+      --spend appears ONLY when value leaves a wallet. --action (orange) is the
+      one decorative/primary accent and means nothing about data.
+   3. Charts are monochrome ink plus one accent. Bars get a bevel, not a palette.
    4. Mono is a primary voice, not an accent.
    5. Light mode, deliberately.
    ========================================================================= */
 
 :root {
-  /* --- ground --- */
-  --paper:  #EFEEE9;
-  --card-b: #FFFFFF;
-  --ink:    #0A0A0A;
-  --rule:   #000000;
-  --muted-ink: #75736C;
-  --hairline: #DEDCD4;
+  /* --- ground & material --- */
+  --paper:  #ECEBE6;   /* warm light-grey ground */
+  --card-b: #F7F6F2;   /* raised plastic surface, a touch lighter than ground */
+  --ink:    #2A2724;   /* warm charcoal — controls and text, not pure black */
+  --rule:   #2A2724;   /* crisp line colour for chart frames / thin outlines */
+  --muted-ink: #8A857C;
+  --hairline: #D8D5CD;
 
-  /* --- semantic accents: one meaning each, never decorative --- */
-  --live:  #0047FF;   /* streaming, subscribed, running */
-  --gain:  #007A3D;   /* value up, healthy, policy passed */
-  --loss:  #D6220F;   /* value down, policy rejected, source dead */
-  --risk:  #FFB800;   /* approaching threshold, degraded, stale */
-  --spend: #7B2FF7;   /* value LEAVING a wallet — nothing else */
+  /* --- the one action accent (reference #ff611a) --- */
+  --action: #ff611a;
 
-  /* --- agency tier: border weight (Rule 1) --- */
-  --bw-readonly:   1.5px;
-  --bw-monitor:    2.5px;
-  --bw-autonomous: 5px;
+  /* --- semantic accents: one meaning each, tuned for gloss --- */
+  --live:  #1F6BFF;   /* streaming, subscribed, running */
+  --gain:  #12905A;   /* value up, healthy, policy passed */
+  --loss:  #E0402A;   /* value down, policy rejected, source dead */
+  --risk:  #F5A623;   /* approaching threshold, degraded, stale */
+  --spend: #8B4CF0;   /* value LEAVING a wallet — nothing else */
 
-  /* --- hard offset shadow, reserved for actionable surfaces --- */
-  --drop:    5px 5px 0 var(--rule);
-  --drop-sm: 3px 3px 0 var(--rule);
+  /* --- skeuomorphic depth: catch-lights + real drop shadows --- */
+  --bevel-hi: rgba(255, 255, 255, 0.85);   /* top-edge highlight */
+  --bevel-lo: rgba(0, 0, 0, 0.22);          /* bottom inner shade */
+  --elev-1: 0 1px 2px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+  --elev-2: 0 2px 4px rgba(0,0,0,0.12), 0 6px 16px rgba(0,0,0,0.10);
+  --elev-3: 0 3px 6px rgba(0,0,0,0.16), 0 12px 28px rgba(0,0,0,0.16);
+  --inset-groove: inset 0 1px 2px rgba(0,0,0,0.10), inset 0 -1px 1px rgba(255,255,255,0.55);
 
-  /* Kill every rounded corner shadcn ships with. Without this, components
-     drift back to generic on every `shadcn add`. */
-  --radius: 0rem;
+  /* Legacy names some utilities may reference — repurposed soft. */
+  --drop:    var(--elev-2);
+  --drop-sm: var(--elev-1);
+
+  /* Rounded again. Buttons override to a pill. */
+  --radius: 0.75rem;
 
   /* Remap shadcn's tokens onto ours so its primitives inherit the system. */
   --background: var(--paper);
@@ -178,18 +185,18 @@
   --card-foreground: var(--ink);
   --popover: var(--card-b);
   --popover-foreground: var(--ink);
-  --primary: var(--ink);
-  --primary-foreground: var(--card-b);
-  --secondary: var(--paper);
+  --primary: var(--action);
+  --primary-foreground: #fff;
+  --secondary: var(--card-b);
   --secondary-foreground: var(--ink);
   --muted: var(--paper);
   --muted-foreground: var(--muted-ink);
-  --accent: var(--live);
-  --accent-foreground: var(--card-b);
+  --accent: var(--action);
+  --accent-foreground: #fff;
   --destructive: var(--loss);
-  --border: var(--rule);
-  --input: var(--rule);
-  --ring: var(--live);
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--action);
 }
 
 @theme inline {
@@ -197,6 +204,7 @@
   --color-ink: var(--ink);
   --color-rule: var(--rule);
   --color-hairline: var(--hairline);
+  --color-action: var(--action);
   --color-live: var(--live);
   --color-gain: var(--gain);
   --color-loss: var(--loss);
@@ -207,11 +215,15 @@
 }
 
 @layer base {
-  /* Brutalism needs black rules on light ground. No dark variant. */
+  /* Skeuomorphism is a lit surface. No dark variant. */
   .dark { color-scheme: light; }
 
   html { font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif; }
-  body { background: var(--paper); color: var(--ink); }
+  body {
+    background:
+      radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--paper), white 4%), var(--paper));
+    color: var(--ink);
+  }
 
   h1, h2, h3, .display {
     font-family: var(--font-archivo), ui-sans-serif, sans-serif;
@@ -219,6 +231,8 @@
     font-weight: 800;
     letter-spacing: -0.02em;
     text-transform: uppercase;
+    /* pressed-into-the-surface emboss */
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
   }
 
   /* Rule 4 — every figure, address, hash and log line. Tabular always. */
@@ -227,7 +241,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  :focus-visible { outline: 3px solid var(--live); outline-offset: 2px; }
+  :focus-visible { outline: 3px solid var(--action); outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -235,68 +249,142 @@
 }
 
 @layer components {
-  /* --- Rule 1: the signature. Tier drives chrome weight. --- */
+  /* --- Rule 1: the signature. Tier drives DEPTH. --- */
   .panel {
     background: var(--card-b);
-    border: var(--bw-readonly) solid var(--rule);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    /* readonly: flush with a faint recessed groove + top catch-light */
+    box-shadow: var(--inset-groove), inset 0 1px 0 var(--bevel-hi);
   }
-  .panel--monitor    { border-width: var(--bw-monitor); }
-  .panel--autonomous { border-width: var(--bw-autonomous); }
+  .panel--monitor {
+    border-color: color-mix(in srgb, var(--live) 45%, var(--hairline));
+    /* raised, soft bevel, live-blue rim */
+    box-shadow:
+      inset 0 1px 0 var(--bevel-hi),
+      0 0 0 1px color-mix(in srgb, var(--live) 30%, transparent),
+      var(--elev-1);
+  }
+  .panel--autonomous {
+    border-color: color-mix(in srgb, var(--action) 55%, var(--ink));
+    /* stands proud: tall bevel, deep shadow, warm rim */
+    box-shadow:
+      inset 0 1px 0 var(--bevel-hi),
+      inset 0 -2px 3px var(--bevel-lo),
+      0 0 0 1.5px color-mix(in srgb, var(--action) 45%, transparent),
+      var(--elev-3);
+  }
 
-  /* Only autonomous apps carry a policy strip, pinned to the top edge. */
+  /* Only autonomous apps carry a policy strip — an engraved inset band. */
   .policy-strip {
     display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-    padding: .4rem .7rem;
-    border-bottom: var(--bw-autonomous) solid var(--rule);
-    background: var(--ink); color: var(--card-b);
+    padding: .45rem .75rem;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--action) 40%, var(--hairline));
+    background: color-mix(in srgb, var(--action) 12%, var(--card-b));
+    color: var(--ink);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
     font-size: .6875rem; letter-spacing: .06em; text-transform: uppercase;
   }
 
-  /* Actionable only. Never on static panels — that is what makes it mean
-     something. */
-  .raise    { box-shadow: var(--drop); }
-  .raise-sm { box-shadow: var(--drop-sm); }
-  .press:active { transform: translate(3px, 3px); box-shadow: none; }
+  /* Actionable surfaces float above the ground. Never on a static panel. */
+  .raise    { box-shadow: var(--elev-2), inset 0 1px 0 var(--bevel-hi); }
+  .raise-sm { box-shadow: var(--elev-1), inset 0 1px 0 var(--bevel-hi); }
+  /* Press = the object sinks into the surface. */
+  .press:active { transform: translateY(1px); box-shadow: var(--inset-groove); }
 
+  /* --- the pressable pill (reference button) --- */
   .btn {
-    border: 2px solid var(--rule); background: var(--card-b); color: var(--ink);
-    padding: .5rem 1rem; font-weight: 600; box-shadow: var(--drop-sm);
-    transition: transform 80ms linear, box-shadow 80ms linear;
+    --btn-color: var(--card-b);
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none;
+    border-radius: 100vh;
+    color: var(--ink);
+    background-color: var(--btn-color);
+    background-image: radial-gradient(circle at 30% 25%,
+      color-mix(in srgb, var(--btn-color), white 45%), transparent 70%);
+    box-shadow:
+      inset 0 1px 1px color-mix(in srgb, var(--btn-color), white 60%),
+      inset 0 -2px 3px color-mix(in srgb, var(--btn-color), black 24%),
+      var(--elev-1);
+    transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+    cursor: pointer;
   }
-  .btn:active { transform: translate(3px, 3px); box-shadow: none; }
-  .btn--danger { background: var(--loss); color: #fff; }
-  .btn--spend  { background: var(--spend); color: #fff; }
+  .btn:hover, .btn:focus-visible {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 1px color-mix(in srgb, var(--btn-color), white 60%),
+      inset 0 -2px 3px color-mix(in srgb, var(--btn-color), black 24%),
+      var(--elev-2);
+  }
+  .btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px color-mix(in srgb, var(--btn-color), black 32%);
+  }
+  .btn:disabled { cursor: not-allowed; opacity: .4; box-shadow: var(--inset-groove); transform: none; }
+  .btn--primary { --btn-color: var(--action); color: #fff; }
+  .btn--danger  { --btn-color: var(--loss);   color: #fff; }
+  .btn--spend   { --btn-color: var(--spend);  color: #fff; }
+  .btn--quiet   {
+    background-image: none; box-shadow: none; color: var(--ink);
+    border: 1px solid var(--hairline);
+  }
 
-  /* Rule 3 — charts are ink at varying weight, one accent for the series
-     the question was about. */
-  .bar      { background: var(--ink); }
-  .bar--60  { background: color-mix(in srgb, var(--ink) 60%, var(--paper)); }
-  .bar--35  { background: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
-  .bar--accent { background: var(--live); }
-
-  /* Density: borders on containers, hairlines inside. */
-  .cells tr + tr { border-top: 1px solid var(--hairline); }
-
+  /* --- soft pill chip --- */
   .tag {
-    border: 1.5px solid var(--rule); padding: .15rem .45rem;
+    display: inline-flex; align-items: center;
+    border: 1px solid var(--hairline);
+    border-radius: 100vh;
+    background: var(--card-b);
+    box-shadow: inset 0 1px 0 var(--bevel-hi), var(--elev-1);
+    padding: .15rem .55rem;
     font-size: .6875rem; font-weight: 600; text-transform: uppercase;
     letter-spacing: .04em;
   }
 
+  /* Rule 3 — monochrome bars, beveled fill (no palette). */
+  .bar {
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--ink), white 20%), var(--ink));
+    border-radius: 3px 3px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .bar--60 {
+    background-image: linear-gradient(180deg,
+      color-mix(in srgb, var(--ink) 66%, var(--paper)),
+      color-mix(in srgb, var(--ink) 55%, var(--paper)));
+  }
+  .bar--35 {
+    background-image: linear-gradient(180deg,
+      color-mix(in srgb, var(--ink) 40%, var(--paper)),
+      color-mix(in srgb, var(--ink) 30%, var(--paper)));
+  }
+  .bar--accent {
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--action), white 25%), var(--action));
+  }
+
+  /* Density: hairlines between rows. */
+  .cells tr + tr { border-top: 1px solid var(--hairline); }
+
+  /* Indicator lamp: a lit dome, not a flat square. */
   .live-dot {
-    width: .5rem; height: .5rem; background: var(--live);
+    width: .5rem; height: .5rem; border-radius: 100vh;
+    background: radial-gradient(circle at 35% 30%,
+      color-mix(in srgb, var(--live), white 55%), var(--live));
+    box-shadow:
+      0 0 4px color-mix(in srgb, var(--live) 70%, transparent),
+      inset 0 -1px 1px rgba(0,0,0,0.3);
     animation: blip 1.6s steps(1, end) infinite;
   }
-  @keyframes blip { 50% { opacity: .25; } }
+  @keyframes blip { 50% { opacity: .35; } }
 
-  /* The one place the animation budget goes: an interface assembling itself.
-     Sharp easing, no bounce, no fade. */
+  /* The animation budget: an interface settling into place. Rise, no clip wipe. */
   .snap-in {
-    animation: snap 220ms cubic-bezier(.2,.9,.2,1) both;
+    animation: snap 260ms cubic-bezier(.2,.8,.25,1) both;
     animation-delay: calc(var(--i, 0) * 70ms);
   }
   @keyframes snap {
-    from { opacity: 0; transform: translateY(10px); clip-path: inset(0 0 100% 0); }
-    to   { opacity: 1; transform: none;             clip-path: inset(0 0 0 0); }
+    from { opacity: 0; transform: translateY(8px) scale(0.99); }
+    to   { opacity: 1; transform: none; }
   }
 }
