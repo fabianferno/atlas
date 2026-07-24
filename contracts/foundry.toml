@@ -1,0 +1,28 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+# MiniAppRegistry.register takes six arguments and writes a ten-field struct;
+# the legacy pipeline runs out of stack slots. Nothing here is hot enough for
+# the extra compile time to matter.
+via_ir = true
+# 0G Chain supports Cancun-Deneb / Pectra. 0G's own deploy docs call this out
+# explicitly; leaving it on the Foundry default breaks deploys there.
+evm_version = "cancun"
+# The deploy script writes deployments/<chainId>.json. Without this, the whole
+# script reverts *after* the contracts are already deployed — you lose the
+# addresses and pay twice.
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+# 0G Chain. Testnet is the default everywhere; mainnet exists only so that a
+# deploy against it has to be asked for explicitly.
+[rpc_endpoints]
+og_testnet = "${ZEROG_RPC}"
+og_mainnet = "${ZEROG_MAINNET_RPC}"

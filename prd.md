@@ -530,13 +530,26 @@ Under the old framing, ENS was a nice shareable name. Under this one it's a **sa
 
 Register a 2LD you control (`graphminis.eth`) and issue subnames beneath it:
 
-| Mechanism | Speed | Tradeoff |
-|---|---|---|
-| **Offchain via CCIP-Read** ([NameStone](https://namestone.com/), Namespace, JustaName, [gskril/ens-offchain-registrar](https://github.com/gskril/ens-offchain-registrar)) | Fastest — REST, gasless | Records in a DB behind CCIP-Read. Legitimate, but have the "how onchain is this?" answer ready |
-| **[Durin](https://github.com/resolverworks/durin)** — L2 subname registry | Medium | Subnames as ERC-721s on L2, records onchain. Bonus: another deployed contract address |
-| **[ensdomains/hackathon-registrar](https://github.com/ensdomains/hackathon-registrar)** | Fast | Purpose-built for this situation |
+Four backends ship behind one interface, selected by `ENS_REGISTRAR_MODE`, degrading to a local mock with a warning rather than throwing.
 
-> **Friday, first thing:** ask the ENS booth which they want to see. Five minutes, de-risks $3,000.
+| Mechanism | Status |
+|---|---|
+| **Namespace** — offchain CCIP-Read, `POST /api/v1/subnames` | **Primary.** Implemented against their live OpenAPI spec |
+| Onchain NameWrapper + PublicResolver | Implemented. Slower, but records are genuinely onchain |
+| NameStone | Implemented, **but see below — do not demo it** |
+| Local mock | Default with no keys |
+
+**Three findings that changed this plan:**
+
+1. **NameStone shuts down 2026-08-03** (announced 2026-07-14). It works during the hackathon, but demoing infrastructure that dies in ten days is a bad look in a Q&A. **[Durin](https://github.com/resolverworks/durin) inherits the same risk** — it is now a NameStone repo with a NameStone-operated gateway. This is why Namespace is primary.
+2. **`ensdomains/hackathon-registrar` is a dead 2019 artifact and its npm package is compromised.** Do not use it. Struck from this document.
+3. **On Sepolia, `ETHRegistrarController.register()` reverts** — it is not an authorised controller, and `available()` still returns true, so it fails in a confusing way. Registering the parent requires `TestnetV1PremigrationRegistrar` at `0xdf60C561Ca35AD3C89D24BbA854654b1c3477078`. Documented as `SEPOLIA_PARENT_REGISTRATION` in `ens.ts`.
+
+Also worth knowing: NameStone's Sepolia base URL is a **different path** (`/api/public_v1_sepolia`), not a query parameter. Getting that wrong silently writes testnet names to mainnet.
+
+**To go live:** key from `app.namespace.ninja`, own the parent, point its resolver at Namespace's hybrid resolver, set `NAMESPACE_API_KEY` + `ENS_PARENT_DOMAIN`.
+
+> **Still worth the booth conversation** — but as a "here's what we built, does this land?" rather than "what should we use?". ETHGlobal's own ENS prize pages list ENSIP-25/26 as resources, which is exactly what this implements.
 
 ## Records per mini app
 
@@ -1011,7 +1024,7 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 
 # 18. Open questions — resolve at booths Friday morning
 
-1. **ENS:** which subname mechanism do you want to see — offchain CCIP-Read, Durin on L2, or hackathon-registrar? *(5 min, de-risks $3,000)*
+1. **ENS:** we shipped Namespace (offchain CCIP-Read) as primary, with an onchain NameWrapper backend behind the same interface — after finding NameStone shuts down 2026-08-03 and Durin now runs on their gateway. Does that read right, or would you rather see the onchain path demoed?
 2. **ENS:** does "every mini app is an agent with a wallet, a name, and ENSIP-25/26 records" land better in Track 1 or Track 2? Which do you want us to lead with at the booth?
 3. **The Graph:** which standardized-schema deployments are reliably live on Arbitrum *right now*? Directly attacks the top risk.
 4. **The Graph:** is there a Substreams package we can subscribe to in an afternoon for price or lending events on Arbitrum, or should we poll and say so?
