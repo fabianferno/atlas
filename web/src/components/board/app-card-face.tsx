@@ -1,6 +1,7 @@
 import type { MiniApp } from "@/lib/seed";
 import { fmtNum, fmtUsd } from "@/lib/store";
 import { Fig, LiveDot, TierTag, panelClass } from "@/components/board/chrome";
+import { AppGlyph } from "@/components/board/app-glyph";
 import { cn } from "@/lib/utils";
 
 /** Uniform fixed height (px) of a card face — the wheel uses this as its rowHeight base. */
@@ -59,14 +60,19 @@ export function AppCardFace({
       ) : null}
 
       <div className="flex flex-1 flex-col p-3">
+        {/* The glyph spans the title and the ENS name — one block, one subject. */}
         <div className="flex items-start justify-between gap-2">
-          <h3 className="display min-w-0 text-[0.8125rem] leading-tight">{m.title}</h3>
+          <div className="flex min-w-0 items-start gap-2">
+            <AppGlyph manifest={m} className="mt-px" />
+            <div className="min-w-0">
+              <h3 className="display text-[0.8125rem] leading-tight">{m.title}</h3>
+              <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
+                {m.identity.ens ?? `${m.name}.graphminis.eth`}
+              </p>
+            </div>
+          </div>
           {app.running && !halted ? <LiveDot label="" /> : null}
         </div>
-
-        <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
-          {m.identity.ens ?? `${m.name}.graphminis.eth`}
-        </p>
 
         <p className="mt-2 line-clamp-2 text-xs leading-snug text-[var(--muted-ink)]">{m.intent}</p>
 

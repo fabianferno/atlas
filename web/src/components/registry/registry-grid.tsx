@@ -14,6 +14,7 @@ import type { MiniApp } from "@/lib/seed";
 import { TIER_BLURB, TIER_LABEL, tierRank } from "@/lib/seed";
 import { fmtNum, fmtUsd, useBoard } from "@/lib/store";
 import { Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
+import { AppGlyph } from "@/components/board/app-glyph";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { score } from "@/components/registry/ratings";
 import { cn } from "@/lib/utils";
@@ -176,14 +177,19 @@ function RegistryCard({ app, index, onFork }: { app: MiniApp; index: number; onF
 
       <div className="flex flex-1 flex-col p-3">
         <div className="flex items-start justify-between gap-2">
-          <Link href={`/a/${m.name}`} className="display min-w-0 text-[0.8125rem] leading-tight no-underline hover:underline">
-            {m.title}
-          </Link>
+          <div className="flex min-w-0 items-start gap-2">
+            <AppGlyph manifest={m} className="mt-px" />
+            <div className="min-w-0">
+              <Link href={`/a/${m.name}`} className="display block text-[0.8125rem] leading-tight no-underline hover:underline">
+                {m.title}
+              </Link>
+              <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
+                {m.identity.ens ?? `${m.name}.graphminis.eth`}
+              </p>
+            </div>
+          </div>
           {app.running ? <LiveDot label="" /> : null}
         </div>
-        <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
-          {m.identity.ens ?? `${m.name}.graphminis.eth`}
-        </p>
         <p className="mt-2 line-clamp-2 text-xs leading-snug text-[var(--muted-ink)]">{m.intent}</p>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">

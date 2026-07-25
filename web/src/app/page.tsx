@@ -16,8 +16,8 @@ export default function BoardPage() {
     <>
       <TopBar active="board" />
       <LedgerTicker />
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-5 sm:py-6">
-        <div className="min-w-0 space-y-4">
+      <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-3 py-4 sm:px-5 sm:py-6">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           <AppDeck />
           <TierLegend />
         </div>

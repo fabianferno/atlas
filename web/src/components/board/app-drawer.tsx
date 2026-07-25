@@ -9,6 +9,10 @@
  * is the same one the full-page route mounts, so nothing about the app changes
  * — only its container does.
  *
+ * On a wide screen the opened card's details take the space the globe vacates,
+ * so the split stays a split: which app this is on the left, the app itself on
+ * the right. See `AppDossier`.
+ *
  * The container never unmounts the runtime mid-animation. `name` may go null
  * between selections and `open` may go false before the slide-out finishes, so
  * we hold the last non-null name and keep the panel in the tree until the
@@ -18,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { AppDossier } from "@/components/board/app-dossier";
 import { AppRuntime } from "@/components/board/app-runtime";
 import { cn } from "@/lib/utils";
 
@@ -199,6 +204,14 @@ export function AppDrawer({
         )}
         onClick={onClose}
       />
+
+      {/*
+        The left half of the split, once the globe has cleared it: the opened
+        card's own details, so the running app never arrives unlabelled. It sits
+        after the scrim in the tree, which is what floats it above the dim —
+        neither carries a z-index, so paint order is DOM order.
+      */}
+      <AppDossier name={shownName} open={open} />
 
       <div
         ref={panelRef}

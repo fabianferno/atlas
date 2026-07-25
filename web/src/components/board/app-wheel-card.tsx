@@ -2,6 +2,7 @@ import type { MiniApp } from "@/lib/seed";
 import { TIER_LABEL } from "@/lib/seed";
 import { fmtNum, fmtUsd } from "@/lib/store";
 import { Fig, LiveDot, panelClass } from "@/components/board/chrome";
+import { AppGlyph } from "@/components/board/app-glyph";
 import { cn } from "@/lib/utils";
 
 /**
@@ -57,6 +58,7 @@ export function AppWheelCard({
         className="flex shrink-0 items-center gap-2 px-3"
         style={{ height: WHEEL_CARD_HEIGHT }}
       >
+        <AppGlyph manifest={m} />
         <div className="min-w-0 flex-1">
           <h3 className="display truncate text-[0.8125rem] leading-tight">{m.title}</h3>
           <p className="mono mt-0.5 truncate text-[0.5625rem] text-[var(--muted-ink)]">

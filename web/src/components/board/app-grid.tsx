@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import type { MiniApp } from "@/lib/seed";
-import { TIER_BLURB, TIER_LABEL } from "@/lib/seed";
+import { TIER_LABEL } from "@/lib/seed";
 import { myApps, tierCounts, useBoard } from "@/lib/store";
 import { Label, SectionHead, panelClass } from "@/components/board/chrome";
 import { AppCardFace } from "./app-card-face";
@@ -59,13 +59,12 @@ export function AppCard({ app, index, href }: { app: MiniApp; index: number; hre
 /** The tier legend. Says out loud what the chrome is already saying. */
 export function TierLegend() {
   return (
-    <div className="panel flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
+    <div className="panel mt-auto ml-auto flex w-fit max-w-full flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
       <Label>Depth is agency</Label>
       {(["readonly", "monitor", "autonomous"] as const).map((tier) => (
         <span key={tier} className="flex items-center gap-1.5">
           <span className={panelClass(tier, "h-4 w-7 shrink-0 rounded-[4px]")} aria-hidden />
           <span className="mono text-[0.625rem] uppercase tracking-[0.06em]">{TIER_LABEL[tier]}</span>
-          <span className="hidden text-[0.6875rem] text-[var(--muted-ink)] sm:inline">{TIER_BLURB[tier]}</span>
         </span>
       ))}
     </div>
