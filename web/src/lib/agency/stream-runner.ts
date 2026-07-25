@@ -198,7 +198,8 @@ export async function runStream(options: RunStreamOptions): Promise<RunStreamSum
       continue;
     }
 
-    const { kind: _kind, ...tick } = event;
+    // `{ kind: "tick" } & StreamTick` — already a tick, no need to strip.
+    const tick: StreamTick = event;
     summary.ticks += 1;
     summary.firstBlock ??= tick.blockNumber;
     summary.lastBlock = tick.blockNumber;

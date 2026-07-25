@@ -887,11 +887,25 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
   const metric = block.fields.primaryMetric ?? block.fields.value;
   if (!metric || block.rows.length < 2) return null;
 
-  const values = block.rows.map((r) => toNumber(r[metric])).filter((n): n is number => n !== null);
+  // Suspect rows are excluded from the AGGREGATE, not from the table.
+  //
+  // A sum is the one place a single broken upstream value destroys the whole
+  // figure: one SushiSwap row reporting 7.2e22 turned a $600M TVL headline into
+  // "$131685267736T" at the very top of the page. Ranking them last is enough for
+  // a list, where a reader can see the outlier sitting at the bottom; for a scalar
+  // there is nothing to see, just a wrong number. So they are dropped here and the
+  // caption says how many, because a quietly filtered total is its own lie.
+  const usable = block.rows.filter((r) => !("_suspect" in r));
+  const excluded = block.rows.length - usable.length;
+  const values = usable.map((r) => toNumber(r[metric])).filter((n): n is number => n !== null);
   if (values.length === 0) return null;
 
   const unit = unitFor(metric);
+  // `humanize("totalValueLockedUSD")` already starts with "Total", and prefixing
+  // it again read as "Total Total Value Locked USD".
   const name = humanize(metric);
+  const totalLabel = /^total\b/i.test(name) ? name : `Total ${name}`;
+  const excludedNote = excluded > 0 ? ` ${excluded} row(s) with impossible values excluded.` : "";
 
   const summable =
     block.shape === "categorical_ranked" ||
@@ -908,10 +922,20 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
   if (summable) {
     const total = values.reduce((a, b) => a + b, 0);
     return {
-      label: `Total ${name}`,
-      caption: `Summed across ${values.length} rows.`,
+      label: totalLabel,
+      caption: `Summed across ${values.length} rows.${excludedNote}`,
       unit,
-      payload: { shape: "scalar", title: `Total ${name}`, reason: "Aggregate of the ranked metric.", confidence: 1, rowCount: values.length, value: total, delta: null, label: `Total ${name}`, unit: unit ?? "none" },
+      payload: {
+        shape: "scalar",
+        title: totalLabel,
+        reason: `Aggregate of the ranked metric.${excludedNote}`,
+        confidence: 1,
+        rowCount: values.length,
+        value: total,
+        delta: null,
+        label: totalLabel,
+        unit: unit ?? "none",
+      },
     };
   }
 
@@ -920,7 +944,7 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
   const delta = first !== 0 ? (last - first) / Math.abs(first) : null;
   return {
     label: `Latest ${name}`,
-    caption: `Latest of ${values.length} observations.`,
+    caption: `Latest of ${values.length} observations.${excludedNote}`,
     unit,
     payload: {
       shape: "scalar_with_delta",

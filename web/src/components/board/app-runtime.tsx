@@ -10,7 +10,7 @@
  * For the autonomous tier the policy strip, the kill switch and the trade log
  * are always present — the renderer enforces that, not the composer.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TIER_BLURB } from "@/lib/seed";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
@@ -31,10 +31,37 @@ import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
 import { cn } from "@/lib/utils";
 
+/**
+ * Whether trigger evaluation is event-driven right now, asked of the server
+ * rather than assumed. Polling and per-block subscription look identical from
+ * the outside, and the difference is the whole Substreams argument — so the UI
+ * states which one it is and never rounds up. Null while unknown.
+ */
+function useStreamMode(): { mode: "substreams" | "interval"; reason: string } | null {
+  const [state, setState] = useState<{ mode: "substreams" | "interval"; reason: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/stream")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { mode?: "substreams" | "interval"; reason?: string } | null) => {
+        if (!alive || !body?.mode) return;
+        setState({ mode: body.mode, reason: body.reason ?? "" });
+      })
+      .catch(() => {
+        // A failed probe is not a claim of either mode. Stay silent.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return state;
+}
+
 export function AppRuntime({ name }: { name: string }) {
   const board = useBoard();
   const app = useApp(name);
   const [forking, setForking] = useState(false);
+  const stream = useStreamMode();
 
   // This app's slice of the board ledger, feeding trade_log inside the
   // generated body as well as the panel below it. Memoised so its identity is
@@ -192,6 +219,19 @@ export function AppRuntime({ name }: { name: string }) {
                 k="Stream"
                 v={m.data.stream ? `${m.data.stream.package} · ${m.data.stream.module}` : "none — evaluated on open"}
               />
+              {/* Latency is the point of Substreams, so name the mechanism, not
+                  the aspiration. `interval` says polling out loud. */}
+              <KV
+                k="Evaluated"
+                v={
+                  stream === null
+                    ? "checking…"
+                    : stream.mode === "substreams"
+                      ? "once per block — Substreams subscription"
+                      : "on an interval — no Substreams token, so polling"
+                }
+                accent={stream?.mode === "substreams" ? "live" : stream ? "risk" : undefined}
+              />
               <KV k="Cost per run" v={`$${app.stats.costPerRunUsd.toFixed(3)}`} />
             </dl>
 
@@ -300,7 +340,17 @@ export function AppRuntime({ name }: { name: string }) {
   );
 }
 
-function KV({ k, v, mono, accent }: { k: string; v: string; mono?: boolean; accent?: "spend" }) {
+function KV({
+  k,
+  v,
+  mono,
+  accent,
+}: {
+  k: string;
+  v: string;
+  mono?: boolean;
+  accent?: "live" | "gain" | "loss" | "risk" | "spend";
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-t border-[var(--hairline)] py-1.5 first:border-t-0">
       <dt className="mono shrink-0 text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">{k}</dt>

@@ -76,7 +76,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       policy: manifest.agency.policy,
     });
 
-    registerApp({ appId, agency: manifest.agency, wallet });
+    // The data plan is stored alongside the policy, and for the same reason: a
+    // stream trigger re-reads its metrics from the server's copy, so the number
+    // that decides whether an autonomous app spends is never client-supplied.
+    registerApp({
+      appId,
+      agency: manifest.agency,
+      wallet,
+      data: manifest.data,
+      intent: manifest.intent,
+    });
 
     return json({
       ok: true,

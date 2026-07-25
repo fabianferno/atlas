@@ -102,6 +102,14 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
 
   // The NFT marketplace schema is the one family with no `Protocol` interface —
   // its root entity is `Marketplace`, with its own field names.
+  //
+  // AND it denominates in ETH, not USD. `cumulativeTradeVolumeUSD` /
+  // `totalRevenueUSD` do not exist on `Marketplace`; asking for them is a hard
+  // query error, so this family returned zero rows on every deployment until
+  // the fields were read off the live schema. Verified by introspecting
+  // OpenSea Seaport mainnet (`2GmLsgYGWoFoouZzKjp8biYDkfmeLTkEY3VDQyZqSJHA`)
+  // on 2026-07-25: the only value fields are ETH-denominated. Anything
+  // presenting these as dollars has to convert, and has to say it converted.
   "nft-marketplace@2.1.0": `query GraphMinisNft {
   marketplaces(first: 1) {
     id
@@ -111,8 +119,10 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
     schemaVersion
     collectionCount
     tradeCount
-    cumulativeTradeVolumeUSD
-    totalRevenueUSD
+    cumulativeTradeVolumeETH
+    marketplaceRevenueETH
+    creatorRevenueETH
+    totalRevenueETH
     cumulativeUniqueTraders
   }
 }`,

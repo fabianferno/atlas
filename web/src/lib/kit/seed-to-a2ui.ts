@@ -25,9 +25,11 @@ import type { Manifest, Policy } from "@/lib/contracts/manifest";
 import type { JournalEntry } from "@/lib/contracts/policy";
 import type { Accent, UiBlock, UiDoc } from "@/lib/seed";
 import { SEED_EPOCH } from "@/lib/seed";
+import { ACTION_COMPONENTS } from "@/lib/contracts/catalog";
 import {
   bind,
   buildDocument,
+  readSurface,
   serverEvent,
   type A2UIComponent,
   type A2UIDocument,
@@ -380,25 +382,81 @@ function appendAutonomous(
  * ──────────────────────────────────────────────────────────────────────── */
 
 /**
- * Turn a seed manifest's fixture body into a real A2UI document. Returns the
- * existing `manifest.ui` untouched if it is not a fixture (already A2UI, or
- * empty). Autonomous apps additionally get the full action surface.
+ * Pulls the display half out of an already-composed A2UI document.
+ *
+ * WHY THE ACTION HALF IS DISCARDED. `compose()` works from a `PlanResult`, which
+ * carries no policy — and by design it does not invent one: "the composer renders
+ * a policy; it never grants one" (composer.ts `defaultPolicy`). So a composed
+ * document's `policy_badge` reports an empty allowlist, its `action_button` is
+ * blocked, and its `trade_log` is empty, no matter what the published manifest
+ * actually allows. That is the correct output pre-publish and the wrong output
+ * for a published app, where the policy exists and is the whole point.
+ *
+ * Rather than teach the composer about policies (which would let a generated
+ * document assert its own spending authority — exactly the inversion §7 forbids),
+ * the display components are kept and the action surface is rebuilt from the
+ * manifest, where the policy actually lives.
+ */
+function displayHalf(doc: unknown): { components: A2UIComponent[]; blocks: Record<string, JsonValue> } | null {
+  const surface = readSurface(doc);
+  if (!surface) return null;
+
+  const actionNames = new Set<string>(ACTION_COMPONENTS);
+  const components = surface.ordered.filter((c) => !actionNames.has(c.component));
+
+  // Carry over only the data the surviving components bind to. Leaving the
+  // dropped components' payloads behind would keep a stale empty-allowlist
+  // object in the data model for anything that walked it.
+  const model = surface.dataModel;
+  const sourceBlocks =
+    typeof model === "object" && model !== null && !Array.isArray(model)
+      ? ((model as Record<string, unknown>)["blocks"] as Record<string, JsonValue> | undefined)
+      : undefined;
+
+  const blocks: Record<string, JsonValue> = {};
+  if (sourceBlocks) {
+    for (const component of components) {
+      const payload = sourceBlocks[component.id];
+      if (payload !== undefined) blocks[component.id] = payload;
+    }
+  }
+
+  return { components, blocks };
+}
+
+/**
+ * Turn a manifest's body into a real A2UI document whose action surface reflects
+ * the manifest's ACTUAL policy.
+ *
+ * Two inputs, one output. A fixture body (`UiDoc`) is converted block by block.
+ * An already-composed A2UI document keeps its display components and has its
+ * action surface rebuilt — see `displayHalf` for why the composed one is not
+ * trusted. Either way an autonomous app ends up with the policy badge, the
+ * bounded amount input, the allowlist picker, the action button, the journal and
+ * the kill switch, all sourced from `manifest.agency`.
  */
 export function seedToA2ui(
   manifest: Manifest,
   opts: { journal?: JournalEntry[] } = {},
 ): A2UIDocument {
   const ui = manifest.ui;
-  if (!isUiDoc(ui)) return ui as A2UIDocument;
-
   const tier = manifest.agency.tier;
   const components: A2UIComponent[] = [];
   const blocks: Record<string, JsonValue> = {};
 
-  for (const block of ui.blocks) {
-    const { component, payload } = convertBlock(block, tier);
-    blocks[component.id] = payload;
-    components.push(component);
+  if (isUiDoc(ui)) {
+    for (const block of ui.blocks) {
+      const { component, payload } = convertBlock(block, tier);
+      blocks[component.id] = payload;
+      components.push(component);
+    }
+  } else {
+    const display = displayHalf(ui);
+    // Not a fixture and not a readable surface: nothing to rebuild against, so
+    // hand back what was there rather than replacing a body with an empty one.
+    if (!display) return ui as A2UIDocument;
+    components.push(...display.components);
+    Object.assign(blocks, display.blocks);
   }
 
   if (tier === "autonomous") {

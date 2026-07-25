@@ -273,10 +273,94 @@ function byName(cols: ColumnProfile[], re: RegExp): ColumnProfile | undefined {
   return cols.find((c) => re.test(c.name));
 }
 
+/** A boolean that means "something went wrong" — the only kind that is an alert. */
+const BREACH_FLAG_RE = /(trigger|breach|violat|alert|liquidat|halt|paused|stale|frozen)/i;
+
+/**
+ * A boolean that means "operating normally". Never an alert, however `is…`-shaped
+ * the name looks: `isActive` is true for every healthy market on every lending
+ * deployment we query.
+ */
+const STATUS_FLAG_RE = /^(is)?(active|healthy|enabled|open|live|valid)$/i;
+
+/**
+ * Columns that identify a *deployment*, not an entity. Real values, useless as a
+ * leaderboard label — a board reading "1.3.2 · #2 · #3" is what you get when the
+ * lowest-cardinality string column wins, and on Messari rows that column is
+ * `schemaVersion`.
+ */
+const NON_LABEL_COLUMNS = new Set([
+  "id",
+  "network",
+  "slug",
+  "schemaVersion",
+  "subgraphVersion",
+  "methodologyVersion",
+]);
+
+/** Column names that ARE the entity, in preference order. */
+const LABEL_PREFERENCE = ["name", "title", "symbol", "label", "protocol", "_label"];
+
+/**
+ * The column a human would read as "which one is this".
+ *
+ * `ctx.categorical` is sorted by ascending cardinality because heatmap axes want
+ * the coarsest column. A leaderboard wants the opposite: the column that names
+ * the thing. Preference first, then the most distinctive non-metadata string.
+ */
+function pickLabelColumn(ctx: DetectContext): ColumnProfile | undefined {
+  for (const preferred of LABEL_PREFERENCE) {
+    const hit = ctx.categorical.find((c) => c.name === preferred);
+    if (hit) return hit;
+  }
+  const usable = ctx.categorical.filter((c) => !NON_LABEL_COLUMNS.has(c.name));
+  if (usable.length > 0) {
+    // Most distinctive first — the inverse of the heatmap ordering.
+    return [...usable].sort((a, b) => b.cardinality - a.cardinality)[0];
+  }
+  // Nothing but metadata. An address is a poor label but a TRUE one; a version
+  // string labels three different markets identically, which is worse than ugly.
+  return ctx.categorical.find((c) => c.name === "id") ?? ctx.categorical[0];
+}
+
+/**
+ * True when a row carries an impossible USD value, flagged upstream by the
+ * fan-out. Never dropped, never allowed to lead.
+ */
+function isSuspect(row: Row): boolean {
+  return "_suspect" in row;
+}
+
+/**
+ * Descending by `key`, with suspect rows forced last.
+ *
+ * The fan-out already ranks suspect rows last, and re-sorting on the metric threw
+ * that away — which is how `$7.2e22` from a broken SushiSwap price feed ended up
+ * at the top of a leaderboard. Sorting by the very field that is broken is the
+ * documented failure (prd.md §17); it has to be defended at every sort, not just
+ * the first one.
+ */
+function rankDescending(rows: Row[], key: string): Row[] {
+  return [...rows].sort((a, b) => {
+    const aBad = isSuspect(a) ? 1 : 0;
+    const bBad = isSuspect(b) ? 1 : 0;
+    if (aBad !== bBad) return aBad - bBad;
+    return (asNumber(b[key]) ?? 0) - (asNumber(a[key]) ?? 0);
+  });
+}
+
+/**
+ * Whether `rows` is already ranked by `key`.
+ *
+ * Suspect rows are skipped rather than compared: they sit at the end with
+ * arbitrary magnitudes, so including them would report a correctly-ordered list
+ * as unsorted and trigger a re-sort that puts them back on top.
+ */
 function isDescending(rows: Row[], key: string): boolean {
   let seen = 0;
   let prev = Number.POSITIVE_INFINITY;
   for (const r of rows) {
+    if (isSuspect(r)) continue;
     const n = asNumber(r[key]);
     if (n === null) continue;
     if (n > prev + 1e-9) return false;
@@ -294,9 +378,16 @@ function isDescending(rows: Row[], key: string): boolean {
 export const SHAPE_DETECTORS: Record<DataShape, Detector> = {
   /** A boolean that fired, or a monitor/autonomous plan with a breach column. */
   triggered_condition: (ctx) => {
+    // A fired condition must be BREACH-shaped, not merely boolean.
+    //
+    // `semantic === "flag"` is too loose here: NAME_HINTS classifies anything
+    // starting `is…`/`has…` as a flag, so a Messari market's `isActive: true` —
+    // the normal, healthy state of every market — rendered as "Is Active has
+    // fired" in an alert banner on an autonomous app. A false alert on a screen
+    // that can move money is worse than no alert.
     const flag =
-      ctx.boolCols.find((c) => c.semantic === "flag") ??
-      byName(ctx.boolCols, /(trigger|breach|violat|alert|liquidat|halt)/i);
+      byName(ctx.boolCols, BREACH_FLAG_RE) ??
+      ctx.boolCols.find((c) => c.semantic === "flag" && !STATUS_FLAG_RE.test(c.name));
     if (!flag) return null;
     const fired = ctx.rows.some((r) => r[flag.name] === true);
     if (!fired && ctx.tier === "readonly") return null;
@@ -556,7 +647,7 @@ export const SHAPE_DETECTORS: Record<DataShape, Detector> = {
 
   /** A ranked categorical. The most common question shape there is. */
   categorical_ranked: (ctx) => {
-    const cat = ctx.categorical[0];
+    const cat = pickLabelColumn(ctx);
     if (!cat || ctx.timeCols.length > 0) return null;
     const metrics = ctx.numeric.filter((c) => c.semantic !== "delta");
     if (metrics.length === 0) return null;
@@ -565,9 +656,9 @@ export const SHAPE_DETECTORS: Record<DataShape, Detector> = {
     if (ctx.rows.length < 3 || ctx.rows.length > 50) return null;
     const sorted = isDescending(ctx.rows, metric);
     if (!sorted && !ctx.ranked) return null;
-    const rows = sorted
-      ? ctx.rows
-      : [...ctx.rows].sort((a, b) => (asNumber(b[metric]) ?? 0) - (asNumber(a[metric]) ?? 0));
+    // Even when already descending, re-rank: `isDescending` ignores suspect rows,
+    // so "sorted" says nothing about where they sit.
+    const rows = rankDescending(ctx.rows, metric);
     return {
       confidence: sorted ? 0.93 : 0.8,
       rows,

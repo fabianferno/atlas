@@ -45,7 +45,7 @@ import {
   isSessionEnabled,
   type Session as SmartSession,
 } from "@rhinestone/module-sdk";
-import type { Agency, AgencyTier, Policy } from "../contracts/manifest";
+import type { Agency, AgencyTier, DataPlan, Policy } from "../contracts/manifest";
 
 /**
  * Read this out loud when a judge asks "what if your server is owned?".
@@ -777,6 +777,15 @@ export interface RegisteredApp {
   appId: string;
   agency: Agency;
   wallet: MiniAppWallet;
+  /**
+   * The app's query plan, held server-side for the same reason the policy is:
+   * a stream trigger re-reads its metrics from HERE, so a client cannot supply
+   * the number that decides whether an autonomous app spends. Absent for the
+   * cold-start demo app, which has no data plane.
+   */
+  data?: DataPlan | null;
+  /** Free text from the manifest, used to label journal lines. */
+  intent?: string;
 }
 
 const REGISTRY_KEY = "__graphminis_app_registry__";

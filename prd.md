@@ -329,6 +329,8 @@ A `Button` carries an `action` that is either a **Server Event** (dispatched to 
 
 ## The visual system
 
+> **Superseded by what shipped — read this first.** The direction below is neo-brutalism, with border weight encoding agency. What runs is **skeuomorphic** (Dieter Rams / Braun), with **depth** encoding agency: readonly sits flush in an inset groove, monitor lifts on a soft bevel with a live-blue rim, autonomous stands proud on a tall bevel with a deep shadow and a warm orange rim. Everything else below survives intact — semantic colour, monochrome charts, mono as a primary voice, light mode, density discipline, the theme swap. See Appendix C v7, `web/src/app/globals.css`, and `docs/superpowers/specs/2026-07-25-skeuomorphic-theme-design.md`. The argument is kept rather than rewritten because it is the planning artifact the change was made against.
+
 ### The design problem, stated honestly
 
 This is not a normal UI brief, because **we do not control the composition.** An agent assembles the screen at runtime from a catalog. So the system has to hold together no matter what gets combined — which rules out any aesthetic that depends on careful, hand-tuned arrangement. Whatever we choose must look deliberate when a machine stacks six components it has never stacked before.
@@ -842,12 +844,12 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 
 | # | Requirement | Track | Owner | Status |
 |---|---|---|---|---|
-| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **◐** data plane live (18 sources, 13 healthy, 74 rows, $0.0014). **Seed apps still fabricated — this is the open half** |
+| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **☑** data plane live, and **all 16 seed apps now run on it** — `scripts/seed-live.ts` puts every one through resolve → health-check → fan-out → compose, 16/16 live for $0.0084, snapshot in `kit/seed-live.generated.json`. Only `runs`/`forks`/ratings remain seeded, and they are social texture, not data |
 | 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | **◐** MCP server live at `/api/mcp` (5 tools, verified handshake) and `SKILL.md` written. **npm package still not extracted** |
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | **☑** root `README.md` + `SKILL.md`, both naming deployment IDs, addresses and what is *not* built |
 | 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both — plan and compose run on 0G (`0gm-1.0-35b-a3b`), and the action loop is policy gate → signer → journal |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **☑** 12 deployment IDs listed in the README, all 86 in `sources.ts`; every row carries `_source`/`_label`/`_schema`/`_network` |
-| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs + x402 live; Substreams not built |
+| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs live. Substreams client **built and tested** (17 tests, real gRPC subscription, cursor resume, reorg refusal, per-block re-read) but **not yet run against an endpoint** — needs a `SUBSTREAMS_API_TOKEN`. x402 is implemented end to end and **also unexercised**: `X402_PRIVATE_KEY` is unset and the reference run's $0.0014 is 14 × the gateway's $0.0001, so it went over the API-key gateway. Two products verified, two coded |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |
 | 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑** `addr` → the app's wallet, `contenthash` → the manifest CID, ENSIP-25/26 records, mutual verification with the 0G token |
@@ -1046,7 +1048,10 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 | Breadth without depth — 10 schemas all shallow | Med | Med | Demo shows 2–3 families composing *well*; the other seven prove the resolver generalizes. Don't try to showcase all ten in 2:50 |
 | Brutalism reads as unfinished rather than deliberate | Med | Med | §6 — borders on containers not cells, one heavy frame per panel then get quiet, hard shadow reserved for things you can act on. Judge it by screenshotting one panel and asking whether the *content* looks credible |
 | Live standardized data contains impossible values | **High** | Med | Real: 13 of 74 rows on a routine fan-out, incl. SushiSwap TVL at 7.2e22 from a broken upstream price feed. Rows are flagged `_suspect` and ranked last, never dropped — sorting by the broken field once put the worst row at the top of the table |
-| Seed content is mistaken for live data | Med | **Fatal** | Matrix #1 says no mocks *anywhere in the demo*. The registry ships seed apps with fabricated numbers; either they run live before recording or they never appear on camera |
+| ~~Seed content is mistaken for live data~~ **Closed** | — | — | All 16 seed apps run through the real pipeline (`scripts/seed-live.ts`, 16/16 live). What remains seeded is `runs`/`forks`/ratings — social texture, not a data claim, and named as such in the README |
+| **A broken upstream value reaching an aggregate or a ranking** | **High** | High | Suspect-last was enforced in the fan-out and then silently undone one layer up by the shape detector's re-sort — `$7.2e22` led a leaderboard and summed into a `$131685267736T` headline. Now: ranking is suspect-aware at *every* sort, aggregates exclude suspect rows and state how many, and `kit/shapes.test.ts` pins both. The lesson generalises — an invariant enforced at one layer is not enforced |
+| **A field that does not exist on the live schema** | **High** | High | Three exceptions were documented in §13; a fourth (`nft-marketplace` denominates in ETH, so every `*USD` field is a hard query error) only appeared when the family was actually queried, and it zeroed the whole family. Introspect before trusting a schema doc |
+| **A returning browser keeps stale seed bodies** | Med | Med | The board persists to localStorage, so a re-measured snapshot did not reach anyone who had already visited — the fix was live and invisible. The persisted blob now carries the snapshot's `generatedAt` and re-seeds when it changes, keeping user-published apps |
 
 ---
 
@@ -1209,7 +1214,19 @@ await publish(ui, {
 
 [`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
 
-## v6 — neo-brutalism, and the shell is cut (current)
+## v7 — skeuomorphism, and depth replaces border weight (current)
+
+Neo-brutalism was the right *structural* argument and the wrong material. What changed and why:
+
+- **The honest risk in v6 came true on contact.** §6 said it out loud — "neo-brutalism is close to a default in crypto by 2026 … the direction only works if it is *specifically ours*." Built out, chunky borders on a light field read as a template, and the four rules meant to make it ours were not enough to carry it
+- **Depth encodes agency better than border weight does.** A 1.5 / 2.5 / 5px scale is a quantity you have to measure against its neighbours; flush-versus-proud is a quality you see instantly and in isolation. Same load-bearing idea (Rule 1 survives), better physical metaphor — and a control that visibly *stands proud* reads as pressable, which is exactly the affordance an autonomous app's kill switch wants
+- **A product that holds a wallet benefits from looking manufactured rather than sketched.** Rams / Braun is the reference: warm charcoal controls, tactile plastic surfaces, one orange action accent, nothing decorative
+- **What did not change:** semantic colour with `--spend` reserved for value leaving a wallet, monochrome charts plus one accent, mono as half the interface, light mode, borders-on-containers density discipline, and the theme swap — which this change is itself evidence for, since the manifests did not move
+- Spec and plan: `docs/superpowers/specs/2026-07-25-skeuomorphic-theme-design.md`, `docs/superpowers/plans/2026-07-25-skeuomorphic-theme.md`
+
+Also corrected in this revision: §14 #6 no longer reads "x402 live". x402 is implemented end to end but `X402_PRIVATE_KEY` is unset, and the reference run's $0.0014 is 14 × the *gateway's* $0.0001 — it went over the API-key path. Coded is not verified, and the matrix now says which is which.
+
+## v6 — neo-brutalism, and the shell is cut (superseded by v7)
 
 The OS metaphor is gone. §6 is the built design and this entry is why it changed:
 

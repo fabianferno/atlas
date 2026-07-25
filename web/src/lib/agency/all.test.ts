@@ -11,5 +11,7 @@ import "./journal.test";
 import "./signer.test";
 import "./triggers.test";
 import "./session.test";
+import "./stream-runner.test";
+import "../kit/shapes.test";
 
 void report();

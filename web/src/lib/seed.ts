@@ -16,6 +16,7 @@ import type {
   Source,
 } from "@/lib/contracts/manifest";
 import type { JournalEntry } from "@/lib/contracts/policy";
+import { DEFAULT_QUERIES } from "@/lib/kit/fanout";
 
 /* ------------------------------------------------------------------ *
  * The rendered body of a mini app.
@@ -247,12 +248,16 @@ function build(s: SeedInput): MiniApp {
       schemas: s.schemas,
       networks: s.networks,
       sources: s.sources,
-      queries: Object.fromEntries(
-        s.schemas.map((schema, i) => [
-          `q${i}`,
-          `query($first:Int!){ ${schema.split("@")[0].replace(/-/g, "_")}(first:$first){ id totalValueLockedUSD } }`,
-        ]),
-      ),
+      // The family's REAL query, keyed by family so `planQueryFor` matches it
+      // exactly. This used to be a generated placeholder
+      // (`nft_marketplace(first:$first){ id totalValueLockedUSD }`), which was
+      // worse than useless: for a single-schema app it is the only key, so
+      // `planQueryFor`'s "one unkeyed query" rule handed it to the fan-out
+      // instead of falling through to the family default. The gateway rejected
+      // it, the core-fallback retry rescued a narrower version, and the app came
+      // back with 3 rows where the real query returns 36 — a silent quality loss
+      // that looked like thin upstream data.
+      queries: Object.fromEntries(s.schemas.map((schema) => [schema, DEFAULT_QUERIES[schema]])),
       variables: { first: 25 },
       stream: s.stream ? { ...s.stream, filter: {} } : null,
       transport: s.tier === "readonly" ? "gateway" : "x402",
@@ -543,18 +548,22 @@ const perpOiBoard = build({
   ],
 });
 
-const nftVolumeOp = build({
-  name: "nft-volume-op",
-  title: "NFT marketplace volume — Optimism, 30d",
-  intent: "How much NFT volume is actually happening on Optimism?",
+// Mainnet, not Optimism: `nft-marketplace@2.1.0` has standardized deployments on
+// mainnet only (prd.md §13). Pointed at Optimism this app resolved zero live
+// sources, which made it the one seed app `scripts/seed-live.ts` could not put on
+// real data — so the app moved to where the schema actually exists.
+const nftVolumeEth = build({
+  name: "nft-volume-eth",
+  title: "NFT marketplace volume — Ethereum, 30d",
+  intent: "How much NFT volume is actually happening across marketplaces?",
   category: "analytics",
-  tags: ["nft", "optimism", "marketplace"],
+  tags: ["nft", "mainnet", "marketplace"],
   tier: "readonly",
   schemas: ["nft-marketplace@2.1.0"],
-  networks: ["optimism"],
+  networks: ["mainnet"],
   sources: [
-    src("Nf4d9Ke", "nft-marketplace@2.1.0", "optimism", true, "opensea-seaport-op"),
-    src("Ng7h2Lw", "nft-marketplace@2.1.0", "optimism", true, "quix"),
+    src("Nf4d9Ke", "nft-marketplace@2.1.0", "mainnet", true, "opensea-seaport"),
+    src("Ng7h2Lw", "nft-marketplace@2.1.0", "mainnet", true, "looksrare-v2"),
   ],
   author: "mara.eth",
   mine: false,
@@ -1155,7 +1164,89 @@ const gasRebate = build({
   ],
 });
 
-/* ================================================================== */
+/* ================================================================== *
+ * LIVE OVERLAY
+ *
+ * Matrix #1 says no mocks anywhere in the demo, and the risk register rates
+ * "seed content is mistaken for live data" as fatal. `scripts/seed-live.ts`
+ * runs every app above through the real pipeline — resolve, health-check, fan
+ * out, compose — and writes the result to `kit/seed-live.generated.json`. This
+ * overlay swaps the invented parts for the measured ones.
+ *
+ * A snapshot rather than a call at page load, for two reasons: the registry has
+ * to render with no key and no network, and a demo must not re-roll its numbers
+ * between the rehearsal and the take. Re-run the script to refresh it; the file
+ * carries `generatedAt` so staleness is visible rather than assumed.
+ *
+ * WHAT THE OVERLAY DOES NOT TOUCH: `runs`, `forks`, `thumbsUp`/`thumbsDown` and
+ * the reviews. Those are seeded *social* texture — there is no community yet, and
+ * inventing a fan-out is a data claim while inventing a fork count is set
+ * dressing. Said out loud in the README rather than blurred.
+ * ================================================================== */
+
+import liveSeed from "@/lib/kit/seed-live.generated.json";
+
+interface LiveSeedEntry {
+  live: boolean;
+  reason?: string;
+  generatedAt: string;
+  sources: Source[];
+  sourcesQueried: number;
+  sourcesHealthy: number;
+  rows: number;
+  rowsSuspect: number;
+  costUsd: number;
+  ui?: unknown;
+  componentsUsed?: string[];
+}
+
+const LIVE_SNAPSHOT = liveSeed as unknown as {
+  generatedAt: string;
+  appsLive: number;
+  appsTotal: number;
+  apps: Record<string, LiveSeedEntry | undefined>;
+};
+
+/** When the live figures in the registry were measured. Show this in the UI. */
+export const LIVE_SEED_AT: string | null = LIVE_SNAPSHOT.generatedAt ?? null;
+export const LIVE_SEED_COUNT = LIVE_SNAPSHOT.appsLive ?? 0;
+
+function withLiveData(app: MiniApp): MiniApp {
+  const entry = LIVE_SNAPSHOT.apps[app.manifest.name];
+  if (!entry?.live || !entry.ui) return app;
+
+  return {
+    ...app,
+    manifest: {
+      ...app.manifest,
+      data: {
+        ...app.manifest.data,
+        // Real deployment ids, with the dead ones still listed as dead — the
+        // health check's whole point is that you can see what it skipped.
+        sources: entry.sources,
+      },
+      // The composed A2UI document. `AppBody` renders this through the real
+      // renderer, so a seed app now takes the same path a live-composed one does.
+      ui: entry.ui,
+      provenance: {
+        ...app.manifest.provenance,
+        // The body was composed by the rules engine in `scripts/seed-live.ts`,
+        // not by a model on 0G. Claiming an attestation here would be the exact
+        // thing §9 warns about.
+        model: "seed-live",
+        compute: "local",
+        attestationRef: null,
+        generatedAt: entry.generatedAt,
+      },
+    },
+    stats: {
+      ...app.stats,
+      sourcesQueried: entry.sourcesQueried,
+      sourcesHealthy: entry.sourcesHealthy,
+      costPerRunUsd: entry.costUsd,
+    },
+  };
+}
 
 export const SEED_APPS: MiniApp[] = [
   // autonomous first — the board sorts by tier and this is the payoff row
@@ -1176,8 +1267,8 @@ export const SEED_APPS: MiniApp[] = [
   yieldLeaderboard,
   bridgeFlows,
   perpOiBoard,
-  nftVolumeOp,
-];
+  nftVolumeEth,
+].map(withLiveData);
 
 /** The global activity feed, newest last. Built from every app's journal. */
 export const SEED_LEDGER: LedgerLine[] = SEED_APPS.flatMap((app) =>

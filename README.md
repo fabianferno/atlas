@@ -26,10 +26,11 @@ The Graph had everything it needed to be Dune — more chains, more protocols, r
 ```
 analytics  ──────────────  monitoring  ──────────────  autonomous
 read-only                  watches + alerts            holds a wallet, acts
-1.5px border               2.5px border                5px border
+sits flush                 lifts, live-blue rim        stands proud, orange rim
+(inset groove)             (soft bevel)                (tall bevel, deep shadow)
 ```
 
-The tier is not decoration: border weight encodes agency, and an autonomous app always renders its policy strip, its kill switch, and its trade log. You can see what a thing is allowed to do by looking at it.
+The tier is not decoration: **depth encodes agency**, and an autonomous app always renders its policy strip, its kill switch, and its trade log. You can see what a thing is allowed to do by looking at it. (The shipped theme is skeuomorphic — Dieter Rams / Braun. `prd.md` §6 argues for neo-brutalism with border weight doing this job; that was the earlier direction, and `web/src/app/globals.css` plus `docs/superpowers/specs/2026-07-25-skeuomorphic-theme-design.md` are what actually runs.)
 
 **The agent cannot inject code.** It emits [A2UI](https://github.com/google/A2UI) v0.9.1 — declarative data, not executable code. The client holds the approved component catalog and the agent may only reference components by name. For a generated interface that can move money, this is the whole safety argument.
 
@@ -78,14 +79,25 @@ EgnS9YE1avupkvCNj9fHnJxppfEmNNywYJtghqiu2pd9  dex-amm-extended@4.0.1  optimism  
 
 That 28% dead rate is real and is why sources are health-checked at generation time and frozen into the manifest. Querying one subgraph with no composition explicitly does not qualify for Track 3; this is why.
 
+**The whole registry runs on this.** All **16 of 16** seed mini apps are built by the real pipeline — resolve → health-check → fan-out → compose — not by hand. `pnpm dlx tsx --env-file=.env.local scripts/seed-live.ts` re-measures every one and writes `web/src/lib/kit/seed-live.generated.json`; the board reads that snapshot, so the registry renders with no key and no network while every number in it was measured. Total cost of a full re-run: **$0.0084**. The snapshot's `generatedAt` invalidates any browser's cached copy, so a re-measure reaches a returning visitor instead of silently not applying.
+
+Four bugs that only surfaced once real data ran through it, all of which had been invisible behind fixtures:
+
+- **Placeholder GraphQL was degrading every single-schema app.** Seed manifests carried a generated stub query; `planQueryFor` treats a lone unkeyed query as the planner's intent and fired it instead of falling through to the family default. The gateway rejected it, the core-fallback retry rescued a narrower version, and the app came back with 3 rows where the real query returns 36. Manifests now carry the family's real query.
+- **`nft-marketplace@2.1.0` denominates in ETH, not USD.** `cumulativeTradeVolumeUSD` does not exist on `Marketplace`; asking for it is a hard error, so the whole family returned zero rows. Verified by introspecting OpenSea Seaport mainnet. This is a fourth schema exception on top of the three in `prd.md` §13.
+- **Impossible values led the board.** The fan-out ranks `_suspect` rows last, but the shape detector re-sorted on the metric and undid it — putting `$72384163253T` from a broken SushiSwap feed at the top of a leaderboard, and summing it into a `$131685267736T` headline. Ranking is now suspect-aware at every sort, and aggregates exclude suspect rows while *saying how many* they excluded.
+- **`isActive` read as a fired alert.** `NAME_HINTS` classifies any `is…` boolean as a flag, so `isActive: true` — the normal state of every healthy market — rendered "Is Active has fired" in an alert banner on a wallet-holding app. A fired condition now has to be breach-shaped.
+
+`web/src/lib/kit/shapes.test.ts` pins all four.
+
 **Two things we do with live data that a demo usually hides:**
 
 - **Dead deployments are named, not silently dropped.** `sourcesFailed` and `failures[]` carry the reason.
 - **Impossible values are flagged, not deleted.** Several standardized deployments report USD figures from broken price feeds — SushiSwap on Arbitrum reports a TVL of `7.2e22`. Rows carrying a USD value above $1T get `_suspect` naming the offending field, and rank *last*. Sorting by the broken field once put `$72 sextillion` at the top of the table, which reads as broken software rather than bad upstream data. The data is live and correctly fetched; it is wrong at the source, and we say so.
 
-**x402.** Keyless per-query payment over the gateway (`/api/x402/subgraphs/id/<id>`), EIP-3009 signature, ~$0.01/query. This is what makes forking work: a forked app pays for its own data with its own wallet, with no shared API key.
+**x402 — implemented, not yet exercised.** Keyless per-query payment over the gateway (`/api/x402/subgraphs/id/<id>`): the 402 challenge is parsed for real and answered with an EIP-3009 signature at the published ~$0.01/query. But `X402_PRIVATE_KEY` is unset, so no query has actually been paid for this way — the reference run above cost $0.0014, which is 14 × the API-key gateway's $0.0001, not 14 × $0.01. The design is what makes forking work (a forked app pays with its own wallet, no shared API key); the receipt does not exist yet.
 
-**Subgraph MCP.** `https://subgraphs.mcp.thegraph.com/sse` for discovery beyond the registry.
+**Subgraph MCP — not wired.** `GRAPH_MCP_URL` points at `https://subgraphs.mcp.thegraph.com/sse`, but nothing in `src/` calls it: schema resolution runs off the 86-entry registry in `sources.ts` plus a live health check. Discovery beyond that registry is a real gap, and the env var on its own is not an integration. (Distinct from *our* MCP server below, which we do serve.)
 
 ---
 
@@ -196,12 +208,13 @@ Deploying to 0G Galileo needs `--priority-gas-price 2gwei`; the chain enforces a
 
 Named explicitly, because a vague scope claim is worse than a small one:
 
-- **Substreams.** The manifest carries a `stream` block and the trigger evaluator is built and tested, but there is no Substreams client. Triggers today are driven by polling and manual signals. Event-driven is the correct design for an agent that acts, and it is not done.
+- **Substreams — a live run.** The client is built, not stubbed: a real gRPC subscription (`@substreams/core` over Connect/HTTP-2), per-block ticks carrying the resume cursor, reorgs refused rather than acted on, replayed blocks deduped by `<block>:<hash>`, and metrics re-read per block from the app's own health-checked sources server-side. `GET /api/stream` reports `substreams` or `interval` so the UI can never claim block-level latency it does not have, and 17 tests cover the seam. **What is not verified: a block off a real endpoint.** That needs a `SUBSTREAMS_API_TOKEN` (a JWT from thegraph.market), and until one has run through `web/scripts/substreams-verify.ts` this stays here rather than under a ✅.
+- **Per-account positions.** The standardized fan-out reads protocol-level scalars, so a condition on `lending.totalValueLockedUSD` works and one on `healthFactor` does not — no standardized family exposes a single user's position in that query shape. Conditions naming `healthFactor` evaluate to `false`, which is the safe direction, but it is a real gap: see `web/src/lib/agency/enrich.ts`.
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
 - **`@graphminis/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
 - **Creator earnings.** x402 pays the gateway for data (inbound, working). Paying creators needs our own facilitator and is display-only today.
 - **IPFS pinning.** Manifests get a real CIDv1 and are durable on the host machine, but are not announced to a public network unless `PINATA_JWT` / `W3S_TOKEN` is set.
-- **Seed content.** The registry ships example apps with fabricated numbers, clearly separate from anything published live.
+- **Seed social metrics.** All 16 seed apps now run on live data (see below), but their `runs`, `forks` and ratings are still seeded texture — there is no community yet. Inventing a fan-out would be a data claim; inventing a fork count is set dressing. The distinction is deliberate.
 
 ---
 

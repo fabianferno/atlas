@@ -22,6 +22,7 @@ import {
 import type { JournalEntry } from "@/lib/contracts/policy";
 import type { ComposeResult, FanOutResult, PlanResult } from "@/lib/contracts/api";
 import {
+  LIVE_SEED_AT,
   SEED_APPS,
   SEED_LEDGER,
   draftFromIntent,
@@ -35,10 +36,24 @@ import {
 } from "@/lib/seed";
 
 const STORAGE_KEY = "graphminis.board";
-// Bump whenever seed content or the persisted shape changes. Without this a
-// returning browser keeps its old snapshot and silently never sees the fix.
-const STORAGE_VERSION = 5;
+// Bump whenever the persisted SHAPE changes. Seed *content* is handled by
+// `LIVE_SEED_AT` below, which needs no bump.
+const STORAGE_VERSION = 6;
 const LEDGER_MAX = 220;
+
+/**
+ * Seed bodies are re-measured by `scripts/seed-live.ts`, and a browser that
+ * visited before a re-run keeps the old ones in localStorage. That bit us: the
+ * snapshot said 16/16 live and the page still showed the previous numbers,
+ * because the fix never reached a returning browser.
+ *
+ * So the stamp is the snapshot's own `generatedAt`, not a constant someone has to
+ * remember to bump before recording. Regenerate the snapshot and every browser
+ * refreshes its seed apps on next load — while KEEPING anything the user
+ * published, which is the whole reason this is a merge and not a wipe.
+ */
+const SEED_STAMP = LIVE_SEED_AT ?? "none";
+const SEED_NAMES = new Set(SEED_APPS.map((a) => a.manifest.name));
 
 export interface BoardState {
   apps: MiniApp[];
@@ -84,6 +99,7 @@ function persist(): void {
       STORAGE_KEY,
       JSON.stringify({
         v: STORAGE_VERSION,
+        seededAt: SEED_STAMP,
         apps: state.apps,
         ledger: state.ledger.slice(-LEDGER_MAX),
         halted: state.halted,
@@ -104,11 +120,17 @@ function hydrateOnce(): void {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       // Persisted shape is our own; a version bump discards anything older.
-      const parsed = JSON.parse(raw) as { v?: number } & Partial<BoardState>;
+      const parsed = JSON.parse(raw) as { v?: number; seededAt?: string } & Partial<BoardState>;
       if (parsed.v === STORAGE_VERSION && Array.isArray(parsed.apps)) {
+        const stale = parsed.seededAt !== SEED_STAMP;
+        // Stale seed data: take the freshly measured seed apps, keep everything
+        // the user published. Their work survives; the demo content refreshes.
+        const apps = stale
+          ? [...SEED_APPS, ...parsed.apps.filter((a) => !SEED_NAMES.has(a.manifest.name))]
+          : parsed.apps;
         restored = {
-          apps: parsed.apps,
-          ledger: Array.isArray(parsed.ledger) ? parsed.ledger : SEED_LEDGER,
+          apps,
+          ledger: Array.isArray(parsed.ledger) && !stale ? parsed.ledger : SEED_LEDGER,
           halted: Boolean(parsed.halted),
           wallet: parsed.wallet ?? null,
         };

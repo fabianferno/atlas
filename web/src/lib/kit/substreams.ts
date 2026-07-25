@@ -320,7 +320,13 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
     const message = response.message;
 
     if (message.case === "fatalError") {
-      throw new Error(`substreams fatal error: ${message.value.msg || "(no message)"}`);
+      // Name the module. A fatal error with no module attribution is the kind of
+      // message you burn twenty minutes on at 3am.
+      const { module: failedModule, reason, logs } = message.value;
+      const tail = logs.length > 0 ? ` — last log: ${logs[logs.length - 1]}` : "";
+      throw new Error(
+        `substreams fatal error in module "${failedModule || target.module}": ${reason || "(no reason given)"}${tail}`,
+      );
     }
 
     if (message.case === "blockUndoSignal") {
@@ -369,9 +375,7 @@ async function defaultLoadPackage(spkg: string): Promise<Package> {
 /** Ticks only, for callers that have no reorg handling of their own. */
 export async function* streamTicks(options: StreamTicksOptions): AsyncGenerator<StreamTick> {
   for await (const event of streamEvents(options)) {
-    if (event.kind === "tick") {
-      const { kind: _kind, ...tick } = event;
-      yield tick;
-    }
+    // The tick variant is `{ kind: "tick" } & StreamTick`, so it already is one.
+    if (event.kind === "tick") yield event;
   }
 }

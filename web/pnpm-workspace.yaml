@@ -3,7 +3,6 @@
 # wallet-UI postinstall (@reown/appkit), and image/resolver addons we already
 # skip. The app runs without any of them, so we don't execute their scripts.
 allowBuilds:
-  '@bufbuild/buf': set this to true or false
   '@reown/appkit': false
   bufferutil: false
   keccak: false
