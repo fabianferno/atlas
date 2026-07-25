@@ -72,11 +72,16 @@ export function AppWheelCard({
       >
         <AppGlyph manifest={m} />
         <div className="min-w-0 flex-1">
-          <h3 className="display truncate text-[0.8125rem] leading-tight">{m.title}</h3>
+          {/* The name is the subject: an app is its ENS name, and the human
+              title is what that name currently resolves to. Kept lowercase —
+              display type is uppercase by default, and an ENS name isn't. */}
+          <h3 className="display truncate text-[0.8125rem] normal-case leading-tight">
+            {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
+          </h3>
           <p className="mono mt-0.5 truncate text-[0.5625rem] text-[var(--muted-ink)]">
             <span className="uppercase tracking-[0.08em]">{TIER_LABEL[tier]}</span>
             {" · "}
-            {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
+            {m.title}
           </p>
         </div>
         {/* Says which one the panel is showing, in words, for the rows too far
