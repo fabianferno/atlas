@@ -11,8 +11,9 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { JournalEntry } from "@/lib/contracts/policy";
 import type { LedgerLine } from "@/lib/seed";
+import type { BoardState } from "@/lib/store";
 import { fmtTime, fmtUsd, shortHash, spentToday, useBoard, useLedgerTicker } from "@/lib/store";
-import { Label, LiveDot, SectionHead } from "@/components/board/chrome";
+import { Label, SectionHead } from "@/components/board/chrome";
 import { cn } from "@/lib/utils";
 
 const KIND_STYLE: Record<JournalEntry["kind"], { color: string }> = {
@@ -33,30 +34,37 @@ export function LedgerTicker() {
   return null;
 }
 
-export function Ledger({ limit = 60, appName }: { limit?: number; appName?: string }) {
-  const board = useBoard();
-  const lines = board.ledger
+/**
+ * The newest `limit` lines, newest first. Shared by the body below and by the
+ * dock's header count so the two can never disagree about how much is in there.
+ */
+export function ledgerLines(board: BoardState, limit = 60, appName?: string): LedgerLine[] {
+  return board.ledger
     .filter((l) => (appName ? l.app === appName : true))
     .slice(-limit)
     .reverse();
+}
+
+/**
+ * The ledger itself: today's spend, then the receipts. Deliberately frameless —
+ * whoever mounts it owns the container and the heading, which is what lets the
+ * dock wrap it in a popover without nesting one panel inside another.
+ */
+export function LedgerBody({ limit = 60, appName }: { limit?: number; appName?: string }) {
+  const board = useBoard();
+  const lines = ledgerLines(board, limit, appName);
   const spent = spentToday(board);
 
   return (
-    <section className="panel flex min-h-0 flex-col p-3">
-      <SectionHead
-        title="Ledger"
-        note={`${lines.length} lines`}
-        right={board.halted ? null : <LiveDot label="streaming" />}
-      />
-
-      <div className="flex items-baseline justify-between gap-3 border-b border-[var(--hairline)] py-2">
+    <>
+      <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-[var(--hairline)] py-2">
         <Label>Spent, last 24h</Label>
         <span className="fig text-sm font-semibold" style={{ color: spent > 0 ? "var(--spend)" : "var(--ink)" }}>
           {fmtUsd(spent)}
         </span>
       </div>
 
-      <ol className="-mx-1 mt-1 max-h-[52vh] min-h-0 flex-1 overflow-y-auto px-1 lg:max-h-[calc(100vh-320px)]">
+      <ol className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto px-1">
         {lines.map((l) => (
           <LedgerRow key={l.id} line={l} showApp={!appName} />
         ))}
@@ -66,7 +74,7 @@ export function Ledger({ limit = 60, appName }: { limit?: number; appName?: stri
           </li>
         ) : null}
       </ol>
-    </section>
+    </>
   );
 }
 

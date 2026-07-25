@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { DEFAULT_SKIN, SKIN_BOOT_SCRIPT } from "@/components/board/skin-toggle";
+import { LedgerDock } from "@/components/board/ledger-dock";
 
 // Rule 4 (prd.md §6): Archivo carries a width axis, so display and UI are one
 // family. IBM Plex Mono is half the interface, not an accent.
@@ -74,7 +75,12 @@ export default function RootLayout({
             bug in the product rather than a feature of it. */}
         <script dangerouslySetInnerHTML={{ __html: SKIN_BOOT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* Mounted here rather than per page so it survives navigation with its
+            open state and unseen count intact — see ledger-dock.tsx. */}
+        <LedgerDock />
+      </body>
     </html>
   );
 }

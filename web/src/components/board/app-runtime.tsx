@@ -114,7 +114,8 @@ export function AppRuntime({ name }: { name: string }) {
   const autonomous = tier === "autonomous";
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-5 sm:py-6">
+    // Bottom padding clears the docked ledger pill floating over this corner.
+    <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pt-4 pb-24 sm:px-5 sm:pt-6">
       <div className={panelClass(tier)}>
         {autonomous ? (
           <div className="policy-strip">
