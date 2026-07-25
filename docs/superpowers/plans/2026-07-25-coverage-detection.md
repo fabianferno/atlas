@@ -864,14 +864,23 @@ Expected: no type errors, 139/139 passing.
 
 Run:
 
+Other Next servers are already running on this machine, so bind an explicit free
+port and shut the server down afterwards — do not use the default port and do not
+leave a stray process behind.
+
 ```bash
-cd web && pnpm dev &
-sleep 8
-curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
+cd web && pnpm dev --port 3411 > /tmp/mcp-check.log 2>&1 &
+DEV_PID=$!
+for i in $(seq 1 30); do curl -sf localhost:3411/api/mcp -o /dev/null -X POST \
+  -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":0,"method":"tools/list"}' && break; sleep 2; done
+curl -s localhost:3411/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"check_coverage","arguments":{"question":"Hyperliquid vault flows on Arbitrum"}}}' | head -40
+kill $DEV_PID; wait $DEV_PID 2>/dev/null; echo "dev server stopped"
 ```
 
-Expected: a JSON body containing a `verdict` field and a `reasons` array naming both what was checked in the standardized registry and what substreams.dev returned.
+Expected: a JSON body containing a `verdict` field and a `reasons` array naming both what was checked in the standardized registry and what substreams.dev returned, then `dev server stopped`.
+
+This step reaches the live substreams.dev registry. If it returns a rate-limit error, that is the documented `429` path and not a failure of this task — re-run after the `Retry-After` interval.
 
 - [ ] **Step 6: Commit**
 
