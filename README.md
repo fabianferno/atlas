@@ -6,12 +6,12 @@ A mini app is not a dashboard. It watches live Graph data, renders whatever inte
 
 | | |
 |---|---|
-| **Live demo** | _TODO — deploy target_ |
+| **Live demo** | **https://graph-minis.vercel.app** |
 | **Video** | _TODO_ |
 | **ENS parent** | [`graphminis.eth`](https://sepolia.app.ens.domains/graphminis.eth) (Sepolia) |
 | **Example app** | `durable-market-guard.graphminis.eth` |
 | **Agentic ID** | [token 8 on 0G Galileo](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=8) |
-| **MCP endpoint** | `<origin>/api/mcp` |
+| **MCP endpoint** | `https://graph-minis.vercel.app/api/mcp` |
 
 > **Status.** Everything marked ✅ below was verified by reading it back from the chain or the gateway, not inferred from the code. What isn't built is listed under [Not in scope](#not-in-scope) rather than left ambiguous.
 
@@ -160,6 +160,24 @@ agent-endpoint[mcp]               → <origin>/api/mcp                  (ENSIP-2
 agent-registration[<erc7930>][id] → "1"                               (ENSIP-25)
 url · description · avatar        → standard profile records
 ```
+
+**Verified live from the deployed origin, with no write key present** — which is how a public instance should be configured:
+
+```
+GET https://graph-minis.vercel.app/api/resolve/durable-market-guard
+  source        contenthash          ← ENSIP-7, not a registry fallback
+  address       0xf747bB26…3e47c     ← the mini app's own wallet
+  endpoints     web + mcp → https://graph-minis.vercel.app/…
+  agenticId     token 8 on 0G Galileo (16602)
+  verification  mutuallyVerified: true
+```
+
+Two things that only surfaced once this ran somewhere other than a dev machine, both now fixed:
+
+- **Reading was gated on write credentials.** `resolveRegistrarMode()` degrades to `mock` without a registrar private key, and `readRecords` skipped the resolver entirely in mock mode. A read-only deployment therefore resolved *nothing* and silently fell back — working perfectly on the machine that held the key. Reading ENS needs an RPC and nothing else, so the gate is now "mock was explicitly asked for".
+- **viem's `getEnsResolver` returns a non-resolver on Sepolia.** For `aave-health-guard.graphminis.eth` it answers `0x422484c2…`, where every `addr`/`text`/`contenthash` call reverts. The registry's own `resolver(node)` answers `0xE99638b4…`, which holds the records. We now ask the registry first and keep the UniversalResolver path second for wildcard/CCIP names.
+
+One honest gap: `aave-health-guard` has **no `addr` record** — it was published before wallets were bound to names, and `setRecords` skips a null address rather than writing zero. The other three carry their app's wallet. Use `durable-market-guard` for the demo.
 
 **The name and the token verify each other in both directions.** The ENS record asserts the Agentic ID; `MiniAppRegistry` on 0G Chain asserts the name; the token itself stores the name it was minted against. Resolving returns `mutuallyVerified: true` only when all three agree — checked against the chain, never assumed.
 

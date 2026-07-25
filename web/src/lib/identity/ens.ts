@@ -1324,6 +1324,16 @@ const CONTENTHASH_ABI = [
   },
 ] as const;
 
+const ADDR_ABI = [
+  {
+    type: "function",
+    name: "addr",
+    stateMutability: "view",
+    inputs: [{ name: "node", type: "bytes32" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
 /**
  * `contenthash` is NOT a text record — it is `contenthash(bytes32)` on the
  * resolver (ENSIP-7), returning ENSIP-7 bytes, not a string. Reading it with
@@ -1332,13 +1342,62 @@ const CONTENTHASH_ABI = [
  * viem's `readContract` follows an `OffchainLookup` revert automatically, so
  * this one call covers onchain resolvers and CCIP-Read gateways alike.
  */
+const REGISTRY_RESOLVER_ABI = [
+  {
+    type: "function",
+    name: "resolver",
+    stateMutability: "view",
+    inputs: [{ name: "node", type: "bytes32" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+/**
+ * The resolver to read from — asked of the ENS registry, which is the canonical
+ * answer.
+ *
+ * NOT `client.getEnsResolver`. On Sepolia that returned `0x422484c2…` for
+ * `aave-health-guard.graphminis.eth`, and every `addr`/`text`/`contenthash` call
+ * against that address reverts — it is not a resolver. The registry's own
+ * `resolver(node)` returns `0xE99638b4…`, which holds the records. Trusting the
+ * helper meant every direct read failed while the data sat there, and the failure
+ * was silent: `contenthash` came back null, so `resolveWithReport` fell through
+ * to the 0G registry and reported `source: "registry"` for a name whose ENSIP-7
+ * record was set correctly all along.
+ *
+ * The UniversalResolver path is still tried second, because a wildcard/CCIP-Read
+ * name has no registry entry of its own and viem is what follows the
+ * OffchainLookup revert.
+ */
+async function resolverFor(name: string, client: PublicClient): Promise<Address | null> {
+  const deployment = ensDeployment();
+  try {
+    const fromRegistry = await client.readContract({
+      address: deployment.registry,
+      abi: REGISTRY_RESOLVER_ABI,
+      functionName: "resolver",
+      args: [namehash(name)],
+    });
+    if (fromRegistry && !/^0x0{40}$/i.test(fromRegistry)) return fromRegistry;
+  } catch {
+    // Fall through to the offchain-capable path.
+  }
+  try {
+    const viaUniversal = await client.getEnsResolver({ name });
+    if (viaUniversal) return viaUniversal;
+  } catch {
+    // Neither worked — use the resolver this deployment issues against.
+  }
+  return deployment.publicResolver ?? null;
+}
+
 async function readContenthash(
   name: string,
   client: PublicClient,
 ): Promise<{ uri: string | null; resolver: Address | null }> {
+  const resolver = await resolverFor(name, client);
+  if (!resolver) return { uri: null, resolver: null };
   try {
-    const resolver = await client.getEnsResolver({ name });
-    if (!resolver) return { uri: null, resolver: null };
     const raw = await client.readContract({
       address: resolver,
       abi: CONTENTHASH_ABI,
@@ -1347,7 +1406,37 @@ async function readContenthash(
     });
     return { uri: decodeIpfsContenthash(raw), resolver };
   } catch {
-    return { uri: null, resolver: null };
+    return { uri: null, resolver };
+  }
+}
+
+/** ENSIP-1 `addr`, with the same UniversalResolver fallback as contenthash. */
+async function readAddr(
+  name: string,
+  client: PublicClient,
+  resolver: Address | null,
+): Promise<Address | null> {
+  try {
+    const viaHelper = await client.getEnsAddress({ name });
+    if (viaHelper) return viaHelper;
+  } catch {
+    // Fall through to the direct read.
+  }
+  if (!resolver) return null;
+  try {
+    const raw = await client.readContract({
+      address: resolver,
+      abi: ADDR_ABI,
+      functionName: "addr",
+      args: [namehash(name)],
+    });
+    // A resolver with no addr set answers with the zero address, which is
+    // "unset", not "owned by 0x0". Reporting it as an address would put a
+    // burn address in front of a user about to fund a mini app.
+    if (!raw || /^0x0{40}$/i.test(raw)) return null;
+    return raw;
+  } catch {
+    return null;
   }
 }
 
@@ -1363,9 +1452,11 @@ export async function readViaResolver(
 ): Promise<ReadResult | null> {
   const keys = [...new Set([...expectedTextKeys(), ...extraKeys])];
   try {
-    const [addr, content, ...textValues] = await Promise.all([
-      client.getEnsAddress({ name }).catch(() => null),
-      readContenthash(name, client),
+    // Contenthash first: it resolves the resolver address that `addr` then reuses,
+    // so the UniversalResolver is probed once rather than once per record.
+    const content = await readContenthash(name, client);
+    const [addr, ...textValues] = await Promise.all([
+      readAddr(name, client, content.resolver),
       ...keys.map((key) => client.getEnsText({ name, key }).catch(() => null)),
     ]);
 
@@ -1489,12 +1580,29 @@ export function __setEnsBackend(backend: EnsBackend | null): void {
  * issuing backend. Order matters: if the name resolves publicly we want the
  * public answer, because that is what a judge's wallet will see.
  */
+/**
+ * True only when the operator explicitly asked for the mock.
+ *
+ * `resolveRegistrarMode()` degrades to `mock` when there is no WRITE credential,
+ * which is correct for issuing and wrong for reading — and gating reads on it was
+ * a real bug: a read-only deployment (no registrar key, which is exactly how the
+ * public instance should be configured) resolved nothing at all. It fell through
+ * to the mock backend, returned zero text records, and the ENSIP-25/26 story
+ * silently disappeared in production while working perfectly on the dev machine.
+ *
+ * Reading ENS needs an RPC and nothing else. So the resolver path is now gated on
+ * "mock was asked for", not on "we happen to hold a private key".
+ */
+function mockRequested(): boolean {
+  return (process.env.ENS_REGISTRAR_MODE ?? "").toLowerCase() === "mock";
+}
+
 export async function readRecords(
   name: string,
   extraKeys: string[] = [],
 ): Promise<ReadResult | null> {
   const backend = getEnsBackend();
-  if (backend.mode !== "mock") {
+  if (!mockRequested()) {
     const client = ensPublicClient();
     if (client) {
       const viaResolver = await readViaResolver(name, client, extraKeys);
