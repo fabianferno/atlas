@@ -132,7 +132,18 @@ export const zIdentity = z.object({
 export type Identity = z.infer<typeof zIdentity>;
 
 export const zManifest = z.object({
-  spec: z.literal("graphmini/2"),
+  /**
+   * `atlas/2` is what we write now. `graphmini/2` is accepted because manifests
+   * published under the old name are already pinned and already referenced by
+   * `contenthash` on live ENS names — and a content-addressed document cannot be
+   * edited, because the CID *is* its hash. Rejecting the old marker would not
+   * migrate anything; it would make four published mini apps stop resolving,
+   * with `manifest: null` and a "malformed manifest at a valid CID" warning.
+   *
+   * A spec literal that refuses its own history is a migration bug, not strictness.
+   * Drop `graphmini/2` only once nothing onchain points at a manifest carrying it.
+   */
+  spec: z.union([z.literal("atlas/2"), z.literal("graphmini/2")]),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, "ENS label"),
   title: z.string(),
   intent: z.string(),
