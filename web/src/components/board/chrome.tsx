@@ -53,14 +53,18 @@ export function SectionHead({
   title,
   note,
   right,
+  // Same chrome either way — `as` only sets the outline level, for surfaces
+  // where this head is the page's leading heading rather than a section's.
+  as: Heading = "h2",
 }: {
   title: string;
   note?: string;
   right?: ReactNode;
+  as?: "h1" | "h2";
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)] pb-2">
-      <h2 className="display text-[0.9375rem] leading-none sm:text-base">{title}</h2>
+      <Heading className="display text-[0.9375rem] leading-none sm:text-base">{title}</Heading>
       <div className="flex items-baseline gap-3">
         {note ? <span className="mono text-[0.6875rem] text-[var(--muted-ink)]">{note}</span> : null}
         {right}

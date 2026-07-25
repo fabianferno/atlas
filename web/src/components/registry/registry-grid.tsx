@@ -96,7 +96,8 @@ export function RegistryGrid() {
       <section className="panel p-3 sm:p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <h1 className="display text-lg leading-none sm:text-2xl">Registry</h1>
+            {/* h2: the Studio above it is the page's leading heading. */}
+            <h2 className="display text-lg leading-none sm:text-2xl">Registry</h2>
             <p className="mt-1.5 text-xs text-[var(--muted-ink)]">
               Every published mini app. Fork one and it becomes yours — new wallet, new name, no
               inherited spending authority.
