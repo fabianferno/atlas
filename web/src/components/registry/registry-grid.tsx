@@ -115,7 +115,7 @@ export function RegistryGrid() {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search name, intent, tag or creator"
             aria-label="Search the registry"
-            className="min-w-0 border-[1.5px] border-rule bg-[var(--card-b)] px-2 py-1.5 text-xs outline-none placeholder:text-[var(--muted-ink)] sm:col-span-2 lg:col-span-1"
+            className="min-w-0 rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 text-xs outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)] placeholder:text-[var(--muted-ink)] sm:col-span-2 lg:col-span-1"
           />
           <Select label="Tier" value={tier} onChange={(v) => setTier(v as AgencyTier | "all")} options={["all", "autonomous", "monitor", "readonly"]} render={(v) => (v === "all" ? "Any tier" : TIER_LABEL[v as AgencyTier])} />
           <Select label="Chain" value={chain} onChange={(v) => setChain(v as Network | "all")} options={["all", ...chains]} render={(v) => (v === "all" ? "Any chain" : v)} />
@@ -262,7 +262,7 @@ function Select({
   render: (v: string) => string;
 }) {
   return (
-    <label className="flex min-w-0 items-center gap-2 border-[1.5px] border-rule bg-[var(--card-b)] px-2 py-1.5">
+    <label className="flex min-w-0 items-center gap-2 rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]">
       <Label className="shrink-0">{label}</Label>
       <select
         value={value}
@@ -290,7 +290,7 @@ export function RegistryLegend() {
         .map((tier) => (
           <span key={tier} className="flex items-center gap-1.5">
             <span
-              className="h-3 w-5 border-rule bg-[var(--card-b)]"
+              className="h-3 w-5 border-hairline bg-[var(--card-b)]"
               style={{ borderWidth: tier === "autonomous" ? "5px" : tier === "monitor" ? "2.5px" : "1.5px" }}
               aria-hidden
             />

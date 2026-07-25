@@ -47,7 +47,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
 
             <div className="mt-3">
               <Label>New name</Label>
-              <div className="mt-1 flex items-baseline border-[2.5px] border-rule bg-[var(--card-b)] px-2 py-1.5">
+              <div className="mt-1 flex items-baseline rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]">
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
@@ -59,7 +59,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
               </div>
             </div>
 
-            <div className="mt-3 border-[2.5px] border-rule p-2.5">
+            <div className="mt-3 rounded-[calc(var(--radius)*0.6)] border border-hairline p-2.5">
               <Label>What the fork does not inherit</Label>
               <ul className="mono mt-1.5 space-y-1 text-[0.6875rem] leading-snug">
                 <StrikeItem>the parent&apos;s ENS name and Agentic ID</StrikeItem>
@@ -83,8 +83,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
               <button
                 type="button"
                 disabled={!valid}
-                className="btn press text-sm disabled:opacity-40"
-                style={{ background: "var(--ink)", color: "var(--card-b)" }}
+                className="btn btn--primary press text-sm disabled:opacity-40"
                 onClick={() => {
                   const forked = forkApp(m.name, name);
                   if (forked) setResult({ name: forked.app.manifest.name, stripped: forked.stripped });
@@ -104,7 +103,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
               <span className="fig">{result.name}</span> is yours. It carries{" "}
               <span className="fig">forkedFrom {m.name}@{m.appVersion}</span> for attribution.
             </p>
-            <ul className="mono mt-3 space-y-1 border-[2.5px] border-rule p-2.5 text-[0.6875rem]">
+            <ul className="mono mt-3 space-y-1 rounded-[calc(var(--radius)*0.6)] border border-hairline p-2.5 text-[0.6875rem]">
               {result.stripped.map((s) => (
                 <li key={s} className="flex items-baseline gap-2">
                   <span style={{ color: "var(--loss)" }}>stripped</span>
@@ -119,8 +118,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                className="btn press text-sm"
-                style={{ background: "var(--ink)", color: "var(--card-b)" }}
+                className="btn btn--primary press text-sm"
                 onClick={() => {
                   onClose();
                   router.push(`/a/${result.name}`);

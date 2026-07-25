@@ -115,7 +115,7 @@ export function TradeLog({ data, label, index }: CatProps) {
                   <span
                     aria-label={e.ok ? "ok" : "failed"}
                     className={cn(
-                      "inline-block h-2 w-2 border border-rule",
+                      "inline-block h-2 w-2 rounded-full border border-hairline",
                       e.ok ? "bg-gain" : "bg-loss",
                     )}
                   />
@@ -127,7 +127,7 @@ export function TradeLog({ data, label, index }: CatProps) {
       )}
 
       {/* Receipt foot. Dashed rule reads as a tear-off. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-t-2 border-dashed border-rule px-3 py-1.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-t-2 border-dashed border-hairline px-3 py-1.5">
         <Label>
           {moved} line{moved === 1 ? "" : "s"} moved value
         </Label>

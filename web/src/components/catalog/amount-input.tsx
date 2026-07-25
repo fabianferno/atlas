@@ -80,7 +80,7 @@ export function AmountInput({ data, label, onAction, index }: CatProps) {
             onChange={(e) => setText(e.target.value)}
             className={!valid && text !== "" ? "border-loss" : undefined}
           />
-          <span className="flex items-center border-y-2 border-r-2 border-rule bg-paper px-2.5 text-[0.8125rem] font-semibold uppercase">
+          <span className="flex items-center rounded-r-[calc(var(--radius)*0.6)] border-y border-r border-hairline bg-paper px-2.5 text-[0.8125rem] font-semibold uppercase">
             {token}
           </span>
         </div>

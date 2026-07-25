@@ -135,7 +135,7 @@ export function Gauge({ data, label, index }: CatProps) {
         <div className="mt-1 flex items-center gap-2">
           <span
             aria-hidden
-            className="inline-block h-2 w-2 border border-rule"
+            className="inline-block h-2 w-2 rounded-full border border-hairline"
             style={{ background: toneVar[tone] }}
           />
           <Label>{state}</Label>

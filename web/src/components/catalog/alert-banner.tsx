@@ -53,13 +53,13 @@ export function AlertBanner({ data, label, index }: CatProps) {
 
   return (
     <section
-      className={cn(tierPanelClass(tier), "snap-in flex min-w-0 items-stretch")}
+      className={cn(tierPanelClass(tier), "snap-in flex min-w-0 items-stretch overflow-hidden")}
       style={{ ["--i"]: index ?? 0 } as React.CSSProperties}
     >
       {/* A solid severity bar on the leading edge — reads before the text does. */}
       <div
         aria-hidden
-        className="w-2.5 shrink-0 border-r-[1.5px] border-rule"
+        className="w-2.5 shrink-0 border-r border-hairline"
         style={{ background: toneVar[tone] }}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1 px-3 py-2.5">

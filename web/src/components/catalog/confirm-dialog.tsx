@@ -105,7 +105,7 @@ export function ConfirmDialog({ data, label, onAction, index }: CatProps) {
               ) : null}
 
               {spends ? (
-                <div className="flex items-baseline justify-between gap-3 border-[1.5px] border-spend px-2 py-1.5">
+                <div className="flex items-baseline justify-between gap-3 rounded-sm border border-spend px-2 py-1.5">
                   <Label className="text-spend">value leaving wallet</Label>
                   <Fig size="md" tone="spend">
                     {fmtUsd(amountUsd)}

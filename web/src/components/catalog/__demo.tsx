@@ -492,7 +492,7 @@ export function CatalogDemo() {
 
 function SectionTitle({ n, title }: { n: string; title: string }) {
   return (
-    <div className="flex items-baseline gap-3 border-b-[1.5px] border-rule pb-1">
+    <div className="flex items-baseline gap-3 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)] pb-1">
       <Fig size="sm" className="text-[var(--muted-ink)]">
         {n}
       </Fig>

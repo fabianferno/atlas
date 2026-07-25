@@ -65,7 +65,7 @@ export function Heatmap({ data, label, index }: CatProps) {
       <ScrollX minWidth={Math.max(340, 110 + colKeys.length * 74)}>
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b-[1.5px] border-rule">
+            <tr className="border-b border-hairline">
               <th className="px-3 py-2" />
               {colKeys.map((c) => (
                 <th
@@ -125,7 +125,7 @@ export function Heatmap({ data, label, index }: CatProps) {
       </ScrollX>
       <div className="flex items-center gap-2 border-t border-hairline px-3 py-1.5">
         <Label>low</Label>
-        <span className="flex h-2.5 flex-1 border border-rule">
+        <span className="flex h-2.5 flex-1 border border-hairline">
           {[6, 25, 44, 62, 80].map((p) => (
             <span
               key={p}
@@ -135,7 +135,7 @@ export function Heatmap({ data, label, index }: CatProps) {
           ))}
         </span>
         <Label>high</Label>
-        <span className="inline-block h-2.5 w-4 border border-rule bg-live" />
+        <span className="inline-block h-2.5 w-4 border border-hairline bg-live" />
         <Label>max</Label>
       </div>
     </Panel>

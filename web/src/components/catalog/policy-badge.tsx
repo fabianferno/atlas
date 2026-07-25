@@ -119,7 +119,7 @@ export function PolicyBadge({ data, label, index }: CatProps) {
               {fmtUsd(spent, false)} / {fmtUsd(policy.maxSpendUsd, false)}
             </Fig>
           </div>
-          <div className="h-3 w-full border-[1.5px] border-rule">
+          <div className="h-3 w-full overflow-hidden rounded-full border border-hairline">
             <div className="h-full bg-spend" style={{ width: `${frac * 100}%` }} />
           </div>
         </div>

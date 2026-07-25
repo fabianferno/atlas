@@ -88,7 +88,7 @@ export function AllowlistPicker({ data, label, onAction, index }: CatProps) {
                   <span
                     aria-hidden
                     className={cn(
-                      "h-3 w-3 shrink-0 border-[1.5px] border-rule",
+                      "h-3 w-3 shrink-0 rounded-full border border-hairline",
                       on && "bg-live",
                     )}
                   />

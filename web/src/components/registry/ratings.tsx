@@ -82,7 +82,7 @@ export function Ratings({ appName }: { appName: string }) {
             maxLength={140}
             placeholder="One line on what it did for you"
             aria-label="Review"
-            className="min-w-0 flex-1 border-[1.5px] border-rule bg-[var(--card-b)] px-2 py-1.5 text-xs outline-none placeholder:text-[var(--muted-ink)]"
+            className="min-w-0 flex-1 rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 text-xs outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)] placeholder:text-[var(--muted-ink)]"
           />
           <button type="submit" disabled={!choice} className="btn press shrink-0 px-2.5 py-1 text-xs disabled:opacity-40">
             Post

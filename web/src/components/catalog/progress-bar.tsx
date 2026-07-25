@@ -48,7 +48,7 @@ export function ProgressBar({ data, label, index }: CatProps) {
           </Fig>
         </div>
 
-        <div className="relative h-5 w-full border-[1.5px] border-rule bg-[var(--card-b)]">
+        <div className="relative h-5 w-full overflow-hidden rounded-full border border-hairline bg-[var(--card-b)]">
           <div
             className={cn(
               "h-full",

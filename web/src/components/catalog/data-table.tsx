@@ -113,7 +113,7 @@ export function DataTable({ data, label, index }: CatProps) {
       <ScrollX minWidth={Math.max(320, aligned.length * 110)}>
         <table className="cells w-full border-collapse text-left">
           <thead>
-            <tr className="border-b-[1.5px] border-rule">
+            <tr className="border-b border-hairline">
               {aligned.map((c, i) => (
                 <th
                   key={`${c.key}-${i}`}

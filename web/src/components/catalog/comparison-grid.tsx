@@ -75,7 +75,7 @@ export function ComparisonGrid({ data, label, index }: CatProps) {
       <ScrollX minWidth={Math.max(360, 140 + entities.length * 110)}>
         <table className="cells w-full border-collapse text-left">
           <thead>
-            <tr className="border-b-[1.5px] border-rule">
+            <tr className="border-b border-hairline">
               <th className="px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)]">
                 metric
               </th>
