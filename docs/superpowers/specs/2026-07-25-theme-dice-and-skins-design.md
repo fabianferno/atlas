@@ -32,8 +32,13 @@ skins is a **faithful rendering of The Graph's own brand**.
 | `flat` *(existing)* | border | white | blue `#0047FF` | unchanged |
 | `graph` *(new)* | depth (purple glow) | Galaxy Dark `#0C0A1D` | Graph Purple `#6F4CFF` | flagship faithful skin |
 | `terminal` *(new)* | border (green rules) | near-black `#0B0F0B` | phosphor green `#3BF07A` | mono-forward |
-| `paper` *(new)* | border (hairline black) | cream `#F4F1E8` | one ink red `#B4231F` | editorial |
+| `blueprint` *(new)* | border (cyan rules) | blueprint navy `#0E1B3A` | cyan `#4FC3F7` | faint cyan grid ground; CAD feel |
 | `vaporwave` *(new)* | depth (neon glow) | deep indigo `#160B2E` | magenta `#FF3CAC` | cyan `#59E0FF` live |
+
+> Update (2026-07-25): the original `paper` skin (cream editorial, black hairline
+> rules) was dropped — it read as a near-duplicate of `flat` (both light,
+> hard-cornered, border weight). It was replaced by `blueprint` above, which
+> keeps the border family but moves to a distinct dark navy + cyan identity.
 
 ### Graph skin — real brand tokens (from thegraph.com/brand)
 

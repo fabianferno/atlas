@@ -249,22 +249,156 @@
   --radius: 0;
 }
 
+/* ============================================================================
+   THE THIRD SKIN — "The Graph", the actual brand.
+
+   Depth family, dark ground. Faithful to thegraph.com/brand: Galaxy Dark
+   #0C0A1D ground, Spacesuit White #F8F6FF ink, The Graph Purple #6F4CFF as the
+   one action accent, and the secondary palette mapped onto the semantic slots.
+   Rule 1 survives as DEPTH — but expressed as a PURPLE GLOW on the dark ground,
+   so an autonomous app still visibly stands proud (it just haloes instead of
+   drop-shadowing). Typography is Poppins, the brand's own sanctioned free
+   stand-in for the paid Euclid Circular A.
+   ========================================================================= */
+[data-skin="graph"] {
+  --paper:  #0C0A1D;   /* Galaxy Dark */
+  --card-b: #17132E;   /* lifted purple-tinted surface */
+  --ink:    #F8F6FF;   /* Spacesuit White */
+  --rule:   #6F4CFF;
+  --muted-ink: #9E9BB0;
+  --hairline: color-mix(in srgb, #6F4CFF 22%, transparent);
+
+  --action: #6F4CFF;   /* The Graph Purple */
+  --live:  #4C66FF;    /* Astro Blue */
+  --gain:  #4BCA81;    /* Starfield Green */
+  --loss:  #FF5C6C;    /* harmonized red — brand has none */
+  --risk:  #FFA801;    /* Solar Yellow */
+  --spend: #FF79C6;    /* Nebula Pink — value LEAVING a wallet */
+
+  --bevel-hi: rgba(255, 255, 255, 0.06);
+  --bevel-lo: rgba(0, 0, 0, 0.5);
+  --elev-1: 0 1px 2px rgba(0,0,0,0.5), 0 0 0 1px rgba(111,76,255,0.08);
+  --elev-2: 0 8px 24px rgba(8,6,26,0.6), 0 0 20px rgba(111,76,255,0.18);
+  --elev-3: 0 10px 34px rgba(8,6,26,0.7), 0 0 34px rgba(111,76,255,0.35);
+  --inset-groove: inset 0 1px 0 rgba(255,255,255,0.04);
+
+  --radius: 0.9rem;
+}
+
+/* ============================================================================
+   THE FOURTH SKIN — "Terminal".
+   Border family (agency = border weight, like flat), near-black ground, one
+   phosphor-green accent, mono-forward. A console rendering of the same manifest.
+   ========================================================================= */
+[data-skin="terminal"] {
+  --paper:  #0B0F0B;
+  --card-b: #0F150F;
+  --ink:    #C9F5D2;   /* phosphor text */
+  --rule:   #3BF07A;   /* green rules and borders */
+  --muted-ink: #5E8C68;
+  --hairline: #1E3A26;
+
+  --action: #3BF07A;
+  --live:  #59E0FF;
+  --gain:  #3BF07A;
+  --loss:  #FF5555;
+  --risk:  #FFC24B;
+  --spend: #C77DFF;
+
+  --bevel-hi: transparent;
+  --bevel-lo: transparent;
+  --elev-1: 0 0 0 1px var(--rule);
+  --elev-2: 0 0 8px rgba(59,240,122,0.4);
+  --elev-3: 0 0 12px rgba(59,240,122,0.6);
+  --inset-groove: none;
+
+  --radius: 0;
+}
+
+/* ============================================================================
+   THE FIFTH SKIN — "Blueprint".
+   Border family (agency = border weight, like flat), deep architectural-navy
+   ground with a faint cyan grid, chalk-white ink, cyan rules. An engineering
+   drawing of the same manifest.
+   ========================================================================= */
+[data-skin="blueprint"] {
+  --paper:  #0E1B3A;   /* blueprint navy */
+  --card-b: #12224A;   /* panel navy, a touch lighter */
+  --ink:    #DCE8FF;   /* chalk white */
+  --rule:   #4FC3F7;   /* cyan lines */
+  --muted-ink: #7C93C4;
+  --hairline: #4FC3F7;
+
+  --action: #4FC3F7;   /* cyan */
+  --live:  #4FC3F7;
+  --gain:  #3BE3A0;
+  --loss:  #FF6B6B;
+  --risk:  #FFC24B;
+  --spend: #B78CFF;
+
+  --bevel-hi: transparent;
+  --bevel-lo: transparent;
+  --elev-1: 3px 3px 0 rgba(79,195,247,0.5);
+  --elev-2: 4px 4px 0 rgba(79,195,247,0.5);
+  --elev-3: 4px 4px 0 rgba(79,195,247,0.5);
+  --inset-groove: none;
+
+  --radius: 0;
+}
+
+/* ============================================================================
+   THE SIXTH SKIN — "Vaporwave".
+   Depth family on a dark indigo ground, magenta action, cyan live. The cards no
+   longer glow — agency is carried by the crisp magenta/cyan RIM plus plain drop
+   shadow depth (readonly flush · monitor lifts with a cyan rim · autonomous
+   stands proud with a magenta rim and the tallest shadow). Only the headings
+   keep the neon glow.
+   ========================================================================= */
+[data-skin="vaporwave"] {
+  --paper:  #160B2E;
+  --card-b: #241246;
+  --ink:    #F3E9FF;
+  --rule:   #FF3CAC;
+  --muted-ink: #B39CE0;
+  --hairline: rgba(255,60,172,0.25);
+
+  --action: #FF3CAC;   /* neon magenta */
+  --live:  #59E0FF;    /* cyan */
+  --gain:  #3BF07A;
+  --loss:  #FF4D6D;
+  --risk:  #FFD23F;
+  --spend: #C77DFF;
+
+  --bevel-hi: rgba(255, 255, 255, 0.08);
+  --bevel-lo: rgba(0, 0, 0, 0.5);
+  /* Plain dark drop shadows — no coloured halo. */
+  --elev-1: 0 1px 2px rgba(0,0,0,0.5);
+  --elev-2: 0 4px 12px rgba(0,0,0,0.55);
+  --elev-3: 0 10px 26px rgba(0,0,0,0.6);
+  --inset-groove: inset 0 1px 0 rgba(255,255,255,0.05);
+
+  --radius: 0.5rem;
+}
+
 @layer components {
-  /* Rule 1, restated in the flat material: tier drives BORDER WEIGHT. */
-  [data-skin="flat"] .panel {
+  /* Rule 1, restated in the flat material: tier drives BORDER WEIGHT. This
+     encoding is shared by every BORDER-FAMILY skin (flat, terminal, blueprint); the
+     per-skin token blocks above only recolor `--rule`. Deleting a skin from the
+     `:is()` list is all it takes to move it back to the depth family. */
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .panel {
     border: 1.5px solid var(--rule);
     box-shadow: none;
   }
-  [data-skin="flat"] .panel--monitor {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .panel--monitor {
     border: 2.5px solid var(--rule);
     box-shadow: none;
   }
-  [data-skin="flat"] .panel--autonomous {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .panel--autonomous {
     border: 5px solid var(--rule);
     box-shadow: none;
   }
 
-  [data-skin="flat"] .policy-strip {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .policy-strip {
     border-radius: 0;
     border-bottom: 2.5px solid var(--rule);
     background: var(--risk);
@@ -273,11 +407,11 @@
 
   /* The hard offset shadow is reserved for things you can act on — never a
      static panel. Restraint is what makes the shadow mean something. */
-  [data-skin="flat"] .raise,
-  [data-skin="flat"] .raise-sm { box-shadow: var(--elev-1); }
-  [data-skin="flat"] .press:active { transform: translate(1px, 1px); box-shadow: none; }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .raise,
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .raise-sm { box-shadow: var(--elev-1); }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .press:active { transform: translate(1px, 1px); box-shadow: none; }
 
-  [data-skin="flat"] .btn {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn {
     border: 1.5px solid var(--rule);
     border-radius: 0;
     background-image: none;
@@ -285,22 +419,26 @@
     box-shadow: 3px 3px 0 var(--rule);
     text-shadow: none;
   }
-  [data-skin="flat"] .btn:hover,
-  [data-skin="flat"] .btn:focus-visible {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn:hover,
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn:focus-visible {
     transform: translate(-1px, -1px);
     box-shadow: 4px 4px 0 var(--rule);
   }
-  [data-skin="flat"] .btn:active {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn:active {
     transform: translate(2px, 2px);
     box-shadow: 1px 1px 0 var(--rule);
   }
-  [data-skin="flat"] .btn:disabled { box-shadow: none; transform: none; }
-  /* White clears AA on this blue, unlike on the tactile skin's orange. */
-  [data-skin="flat"] .btn--primary { --btn-color: var(--action); color: #fff; text-shadow: none; }
-  [data-skin="flat"] .btn--danger  { --btn-color: var(--loss); color: #fff; }
-  [data-skin="flat"] .btn--quiet   { background-color: var(--card-b); box-shadow: none; }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn:disabled { box-shadow: none; transform: none; }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn--primary { --btn-color: var(--action); text-shadow: none; }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn--danger  { --btn-color: var(--loss); color: #fff; }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .btn--quiet   { background-color: var(--card-b); box-shadow: none; }
+  /* Primary label colour is per-skin: white clears AA on flat's blue, but the
+     terminal's green and the blueprint's cyan are bright and need dark ink. */
+  [data-skin="flat"]  .btn--primary { color: #fff; }
+  [data-skin="terminal"]  .btn--primary { color: #08120A; }
+  [data-skin="blueprint"] .btn--primary { color: #0E1B3A; }
 
-  [data-skin="flat"] .tag {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .tag {
     border: 1.5px solid var(--rule);
     border-radius: 0;
     box-shadow: none;
@@ -308,34 +446,99 @@
 
   /* Rule 3 survives the swap unchanged in spirit: ink at varying weight, one
      accent. Only the bevel goes. */
-  [data-skin="flat"] .bar,
-  [data-skin="flat"] .bar--60,
-  [data-skin="flat"] .bar--35,
-  [data-skin="flat"] .bar--accent {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar,
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--60,
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--35,
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--accent {
     border-radius: 0;
     box-shadow: none;
   }
-  [data-skin="flat"] .bar { background-image: none; background-color: var(--ink); }
-  [data-skin="flat"] .bar--60 { background-image: none; background-color: color-mix(in srgb, var(--ink) 60%, var(--paper)); }
-  [data-skin="flat"] .bar--35 { background-image: none; background-color: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
-  [data-skin="flat"] .bar--accent { background-image: none; background-color: var(--action); }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar { background-image: none; background-color: var(--ink); }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--60 { background-image: none; background-color: color-mix(in srgb, var(--ink) 60%, var(--paper)); }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--35 { background-image: none; background-color: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .bar--accent { background-image: none; background-color: var(--action); }
 
   /* A flat square lamp, not a lit dome. */
-  [data-skin="flat"] .live-dot {
+  :is([data-skin="flat"], [data-skin="terminal"], [data-skin="blueprint"]) .live-dot {
     border-radius: 0;
     background: var(--live);
     box-shadow: none;
   }
+
+  /* --- The Graph skin: modernize the pressable pill. The tactile gloss reads
+     as skeuomorphic plastic; the brand's buttons are a clean fill with a soft
+     purple lift. Depth (agency) is untouched — this is button chrome only. */
+  [data-skin="graph"] .btn {
+    background-image: none;
+    box-shadow: var(--elev-1);
+  }
+  [data-skin="graph"] .btn:hover,
+  [data-skin="graph"] .btn:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(111,76,255,0.30);
+  }
+  [data-skin="graph"] .btn:active { transform: translateY(1px); box-shadow: var(--inset-groove); }
+  [data-skin="graph"] .btn--primary {
+    --btn-color: var(--action);
+    color: #fff;
+    text-shadow: none;
+    box-shadow: 0 4px 14px rgba(111,76,255,0.40);
+  }
 }
 
 @layer base {
-  /* Brutalism needs black rules on light ground, and no emboss on type. */
+  /* Border-family skins want a flat ground, not the tactile top-light gradient. */
   [data-skin="flat"] body { background: var(--paper); }
-  [data-skin="flat"] h1,
-  [data-skin="flat"] h2,
-  [data-skin="flat"] h3,
-  [data-skin="flat"] .display { text-shadow: none; }
-  [data-skin="flat"] :focus-visible { outline: 3px solid var(--action); outline-offset: 2px; }
+
+  /* Blueprint lays a faint cyan grid over its navy ground — the drafting paper. */
+  [data-skin="blueprint"] body {
+    background:
+      repeating-linear-gradient(0deg, transparent 0 31px, rgba(79,195,247,0.09) 31px 32px),
+      repeating-linear-gradient(90deg, transparent 0 31px, rgba(79,195,247,0.09) 31px 32px),
+      var(--paper);
+  }
+
+  /* The emboss is a light-ground tactile signature; every other skin drops it. */
+  :is([data-skin="flat"], [data-skin="graph"], [data-skin="terminal"], [data-skin="blueprint"], [data-skin="vaporwave"]) h1,
+  :is([data-skin="flat"], [data-skin="graph"], [data-skin="terminal"], [data-skin="blueprint"], [data-skin="vaporwave"]) h2,
+  :is([data-skin="flat"], [data-skin="graph"], [data-skin="terminal"], [data-skin="blueprint"], [data-skin="vaporwave"]) h3,
+  :is([data-skin="flat"], [data-skin="graph"], [data-skin="terminal"], [data-skin="blueprint"], [data-skin="vaporwave"]) .display { text-shadow: none; }
+
+  /* Dark skins: match native controls, scrollbars and form widgets to the ground. */
+  :is([data-skin="graph"], [data-skin="terminal"], [data-skin="blueprint"], [data-skin="vaporwave"]) { color-scheme: dark; }
+
+  /* The Graph skin speaks Poppins (the brand's free stand-in for Euclid
+     Circular A), and its headings are Semibold sentence case, not the tactile
+     condensed all-caps display type. */
+  [data-skin="graph"] { font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif; }
+  [data-skin="graph"] h1,
+  [data-skin="graph"] h2,
+  [data-skin="graph"] h3,
+  [data-skin="graph"] .display {
+    font-family: var(--font-poppins), ui-sans-serif, sans-serif;
+    font-stretch: normal;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+
+  /* Terminal is mono all the way down — headers included. */
+  [data-skin="terminal"] { font-family: var(--font-plex-mono), ui-monospace, monospace; }
+  [data-skin="terminal"] h1,
+  [data-skin="terminal"] h2,
+  [data-skin="terminal"] h3,
+  [data-skin="terminal"] .display {
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+    font-stretch: normal;
+  }
+
+  /* Vaporwave keeps the condensed all-caps display type but lets it glow. */
+  [data-skin="vaporwave"] h1,
+  [data-skin="vaporwave"] h2,
+  [data-skin="vaporwave"] h3,
+  [data-skin="vaporwave"] .display {
+    text-shadow: 0 0 10px color-mix(in srgb, var(--action) 60%, transparent);
+  }
 }
 
 @theme inline {

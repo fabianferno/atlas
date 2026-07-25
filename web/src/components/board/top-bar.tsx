@@ -65,7 +65,8 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
           </span>
 
           {/* The theme swap. Sits next to halt because both are client-held
-              controls the agent cannot reach — see skin-toggle.tsx. */}
+              controls the agent cannot reach — see skin-toggle.tsx. The button
+              names the active skin; a press rolls to a random other one. */}
           <SkinToggle className="ml-auto sm:ml-0" />
 
           <button
