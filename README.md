@@ -6,12 +6,12 @@ A mini app is not a dashboard. It watches live Graph data, renders whatever inte
 
 | | |
 |---|---|
-| **Live demo** | **https://atlas.vercel.app** |
+| **Live demo** | **https://atlas-mini-apps.vercel.app** |
 | **Video** | _TODO_ |
 | **ENS parent** | [`atlas-apps.eth`](https://sepolia.app.ens.domains/atlas-apps.eth) (Sepolia) |
-| **Example app** | `durable-market-guard.atlas-apps.eth` |
-| **Agentic ID** | [token 8 on 0G Galileo](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=8) |
-| **MCP endpoint** | `https://atlas.vercel.app/api/mcp` |
+| **Example app** | `atlas-market-guard.atlas-apps.eth` |
+| **Agentic ID** | [token 10 on 0G Galileo](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=10) |
+| **MCP endpoint** | `https://atlas-mini-apps.vercel.app/api/mcp` |
 
 > **Status.** Everything marked ✅ below was verified by reading it back from the chain or the gateway, not inferred from the code. What isn't built is listed under [Not in scope](#not-in-scope) rather than left ambiguous.
 
@@ -179,20 +179,31 @@ url · description · avatar        → standard profile records
 **Verified live from the deployed origin, with no write key present** — which is how a public instance should be configured:
 
 ```
-GET https://atlas.vercel.app/api/resolve/durable-market-guard
+GET https://atlas-mini-apps.vercel.app/api/resolve/atlas-market-guard
   source        contenthash          ← ENSIP-7, not a registry fallback
-  address       0xf747bB26…3e47c     ← the mini app's own wallet
-  endpoints     web + mcp → https://atlas.vercel.app/…
-  agenticId     token 8 on 0G Galileo (16602)
+  address       0xedE65679…3fE12     ← the mini app's own wallet
+  endpoints     web + mcp → https://atlas-mini-apps.vercel.app/…
+  agenticId     token 10 on 0G Galileo (16602)
   verification  mutuallyVerified: true
 ```
+
+Published by the product's own path — `scripts/publish-under-parent.ts` runs plan → resolve → fan-out → compose and then pins, issues, mints and registers. That run: 9 live deployments of 9 probed, 42 rows, planned on 0G Compute (`0gm-1.0-35b-a3b`) with attestation `0g://6f3651f2…`, ENS tx `0x40daed7e…`, mint tx `0x06867715…`, registry tx `0x857ffd66…`.
 
 Two things that only surfaced once this ran somewhere other than a dev machine, both now fixed:
 
 - **Reading was gated on write credentials.** `resolveRegistrarMode()` degrades to `mock` without a registrar private key, and `readRecords` skipped the resolver entirely in mock mode. A read-only deployment therefore resolved *nothing* and silently fell back — working perfectly on the machine that held the key. Reading ENS needs an RPC and nothing else, so the gate is now "mock was explicitly asked for".
 - **viem's `getEnsResolver` returns a non-resolver on Sepolia.** For `aave-health-guard.atlas-apps.eth` it answers `0x422484c2…`, where every `addr`/`text`/`contenthash` call reverts. The registry's own `resolver(node)` answers `0xE99638b4…`, which holds the records. We now ask the registry first and keep the UniversalResolver path second for wildcard/CCIP names.
 
-One honest gap: `aave-health-guard` has **no `addr` record** — it was published before wallets were bound to names, and `setRecords` skips a null address rather than writing zero. The other three carry their app's wallet. Use `durable-market-guard` for the demo.
+**Four earlier names read `mutuallyVerified: false`, and that is the binding working.** `aave-health-guard`, `wallet-bound-guard`, `attested-market-guard` and `durable-market-guard` were published under a previous parent, so their tokens still assert `…graphminis.eth` — read straight off 0G Galileo:
+
+```
+token 6  ensNameOf="wallet-bound-guard.graphminis.eth"
+token 8  ensNameOf="durable-market-guard.graphminis.eth"
+```
+
+The name↔token binding is **immutable by design**: `AgenticId._bindEnsName` reverts `EnsNameAlreadyBound` and `MiniAppRegistry.register` reverts `TokenAlreadyBound`. A binding you can silently re-point is not a binding, so renaming the ENS parent cannot drag the old tokens along — the honest repair is a fresh publish, which is what `atlas-market-guard` is. The old names still resolve their records, wallet and manifest; only the mutual assertion is historical. Demo `atlas-market-guard`.
+
+Also: `aave-health-guard` has **no `addr` record** — it predates wallet binding, and `setRecords` skips a null address rather than writing zero.
 
 **The name and the token verify each other in both directions.** The ENS record asserts the Agentic ID; `MiniAppRegistry` on 0G Chain asserts the name; the token itself stores the name it was minted against. Resolving returns `mutuallyVerified: true` only when all three agree — checked against the chain, never assumed.
 
@@ -272,7 +283,7 @@ Named explicitly, because a vague scope claim is worse than a small one:
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
 - **`@atlas/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
 - **Creator earnings.** x402 pays the gateway for data (inbound, working). Paying creators needs our own facilitator and is display-only today.
-- **IPFS pinning.** Manifests get a real CIDv1 and are durable on the host machine, but are not announced to a public network unless `PINATA_JWT` / `W3S_TOKEN` is set.
+- **IPFS pinning.** Manifests get a real CIDv1 but are **not announced to any public network** unless `PINATA_JWT` / `W3S_TOKEN` is set — verified, not assumed: every published CID returns nothing from ipfs.io, dweb.link and cloudflare-ipfs. What makes them readable in production is that the local content store (`web/.atlas/ipfs/`) is uploaded with the deployment, so **a newly published manifest resolves only after the next deploy.** That is a workable demo property and a bad durability story: the `contenthash` is a correct commitment, but the bytes live wherever the build lives. Setting a pinning token is the fix.
 - **Seed social metrics.** All 16 seed apps now run on live data (see below), but their `runs`, `forks` and ratings are still seeded texture — there is no community yet. Inventing a fan-out would be a data claim; inventing a fork count is set dressing. The distinction is deliberate.
 
 ---
