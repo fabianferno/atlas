@@ -430,6 +430,21 @@ The `board/` components use raw hard-rule / zero-radius Tailwind and inline `bac
 **Interfaces:**
 - Consumes from Tasks 1–2: `.btn .btn--primary .btn--danger`, `.panel*`, `--hairline`, `--bevel-hi`, `--elev-*`.
 
+- [ ] **Step 0: Give the base `.btn` its own padding (globals.css)**
+
+Task 1's `.btn` rule has no `padding`/`font-weight`, so raw `.btn` usages that don't add Tailwind padding utilities (e.g. Studio "Build it") collapse to text. `BrutalButton` is unaffected — its `px-4 py-2` / `px-2.5 py-1` Tailwind utilities sit in the utilities layer and win over this component-layer default.
+
+In `web/src/app/globals.css`, in the `.btn {` rule (inside `@layer components`), add these declarations after the `color: var(--ink);` line:
+
+```css
+    padding: .5rem 1rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+```
+
+Do not change anything else in `globals.css`.
+
 **Substitution recipe** (apply to every occurrence in the six files, unless a step below overrides it for a specific element):
 
 | Find (raw Tailwind) | Replace with |
