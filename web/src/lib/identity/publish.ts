@@ -324,8 +324,24 @@ export async function publishWithReport(
         parentKey: base.forkedFrom ? miniAppNameKey(forkParentName(base.forkedFrom)) : null,
       });
       registryTxHash = reg.txHash;
+      // Registered, but without the onchain forkedFrom link — the parent is not
+      // in the registry, so `registerFork` would have reverted `ParentUnknown` and
+      // taken the whole registration with it. Mutual verification is intact; only
+      // onchain attribution is missing, and it must be said rather than inferred
+      // from a `forkedFrom` that exists in the manifest and nowhere else.
+      if (reg.lineageSkipped) warnings.push(reg.lineageSkipped);
     } catch (err) {
-      warnings.push(`registry write failed: ${errText(err)}`);
+      // Reaching here now means a real failure, not the fork-parent case above.
+      // The ENS records and the Agentic ID mint have ALREADY landed by this point,
+      // so the name resolves and the token exists while the 0G half of the mutual
+      // proof does not — which reads as `mutuallyVerified: false` to anyone who
+      // checks. That is the §8 property, so it is a warning about verification,
+      // not a footnote about a transaction.
+      warnings.push(
+        `registry write failed: ${errText(err)} — the ENS records and the Agentic ID are live, ` +
+          `but the 0G registry does not assert this name, so mutual verification will read false ` +
+          `until it is re-registered.`,
+      );
     }
   }
 

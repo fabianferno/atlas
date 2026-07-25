@@ -271,6 +271,34 @@ export const MINI_APP_REGISTRY_ABI = [
     ],
   },
   {
+    // Reads a record by key. Present so `registerMiniApp` can ask whether a fork's
+    // parent is registered BEFORE calling `registerFork`, which reverts
+    // `ParentUnknown` if it is not — see the comment there.
+    type: "function",
+    name: "get",
+    stateMutability: "view",
+    inputs: [{ name: "key", type: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "ensName", type: "string" },
+          { name: "manifestCID", type: "string" },
+          { name: "attestationHash", type: "bytes32" },
+          { name: "ensNode", type: "bytes32" },
+          { name: "author", type: "address" },
+          { name: "tokenId", type: "uint256" },
+          { name: "forkedFrom", type: "bytes32" },
+          { name: "appVersion", type: "string" },
+          { name: "registeredAt", type: "uint64" },
+          { name: "updatedAt", type: "uint64" },
+          { name: "revision", type: "uint32" },
+        ],
+      },
+    ],
+  },
+  {
     type: "function",
     name: "getByName",
     stateMutability: "view",
@@ -389,6 +417,12 @@ function innerHash(newDataHash: Hex, oldDataHash: Hex | null, nonce: Uint8Array)
 }
 
 const ZERO_HASH = `0x${"00".repeat(32)}` as Hex;
+const ZERO_ADDRESS = `0x${"00".repeat(20)}` as Address;
+
+/** Local to this module; `publish.ts` has its own copy for the same reason. */
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export function newProofNonce(): Uint8Array {
   return randomBytes(48);
@@ -833,6 +867,13 @@ export interface RegisterResult {
   registry: Address | null;
   nameKey: Hex;
   explorerUrl: string | null;
+  /**
+   * Set when a fork was registered WITHOUT its `forkedFrom` link, because the
+   * parent is not in the registry. The app is registered and mutual verification
+   * still holds; only the onchain attribution is missing. Null when there was no
+   * parent to record, or when the link was written.
+   */
+  lineageSkipped: string | null;
 }
 
 export function miniAppNameKey(ensName: string): Hex {
@@ -844,7 +885,7 @@ export async function registerMiniApp(input: RegisterInput): Promise<RegisterRes
   const config = agenticIdConfig();
   const nameKey = miniAppNameKey(input.ensName);
   if (config.mode === "mock" || !config.registryAddress) {
-    return { mode: "mock", txHash: null, registry: config.registryAddress, nameKey, explorerUrl: null };
+    return { mode: "mock", txHash: null, registry: config.registryAddress, nameKey, explorerUrl: null, lineageSkipped: null };
   }
 
   const wallet = zeroGWalletClient();
@@ -853,7 +894,61 @@ export async function registerMiniApp(input: RegisterInput): Promise<RegisterRes
     ? keccak256(toHex(input.attestationRef))
     : ZERO_HASH;
 
-  const txHash = input.parentKey
+  /**
+   * WHY THE PARENT IS CHECKED FIRST, and why falling back is the right answer.
+   *
+   * `MiniAppRegistry.registerFork` opens with
+   * `if (_records[parentKey].author == address(0)) revert ParentUnknown(parentKey)`
+   * — deliberately, so attribution cannot be faked against a name nobody
+   * published. Correct contract, and it made publishing a fork fail in a way that
+   * looked like it had worked:
+   *
+   *   every bundled app is unpublished, so its `nameKey` is absent from the
+   *   registry → `registerFork` reverts → the caller in `publish.ts` catches it as
+   *   "registry write failed" → the ENS records and the Agentic ID mint have
+   *   ALREADY landed, so the name resolves, the token exists, and only the 0G half
+   *   of the mutual proof is missing. Result: `mutuallyVerified: false` on every
+   *   published fork, which is exactly the property prd.md §14 rows 9 and 13 rest
+   *   on, lost to a silent revert.
+   *
+   * So: ask the registry the same question its guard asks, and if the parent is
+   * genuinely unknown, register the app WITHOUT the lineage link rather than not
+   * registering it at all. Losing `forkedFrom` costs onchain attribution, which is
+   * recoverable — the manifest still carries `forkedFrom` and §12's credit story
+   * survives. Losing the registration costs mutual verification, which is the
+   * safety primitive in §8. Given a forced choice, keep the one that decides
+   * whether a stranger can verify a name before funding it, and say out loud that
+   * the other was skipped — `lineageSkipped` carries that up to `warnings[]`.
+   */
+  let parentKey = input.parentKey;
+  let lineageSkipped: string | null = null;
+  if (parentKey) {
+    try {
+      const parent = await publicClient.readContract({
+        address: config.registryAddress,
+        abi: MINI_APP_REGISTRY_ABI,
+        functionName: "get",
+        args: [parentKey],
+      });
+      if (!parent || (parent as { author: Address }).author === ZERO_ADDRESS) {
+        lineageSkipped =
+          `parent ${parentKey} is not in the registry, so onchain fork attribution was skipped — ` +
+          `the app is registered and mutually verifiable, but its forkedFrom link exists only in the manifest. ` +
+          `Publish the parent first to record lineage onchain.`;
+        parentKey = null;
+      }
+    } catch (err) {
+      // A failed READ is not evidence the parent is absent. But calling
+      // registerFork on an unverified parent risks the whole registration on a
+      // revert, and registration is the more valuable half — so degrade, and say so.
+      lineageSkipped =
+        `could not confirm parent ${parentKey} is registered (${errText(err)}), so onchain fork ` +
+        `attribution was skipped rather than risking the registration on a ParentUnknown revert.`;
+      parentKey = null;
+    }
+  }
+
+  const txHash = parentKey
     ? await wallet.writeContract({
         address: config.registryAddress,
         abi: MINI_APP_REGISTRY_ABI,
@@ -865,7 +960,7 @@ export async function registerMiniApp(input: RegisterInput): Promise<RegisterRes
           input.ensNode,
           BigInt(input.tokenId),
           input.appVersion,
-          input.parentKey,
+          parentKey,
         ],
         chain: zeroGChain(),
       })
@@ -891,6 +986,7 @@ export async function registerMiniApp(input: RegisterInput): Promise<RegisterRes
     registry: config.registryAddress,
     nameKey,
     explorerUrl: explorerTxUrl(txHash),
+    lineageSkipped,
   };
 }
 
