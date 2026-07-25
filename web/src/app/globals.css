@@ -327,8 +327,11 @@
     box-shadow: inset 0 2px 4px color-mix(in srgb, var(--btn-color), black 32%);
   }
   .btn:disabled { cursor: not-allowed; opacity: .4; box-shadow: var(--inset-groove); transform: none; }
-  .btn--primary { --btn-color: var(--action); color: #fff; }
-  .btn--danger  { --btn-color: var(--loss);   color: #fff; }
+  /* Dark engraved label on the reference orange — white on #ff611a can't
+     reach WCAG AA at these label sizes; dark ink clears it (~5:1). */
+  .btn--primary { --btn-color: var(--action); color: var(--ink); text-shadow: 0 1px 0 rgba(255,255,255,0.35); }
+  /* Deepen the red just enough that white label clears AA (~4.6:1). */
+  .btn--danger  { --btn-color: color-mix(in srgb, var(--loss), black 20%); color: #fff; }
   .btn--spend   { --btn-color: var(--spend);  color: #fff; }
   .btn--quiet   {
     background-image: none; box-shadow: none; color: var(--ink);
