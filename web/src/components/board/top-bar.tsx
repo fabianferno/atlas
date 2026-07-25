@@ -9,6 +9,7 @@ import Link from "next/link";
 import { connectWallet, fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
 import { LiveDot } from "@/components/board/chrome";
 import { SkinToggle } from "@/components/board/skin-toggle";
+import { BrandMark } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 
 export function TopBar({ active }: { active?: "board" | "registry" }) {
@@ -19,8 +20,13 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
   return (
     <header className="sticky top-0 z-40 border-b border-hairline bg-[var(--paper)] shadow-[var(--elev-1)]">
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-5 sm:py-2.5">
-        <Link href="/" className="display shrink-0 text-[0.9375rem] leading-none sm:text-[1.0625rem]">
-          Graph Mini Apps
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          {/* currentColor, so the mark picks up --ink and follows the skin
+              swap without a per-skin asset. */}
+          <BrandMark className="h-[1.375rem] w-[1.375rem] text-[var(--ink)] sm:h-6 sm:w-6" />
+          <span className="display text-[0.9375rem] leading-none sm:text-[1.0625rem]">
+            Graph Mini Apps
+          </span>
         </Link>
 
         <nav className="flex shrink-0 items-center gap-3">
