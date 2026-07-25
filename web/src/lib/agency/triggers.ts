@@ -46,108 +46,27 @@ export interface TriggerFiring {
 }
 
 /* ------------------------------------------------------------------ *
- * Condition evaluation — a comparison parser, not an interpreter.
+ * Condition evaluation lives in `./condition`, which has ZERO imports.
+ *
+ * It was inline here until a UI needed to ask "can this condition even be
+ * evaluated?" — and could not, because this module reaches `./signer`, which
+ * pulls viem and permissionless, so importing it from a client component would
+ * drag a signing stack into the browser bundle.
+ *
+ * The alternative was a second copy of the grammar in a component, which is the
+ * worse failure by a distance: a UI that says a condition parses while the
+ * evaluator disagrees is how an autonomous app ends up looking armed and being
+ * inert. One grammar, two callers.
+ *
+ * Re-exported so every existing importer of `./triggers` is unaffected.
  * ------------------------------------------------------------------ */
 
-type Literal = number | string | boolean | null;
-type Operand = { path: string } | { literal: Literal };
+// Imported for use below AND re-exported: a bare `export ... from` would satisfy
+// importers of this module without creating a local binding, so `runTriggers`
+// would not compile.
+import { evaluateCondition, isConditionEvaluable } from "./condition";
 
-const COMPARATORS = ["<=", ">=", "!=", "==", "<", ">"] as const;
-type Comparator = (typeof COMPARATORS)[number];
-
-const PATH_RE = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*$/;
-
-function parseOperand(raw: string): Operand | null {
-  const token = raw.trim();
-  if (token === "") return null;
-  if (token === "true") return { literal: true };
-  if (token === "false") return { literal: false };
-  if (token === "null") return { literal: null };
-  if (/^-?\d+(\.\d+)?(e-?\d+)?$/i.test(token)) return { literal: Number(token) };
-  if (
-    (token.startsWith("'") && token.endsWith("'") && token.length >= 2) ||
-    (token.startsWith('"') && token.endsWith('"') && token.length >= 2)
-  ) {
-    return { literal: token.slice(1, -1) };
-  }
-  if (PATH_RE.test(token)) return { path: token };
-  return null;
-}
-
-/** Dotted lookup with no prototype access. Missing path -> undefined. */
-function resolvePath(data: Record<string, unknown>, path: string): unknown {
-  let cursor: unknown = data;
-  for (const segment of path.split(".")) {
-    if (segment === "__proto__" || segment === "constructor" || segment === "prototype") {
-      return undefined;
-    }
-    if (typeof cursor !== "object" || cursor === null) return undefined;
-    if (!Object.prototype.hasOwnProperty.call(cursor, segment)) return undefined;
-    cursor = (cursor as Record<string, unknown>)[segment];
-  }
-  return cursor;
-}
-
-function valueOf(operand: Operand, data: Record<string, unknown>): unknown {
-  return "path" in operand ? resolvePath(data, operand.path) : operand.literal;
-}
-
-function compare(left: unknown, op: Comparator, right: unknown): boolean {
-  if (op === "==") return left === right;
-  if (op === "!=") return left !== right;
-  // Ordering comparisons are numbers only. A string that looks like a number
-  // from untrusted data does not get silently coerced into one.
-  if (typeof left !== "number" || typeof right !== "number") return false;
-  if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
-  switch (op) {
-    case "<":
-      return left < right;
-    case "<=":
-      return left <= right;
-    case ">":
-      return left > right;
-    case ">=":
-      return left >= right;
-  }
-}
-
-/** A single `a op b`, or a bare path/literal evaluated for truthiness. */
-function evaluateComparison(clause: string, data: Record<string, unknown>): boolean {
-  for (const op of COMPARATORS) {
-    const idx = clause.indexOf(op);
-    if (idx > 0) {
-      const left = parseOperand(clause.slice(0, idx));
-      const right = parseOperand(clause.slice(idx + op.length));
-      if (!left || !right) return false;
-      return compare(valueOf(left, data), op, valueOf(right, data));
-    }
-  }
-  const bare = parseOperand(clause);
-  if (!bare) return false;
-  return valueOf(bare, data) === true;
-}
-
-/**
- * Evaluates a `when` expression: comparisons joined by `and` / `or`, with `and`
- * binding tighter. Anything it cannot parse evaluates to `false` — an
- * unparseable condition must never be a reason to move money.
- */
-export function evaluateCondition(
-  when: string | null,
-  data: Record<string, unknown>,
-): boolean {
-  if (when === null) return true; // no condition == always satisfied
-  const expression = when.trim();
-  if (expression === "") return true;
-  if (expression.length > 300) return false; // nothing legitimate is this long
-  return expression
-    .split(/\s+or\s+/i)
-    .some((orTerm) =>
-      orTerm
-        .split(/\s+and\s+/i)
-        .every((andTerm) => evaluateComparison(andTerm.trim(), data)),
-    );
-}
+export { evaluateCondition, isConditionEvaluable };
 
 /* ------------------------------------------------------------------ *
  * Signal ledger — the anti-re-fire memory.

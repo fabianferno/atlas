@@ -11,6 +11,7 @@ import { MemoryJournalStore } from "./journal";
 import {
   MemorySignalLedger,
   evaluateCondition,
+  isConditionEvaluable,
   evaluateTriggers,
   proposeFromTrigger,
   runTriggers,
@@ -109,6 +110,52 @@ describe("condition evaluation", () => {
     it("rejects an absurdly long condition", () => {
       assertEqual(evaluateCondition(`a < 1 and ${"b < 1 and ".repeat(50)}c < 1`, { a: 0 }), false);
     });
+  });
+});
+
+describe("condition evaluability — static, no data", () => {
+  it("accepts the comparisons the evaluator accepts", () => {
+    for (const when of [
+      "healthFactor < 1.4",
+      "healthFactor <= 1.4 and utilization > 0.9",
+      "a == 1 or b != 2",
+      "flag",
+      "block.number >= 100",
+    ]) {
+      assertEqual(isConditionEvaluable(when), true, `should be evaluable: ${when}`);
+    }
+  });
+
+  it("rejects the prose the offline drafter emits", () => {
+    // `draftFromIntent` shipped these verbatim as a trigger's `when`. They fail
+    // closed at evaluation, so an autonomous app looked armed and could never
+    // fire — the exact case this predicate exists to let a UI report.
+    for (const when of ["threshold breached", "condition met", "sender == 0x7f3a…9c41"]) {
+      assertEqual(isConditionEvaluable(when), false, `should not be evaluable: ${when}`);
+    }
+  });
+
+  it("treats null and empty as evaluable, because they mean always-fire", () => {
+    // Not "unset". `evaluateCondition(null)` is `true`, i.e. every block. A caller
+    // that reported these as unconfigured would describe the opposite of what the
+    // evaluator does.
+    assertEqual(isConditionEvaluable(null), true);
+    assertEqual(isConditionEvaluable(""), true);
+    assertEqual(evaluateCondition(null, {}), true);
+  });
+
+  it("agrees with the evaluator: inevaluable never fires, whatever the data", () => {
+    const data = { healthFactor: 1.0, threshold: 1, breached: true, condition: true, met: true };
+    for (const when of ["threshold breached", "condition met"]) {
+      assertEqual(isConditionEvaluable(when), false);
+      assertEqual(evaluateCondition(when, data), false, `must fail closed: ${when}`);
+    }
+  });
+
+  it("rejects an over-long expression, same bound as the evaluator", () => {
+    const long = `x == ${"1".repeat(320)}`;
+    assertEqual(isConditionEvaluable(long), false);
+    assertEqual(evaluateCondition(long, {}), false);
   });
 });
 
