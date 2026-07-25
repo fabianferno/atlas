@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **No new test runner and no lockfile change.** Tests use `src/lib/agency/harness.test.ts` and run via `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`. Rationale is documented at the top of that harness file.
+- **No new test runner and no lockfile change.** Tests use `src/lib/agency/harness.test.ts` and run via `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`. Rationale is documented at the top of that harness file.
 - **Next.js in this repo is not the Next.js you know.** `web/AGENTS.md` requires reading the relevant guide in `node_modules/next/dist/docs/` before writing App Router code.
 - `src/lib/kit/substreams.ts` is **node-only** (HTTP/2 transport). Never import it from a client component.
 - `src/app/api/mcp/route.ts` is a dispatcher at 364 lines. New tools add a `TOOLS` entry and a `case` — logic lives in `src/lib/coverage/`.
@@ -140,7 +140,7 @@ import "../coverage/registry.test";
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: FAIL — `Cannot find module './registry'`.
 
 - [ ] **Step 3: Write the implementation**
@@ -273,7 +273,7 @@ export async function searchPackages(options: SearchOptions): Promise<RegistrySe
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: PASS — count rises from 128 to 133.
 
 - [ ] **Step 5: Commit**
@@ -392,7 +392,7 @@ import "../coverage/gap.test";
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: FAIL — `Cannot find module './gap'`.
 
 - [ ] **Step 3: Write the implementation**
@@ -530,7 +530,7 @@ export async function assessCoverage(options: AssessOptions): Promise<CoverageRe
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: PASS — count rises to 138.
 
 - [ ] **Step 5: Commit**
@@ -660,7 +660,7 @@ import "../kit/substreams-leak.test";
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: FAIL — either `streamBlocksImpl` is not a known option (TypeScript) or the final assertion fails with "the session is aborted once the consumer stops reading".
 
 - [ ] **Step 3: Add the test seam**
@@ -728,7 +728,7 @@ with:
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `cd web && pnpm dlx tsx src/lib/agency/all.test.ts`
+Run: `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts`
 Expected: PASS — count rises to 139.
 
 - [ ] **Step 6: Make the verify script exit**
@@ -895,7 +895,7 @@ git commit -m "Let an agent ask whether The Graph covers this at all"
 
 Phase 1 is done when all four hold:
 
-1. `cd web && pnpm dlx tsx src/lib/agency/all.test.ts` reports 139/139.
+1. `cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts` reports 139/139.
 2. `check_coverage` returns `uncovered` for a protocol nobody has indexed, with reasons naming both lookups.
 3. A completed `substreams-verify.ts` run leaves no orphaned process.
 4. A registry outage produces reasons saying the absence is unproven — never a bare `uncovered`.

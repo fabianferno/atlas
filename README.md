@@ -280,7 +280,7 @@ With no keys at all it runs end to end on fixtures and a local mock. Each variab
 
 ```bash
 cd contracts && forge test        # 13 tests
-cd web && pnpm dlx tsx src/lib/agency/all.test.ts   # 103 tests
+cd web && pnpm exec tsc --noEmit && pnpm dlx tsx src/lib/agency/all.test.ts   # 153 tests
 ```
 
 Deploying to 0G Galileo needs `--priority-gas-price 2gwei`; the chain enforces a 2 gwei floor and rejects forge's default estimate outright.

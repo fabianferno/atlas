@@ -98,7 +98,7 @@ const TOOLS = [
   {
     name: "check_coverage",
     description:
-      "Ask whether The Graph can answer a question at all: how many standardized subgraph deployments exist for it, and whether any Substreams package is published for it. Returns a verdict of covered, subgraph-only, substreams-only, uncovered, or unknown, with the reasons behind it. 'uncovered' means both lookups completed and found nothing; 'unknown' means the substreams.dev lookup itself failed, so the absence of a package is unproven — treat that as 'ask again', never as 'nothing exists'. Call this before concluding that data is unavailable — and before building an indexing pipeline, so you do not rebuild something already published.",
+      "Ask whether The Graph can answer a question at all: how many standardized subgraph deployments exist in the schema families the question plans to query, and whether any Substreams package is published for it. Returns a verdict of covered, subgraph-only, substreams-only, uncovered, or unknown, with the reasons behind it. The deployment count is candidates, not a confirmed match — nothing here checks that those deployments index the protocol you asked about, so only a matching Substreams package sets 'covered'. 'uncovered' means the package lookup completed and found nothing; 'unknown' means it did not complete — it failed, timed out, or returned rows that could not be read — so the absence of a package is unproven. 'unknown' is returned whenever that happens, even when subgraph deployments exist; the machine-readable form is the 'substreamsProven' flag. Treat 'unknown' as 'ask again', never as 'nothing exists'. Call this before concluding that data is unavailable — and before building an indexing pipeline, so you do not rebuild something already published.",
     inputSchema: {
       type: "object",
       properties: {
@@ -342,9 +342,11 @@ export async function POST(request: Request): Promise<Response> {
           serverInfo: SERVER_INFO,
           instructions:
             "Mini apps over live standardized subgraph data. Call list_schemas to see what is queryable, " +
-            "query_graph to answer a question with live onchain data, build_mini_app to get a renderable " +
-            "A2UI document, and resolve_mini_app to look up a published app by its ENS name. Read-only: " +
-            "nothing here signs a transaction or spends.",
+            "check_coverage to find out whether anything indexes a protocol at all — call it before you " +
+            "tell a user the data does not exist, and before building an indexing pipeline — plan_mini_app " +
+            "to see how a question resolves without executing it, query_graph to answer a question with " +
+            "live onchain data, build_mini_app to get a renderable A2UI document, and resolve_mini_app to " +
+            "look up a published app by its ENS name. Read-only: nothing here signs a transaction or spends.",
         });
       }
 

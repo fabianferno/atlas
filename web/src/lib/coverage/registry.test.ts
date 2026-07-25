@@ -4,8 +4,8 @@
  * of them would otherwise surface as "this protocol has no coverage" — which is
  * the exact claim this module exists to make truthfully.
  */
-import { assert, assertEqual, assertRejects, describe, itAsync } from "../agency/harness.test";
-import { RegistryRateLimitError, searchPackages } from "./registry";
+import { assert, assertEqual, assertRejects, describe, it, itAsync } from "../agency/harness.test";
+import { RegistryRateLimitError, searchPackages, searchTermFor } from "./registry";
 
 function jsonResponse(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) {
   return new Response(JSON.stringify(body), {
@@ -75,5 +75,99 @@ describe("registry search", () => {
     });
     assert(seen.includes("query=hyperliquid"), `query param present: ${seen}`);
     assert(seen.includes("page_size=5"), `page_size param present: ${seen}`);
+  });
+
+  // Rows that arrive and cannot be read are the failure mode this module exists
+  // to prevent: dropped silently, they look exactly like "this protocol has no
+  // coverage", and that answer is what pays for building a pipeline.
+  itAsync("counts rows that arrived but could not be parsed", async () => {
+    const result = await searchPackages({
+      query: "aave",
+      fetchImpl: async () =>
+        jsonResponse({
+          packages: [
+            { package_name: "aave_v3", artifact: "https://spkg.io/v1/packages/aave-v3/v0.1.0" },
+            { name: "aave_v2" },
+            { name: "aave_v3", slug: "aave-v3", reference: "aave-v3@v0.1.0", spkg: "https://spkg.io/v1/packages/aave-v3/v0.1.0" },
+          ],
+        }),
+    });
+    assertEqual(result.packages.length, 1, "only the well-formed row is usable");
+    assertEqual(result.unusable, 2, "the other two are counted, not forgotten");
+  });
+
+  itAsync("reports zero unusable rows when everything parsed", async () => {
+    const result = await searchPackages({ query: "nothing", fetchImpl: async () => jsonResponse({}) });
+    assertEqual(result.unusable, 0, "no rows, nothing unreadable");
+  });
+
+  // A hang is not a caught rejection. Without a deadline the caller sits there
+  // producing neither a verdict nor a stated failure, which is the one outcome
+  // worse than either.
+  itAsync("rejects rather than hanging when the registry never answers", async () => {
+    const hang: typeof fetch = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("This operation was aborted")));
+      });
+    let message = "";
+    try {
+      await searchPackages({ query: "aave", fetchImpl: hang, timeoutMs: 20 });
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    assert(message.includes("timed out"), `names the deadline rather than a bare abort: ${message}`);
+  });
+
+  itAsync("still honors a caller's own abort signal", async () => {
+    const controller = new AbortController();
+    const hang: typeof fetch = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("caller cancelled")));
+      });
+    const pending = searchPackages({ query: "aave", fetchImpl: hang, timeoutMs: 5_000, signal: controller.signal });
+    controller.abort();
+    await assertRejects(() => pending, "an outer abort must still cancel the fetch");
+  });
+});
+
+/**
+ * The search ANDs its terms against the package NAME — verified live:
+ * `query=uniswap` returns three packages and `query=uniswap+swaps` returns `{}`.
+ * So every word of a question that is not the name can only subtract, and the
+ * failure it produces is a false absence, which is the answer that costs money
+ * later.
+ */
+describe("registry search term", () => {
+  it("drops filler and network names", () => {
+    const q = searchTermFor("Hyperliquid vault flows on Arbitrum");
+    assertEqual(q.term, "hyperliquid", "the protocol, not the sentence");
+    assert(q.dropped.includes("arbitrum"), `drops the chain: ${q.dropped.join(",")}`);
+    assert(q.dropped.includes("flows"), `drops what we want to know about it: ${q.dropped.join(",")}`);
+  });
+
+  it("sends one word, never a phrase", () => {
+    const q = searchTermFor("compare lending borrowing staking restaking yields");
+    assert(!q.term.includes(" "), `a phrase matches nothing however much is published: ${q.term}`);
+  });
+
+  // A name is what someone capitalized mid-sentence. The first word is
+  // capitalized by grammar, and ALL-CAPS is an acronym.
+  it("prefers a name the asker capitalized over sentence position", () => {
+    assertEqual(searchTermFor("Show me the top Aave markets").term, "aave", "picks the name, not the first survivor");
+    assertEqual(searchTermFor("What is the TVL of Uniswap?").term, "uniswap", "an acronym is not a name");
+    assertEqual(searchTermFor("vault flows on Hyperliquid").term, "hyperliquid", "wherever in the sentence it sits");
+  });
+
+  // A guessed term is weaker evidence in both directions, and the caller has to
+  // be able to tell a guess from an identified name.
+  it("flags a term picked by position rather than identified", () => {
+    assert(searchTermFor("Hyperliquid vault flows on Arbitrum").broad, "sentence-initial caps prove nothing");
+    assert(!searchTermFor("flows on Hyperliquid").broad, "a mid-sentence capital does");
+  });
+
+  it("falls back to the whole phrase when nothing distinctive survives", () => {
+    const q = searchTermFor("how much of it is on base");
+    assertEqual(q.term, "how much of it is on base", "sends what it was given rather than nothing");
+    assert(q.broad, "and says the result proves little");
   });
 });

@@ -315,14 +315,25 @@ async function main(): Promise<void> {
 // this script exists to produce are exactly what gets cut off. Wait for both
 // streams to drain — if there is nothing pending, this resolves immediately.
 //
-// That wait is bounded. A reader that has stopped consuming — a wedged `tee`,
-// a dead CI log collector, a full disk — never fires "drain", and an
-// unbounded wait would trade the open-HTTP/2-session hang this task exists to
-// close for a hang on stdout backpressure instead. A couple of seconds is
-// ample for a flush (this is not a transfer): losing the tail of the output to
-// a stalled reader is strictly better than a process that never exits. A
-// stream that errors or closes instead of draining is likewise done — there is
-// nothing left to wait for on it.
+// The wait is a zero-length `write` with a callback, not a "drain" listener.
+// `drain` only fires after a write returned false — i.e. after the buffer went
+// over the high-water mark — and the normal case here is a few kilobytes of
+// RESULT and JOURNAL, which is under it. So `writableLength > 0` while no
+// `drain` will ever arrive: waiting on it means every piped run sits out the
+// full timeout and exits on the timer, flushing correctly only by accident.
+// The callback on a write fires once everything queued ahead of it has gone to
+// the OS, which is exactly the question being asked, and it fires immediately
+// when there is nothing to wait for.
+//
+// That wait is bounded anyway. A reader that has stopped consuming — a wedged
+// `tee`, a dead CI log collector, a full disk — never lets the write complete,
+// and an unbounded wait would trade the open-HTTP/2-session hang this task
+// exists to close for a hang on stdout backpressure instead. A couple of
+// seconds is ample for a flush (this is not a transfer): losing the tail of the
+// output to a stalled reader is strictly better than a process that never
+// exits. A stream that errors or closes instead of flushing is likewise done —
+// there is nothing left to wait for on it, and the callback receives the error
+// rather than never firing.
 const FLUSH_TIMEOUT_MS = 2000;
 
 function exitAfterFlush(code: number | string): void {
@@ -347,12 +358,11 @@ function exitAfterFlush(code: number | string): void {
   const timer = setTimeout(finish, FLUSH_TIMEOUT_MS);
 
   for (const stream of pending) {
-    // Whichever of the three fires first settles this stream; the other two
-    // are stale once it does, so drop all three rather than let a spurious
-    // second event (e.g. "close" after "drain") double-count it.
+    // Whichever fires first settles this stream; the others are stale once it
+    // does, so drop the listeners rather than let a spurious second event
+    // (e.g. "close" after the write completed) double-count it.
     let streamSettled = false;
     const cleanup = () => {
-      stream.removeListener("drain", onSettle);
       stream.removeListener("error", onSettle);
       stream.removeListener("close", onSettle);
     };
@@ -364,9 +374,11 @@ function exitAfterFlush(code: number | string): void {
       if (remaining === 0) finish();
     };
     cleanups.push(cleanup);
-    stream.once("drain", onSettle);
     stream.once("error", onSettle);
     stream.once("close", onSettle);
+    // Queued behind everything already written, so its callback answers "is the
+    // buffer gone?" — and it writes nothing of its own.
+    stream.write("", onSettle);
   }
 }
 

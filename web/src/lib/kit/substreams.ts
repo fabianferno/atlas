@@ -388,6 +388,12 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
     // The FREE tier allows two concurrent sessions, so a leaked one is a slot
     // the next run does not get. Aborting a call that already finished is a
     // no-op, which is why this is unconditional.
+    //
+    // UNVERIFIED against a live endpoint: this is what the transport's contract
+    // says an abort does, and the unit test proves we call it, but both FREE
+    // session slots were held externally when this was written, so nobody has
+    // watched a real session actually close here. If sessions still leak, this
+    // line is the first thing to doubt rather than the thing to trust.
     deadline.abort();
   }
 
