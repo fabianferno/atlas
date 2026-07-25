@@ -5,7 +5,8 @@
  * input at the top, the live ledger beside it, and the grid of mini apps
  * underneath with chrome weight doing the talking.
  */
-import { AppGrid, TierLegend } from "@/components/board/app-grid";
+import { TierLegend } from "@/components/board/app-grid";
+import { AppDeck } from "@/components/board/app-deck";
 import { Ledger, LedgerTicker } from "@/components/board/ledger";
 import { StudioInput } from "@/components/board/studio-input";
 import { TopBar } from "@/components/board/top-bar";
@@ -20,7 +21,7 @@ export default function BoardPage() {
           <div className="min-w-0 space-y-4">
             <StudioInput />
             <TierLegend />
-            <AppGrid />
+            <AppDeck />
           </div>
 
           <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
