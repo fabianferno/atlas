@@ -716,7 +716,9 @@ contracts/
   ├─ AgenticId.sol     # ERC-7857 (scoped) — 0G Chain
   └─ MiniAppRegistry.sol
 SKILL.md · README.md · architecture.png
-prd.md · prd-v1-original.md
+prd.md
+docs/superpowers/specs/   # design specs, committed as planning artifacts
+docs/superpowers/plans/
 ```
 
 ---
@@ -861,7 +863,7 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | 15 | Live demo link | 0G 1 | | ☐ **and it gates #8/#9 quality** — published records currently carry `localhost:3000` |
 | 16 | Team names + Telegram/X | 0G 1 | | ☐ |
 | 17 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | **◐** on track |
-| 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | **◐** this document is the artifact — but `prd-v1-original.md` is currently *deleted* in the working tree and Appendix C links it |
+| 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | **☑** this document is the artifact, with Appendix C recording why each major decision changed; plus `docs/superpowers/specs/` and `plans/` for the theme and drawer work. The stale v1 draft was dropped and every reference to it removed — a planning doc that links a missing file argues against itself |
 | 19 | Select exactly 3 partner prizes: Graph, ENS, 0G | submission | | ☐ |
 
 **Addressable:** $15,000 (Graph ×3) + $3,000 (ENS 1+2) + $6,000 (0G T1) = **$24,000 across 6 tracks, 3 selections.**
@@ -1168,8 +1170,8 @@ lifetime caps, expiry, kill switch. Forks inherit no spending authority.
 - Built at ETHGlobal Lisbon 2026 starting <commit hash>; prior commits predate
   the event and contain <what>
 - OSS used: A2UI (Apache-2.0), subgraph-registry, …
-- AI tools: Claude Code for <what>; specs committed as prd.md,
-  prd-v1-original.md
+- AI tools: Claude Code for <what>; specs committed as prd.md and
+  docs/superpowers/specs/
 
 ## Team
 Name · Telegram · X
@@ -1212,7 +1214,7 @@ await publish(ui, {
 
 # Appendix C — revision notes
 
-[`prd-v1-original.md`](./prd-v1-original.md) is the archived first draft. ETHGlobal asks for planning artifacts in the repo, so the evolution is an asset.
+ETHGlobal asks for planning artifacts in the repo, so the revision history below is the artifact: every entry records what changed and why, and each one was a decision made against something that had already been built. The v1 draft it started from was dropped as stale — v2's correction table is what survived of it, and that table is the useful part.
 
 ## v7 — skeuomorphism, and depth replaces border weight (current)
 

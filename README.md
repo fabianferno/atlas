@@ -243,7 +243,7 @@ Named explicitly, because a vague scope claim is worse than a small one:
 ## Attribution
 
 - Built at ETHGlobal Lisbon 2026. Event work begins at [`3871e59`](../../commit/3871e59) (2026-07-24 10:57); the four commits before it (`533b79f`, `e6ce265`, `845a550`, `7056c3b`, 2026-07-22) are a pre-existing landing page and predate the event.
-- **AI tools:** built with Claude Code under a spec-driven workflow. ETHGlobal permits this with attribution provided the planning artifacts are committed — [`prd.md`](prd.md) is that artifact, and its revision history (Appendix C) records why each major decision changed.
+- **AI tools:** built with Claude Code under a spec-driven workflow. ETHGlobal permits this with attribution provided the planning artifacts are committed — [`prd.md`](prd.md) is that artifact, and its revision history (Appendix C) records why each major decision changed, including the ones that reversed an earlier call. Design work is specced the same way in [`docs/superpowers/specs/`](docs/superpowers/specs/) and [`plans/`](docs/superpowers/plans/).
 - **Open source used:** A2UI (Apache-2.0), Messari standardized subgraph schemas, Rhinestone Smart Sessions / module-sdk, viem, Next.js, Foundry, OpenZeppelin.
 
 ## Team
