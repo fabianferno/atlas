@@ -528,6 +528,8 @@ Four signer modes behind one interface, selected by `AGENCY_WALLET_MODE`:
 
 **Verified live on Base Sepolia:** all ten Rhinestone contracts deployed, a real `permissionId` computed, `isSessionEnabled()` read from the validator, and the signer refusing to sign with `SessionNotEnabled` rather than falling back to owner signing. **Not verified: the happy path** — a userOp actually landing needs a funded ERC-7579 account, a bundler URL, and the owner's enable transaction. Do not claim a completed onchain-enforced trade until one lands.
 
+**What HAS landed, in `session-eoa` mode:** a real transaction from a real trigger — `0x5a44e9d5…9d78`, status success, block 44604106. Be precise about what that does and does not prove. It proves the whole chain is connected: a block-level Substreams event reached the trigger evaluator, the policy gate allowed it against a real allowlist and cap, the app's own session key signed, and the effect is verifiable onchain. It does **not** prove onchain enforcement — in `session-eoa` the policy is enforced by this process, so "the policy stopped it" still means *our server chose not to sign*. And the action is an `approve`, not a swap. Two separate limits, both worth saying out loud rather than letting a tx hash imply more than it shows.
+
 **A bug worth knowing about**, because it would have produced a false security claim: Smart Sessions' `getPermissionId()` hashes only `(sessionValidator, initData, salt)` — *not the policies*. Two sessions with the same key and wildly different spending limits share a permission id, so raising a cap locally would leave `isSessionEnabled()` answering `true` for limits the chain never agreed to. Fixed by deriving the salt from a canonical fingerprint of the whole grant: change an allowlist entry, a cap, or the expiry and the permission id changes, the session reads as disabled, and the signer refuses until the owner re-enables. The chain and the server cannot drift apart silently.
 
 ---
@@ -861,7 +863,7 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **☑** data plane live, and **all 16 seed apps now run on it** — `scripts/seed-live.ts` puts every one through resolve → health-check → fan-out → compose, 16/16 live for $0.0084, snapshot in `kit/seed-live.generated.json`. Only `runs`/`forks`/ratings remain seeded, and they are social texture, not data |
 | 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | **◐** MCP server live at `/api/mcp` (5 tools, verified handshake) and `SKILL.md` written. **npm package still not extracted** |
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | **☑** root `README.md` + `SKILL.md`, both naming deployment IDs, addresses and what is *not* built |
-| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both — plan and compose run on 0G (`0gm-1.0-35b-a3b`), and the action loop is policy gate → signer → journal |
+| 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both, and *acts on* now ends in a real transaction: Arbitrum block 487540654 → Substreams tick → trigger fired → policy gate → session key signed → Base Sepolia tx `0x5a44e9d5…9d78`, **status success**, allowance read back off chain. Plan and compose run on 0G (`0gm-1.0-35b-a3b`). The action is an `approve`, not a swap, and is labelled as one |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **☑** 12 deployment IDs listed in the README, all 86 in `sources.ts`; every row carries `_source`/`_label`/`_schema`/`_network` |
 | 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **☑** two products verified live: standardized subgraphs (86 deployment ids, health-checked fan-out) **and Substreams** — real subscription on `arb-one.streamingfast.io`, blocks 487508073→75, trigger fired on the breaching block, policy gate decided, plus a no-breach control run that fired nothing. Still coded-but-unexercised: **x402** (`X402_PRIVATE_KEY` unset; the reference run's $0.0014 is 14 × the *gateway's* $0.0001) and **Subgraph MCP** (env var only, nothing calls it). Two verified clears the ≥2 bar without needing the other two |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
@@ -983,14 +985,19 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
            "Watch my lending positions and DEX exposure across Arbitrum,
             Optimism and Base. Rebalance if health factor drops under 1.4."
            The plan streams: classified autonomous, two standardized schema
-           families across three chains, and — say this number out loud —
-           18 of 22 deployments live, 4 skipped as dead.
+           families across three chains, and — say these numbers out loud —
+           15 of 16 deployments live, 1 skipped as dead, 80 rows.
                                                     ← Graph T2 + T3
 
-           [Use this question. Measured: autonomous tier, 2 schemas x 3 nets,
-            18/22 live, 70 rows. The single-chain variants resolve 9 of 9 and
-            the dead-source story never appears on camera, which throws away
-            the Track 3 argument.]
+           [MEASURED, and re-runnable: `scripts/seed-live.ts` puts all 16 seed
+            apps through this path. `tvl-crosschain` is the one to show —
+            15/16 live, 80 rows, and **14 rows carrying impossible USD values**,
+            which is the stronger Track 3 beat: "this one reports $72 trillion
+            from a broken upstream price feed, so it is flagged and ranked last,
+            never dropped." A demo where everything is green teaches the
+            audience nothing about why a health check exists.
+            Do not use a single-chain variant — it resolves cleanly and the
+            dead-source story never reaches the camera.]
 
 0:50–1:12  THE VIBEOS MOMENT. The UI assembles — health gauge, position table,
            trade log, policy badge.
@@ -1001,8 +1008,13 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             the client picks the components. It cannot inject code."
                                                     ← technical execution
 
-1:12–1:50  THE LEAP. Drop the health factor on testnet. A line lands in the
-           Ledger: "aave-guard.eth executed a swap." The trade log fills.
+1:12–1:50  THE LEAP. A real Arbitrum block arrives, the condition breaches, and
+           a line lands in the Ledger. The trade log fills.
+           [MEASURED: block 487540654 → trigger → POLICY OK → Base Sepolia tx
+            0x5a44e9d5…9d78, status success. Say "approved its router", NOT
+            "executed a swap" — the action is an `approve` and the manifest
+            says so. `scripts/substreams-verify.ts --real` reproduces it, and
+            the tx is on Basescan if a judge wants to look.]
            "This isn't a dashboard. It has a wallet, a $500 cap, and one
             allowlisted router."
            Open the enforcement panel — it states per constraint who enforces
@@ -1020,7 +1032,12 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             can't spend. Dune can't do any of this."
                                                     ← the differentiator
 
-1:50–2:08  IDENTITY. The title bar reads aave-guard.graphminis.eth — resolving
+1:50–2:08  IDENTITY. [USE durable-market-guard.graphminis.eth — aave-health-guard
+           predates wallet binding and has NO addr record, so it cannot carry
+           this beat. Verified live: source=contenthash, addr → the app's
+           wallet, both endpoints on the live origin, token 8 on 0G,
+           mutuallyVerified: true.]
+           The title bar reads durable-market-guard.graphminis.eth — resolving
            to the UI, the wallet address, and Agentic ID #142 on 0G Chain. The
            ENS record and the onchain token verify each other.
            Paste the name into a different agent — it resolves, reads
@@ -1033,10 +1050,16 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
            its own data.
                                                     ← Graph T1, ecosystem
 
-2:28–2:50  npm i @graphminis/kit — any agent gets this.
+2:28–2:50  Point any agent at graph-minis.vercel.app/api/mcp — five tools,
+           live, no install.
            "15,000 subgraphs. Every question is an app now, and every app can
             act. That's The Graph, finally pointed at everyone."
                                                     ← Graph T1
+
+           [DO NOT say "npm i @graphminis/kit" — it is not published and the
+            name 404s. The MCP endpoint is the real, verifiable Track 1
+            artifact; claiming a package that does not exist, in the last
+            sentence of the video, is the worst possible place to be caught.]
 ```
 
 **Notes.** The 1:10 leap is the video — rehearse until boring. Pre-record a fallback clip of the live query and the firing trade; venue wifi will fail during recording. Say the spend cap number out loud; it reads as confidence.

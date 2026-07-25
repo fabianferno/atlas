@@ -114,6 +114,21 @@ control: blocks 487509578 → 487509580, healthy throughout → 0 firings
 
 The control run matters: a harness that can only print ✅ proves nothing.
 
+**The chain runs all the way to a real transaction.** `--real` sends from the app's own session key on Base Sepolia:
+
+```
+Arbitrum block 487540654  (real, off arb-one.streamingfast.io)
+  → Substreams tick → trigger "healthFactor < 1.15" fired
+  → POLICY OK  approve $25 → 0x036CbD53…  (allowlisted, under the $50/tx cap)
+  → session key signed → tx 0x5a44e9d5…9d78
+  → status success, block 44604106, 1 Approval event
+  → allowance 25 USDC, read back off chain
+```
+
+[View on Basescan](https://sepolia.basescan.org/tx/0x5a44e9d5d79446afd042928a76d405459242688f479d7257e23143d6190c9d78)
+
+**It is an `approve`, and it is described as one.** Granting the router an allowance is genuinely the first step of a swap, and it is a real onchain action taken autonomously under a policy — but it is not a swap, and calling it one would make the manifest lie about what the signer did. `approve` is its own `Action.kind` for exactly that reason. `scripts/substreams-verify.ts --real` reproduces it.
+
 Four properties the design turns on:
 
 - **A reorg is not an event.** `blockUndoSignal` is journalled and rewinds; it never becomes a trigger signal. The correct response to "that block did not happen" is to stop, not to act.
@@ -252,7 +267,7 @@ Deploying to 0G Galileo needs `--priority-gas-price 2gwei`; the chain enforces a
 
 Named explicitly, because a vague scope claim is worse than a small one:
 
-- **A real trade from a stream trigger.** The Substreams path below is verified end to end, but the signer ran in `stub` mode, so the trade log's tx hash is simulated. Landing a real one needs `AGENCY_WALLET_MODE=session-eoa` and a funded testnet key. The gate decision is real; the signature is not.
+- **A real *swap* from a stream trigger.** A real transaction now lands (see below), but it is an `approve`, not a swap. A swap needs testnet WETH, an approval, and correct `exactInputSingle` params; `calldataFrom` also returns `0x` unless an action declares explicit `data`, so the seed apps' `derisk` action would send empty calldata to the router and revert. The signer, the gate and the transaction are real; the *swap* is not built.
 - **Per-account positions.** The standardized fan-out reads protocol-level scalars, so a condition on `lending.totalValueLockedUSD` works and one on `healthFactor` does not — no standardized family exposes a single user's position in that query shape. Conditions naming `healthFactor` evaluate to `false`, which is the safe direction, but it is a real gap: see `web/src/lib/agency/enrich.ts`.
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
 - **`@graphminis/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
