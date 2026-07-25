@@ -28,6 +28,13 @@ export interface OptionWheelProps {
   items: WheelItem[];
   /** px — uniform height of each row (card height incl. its vertical gap). */
   rowHeight: number;
+  /**
+   * px of extra height the centered row is allowed to claim, pushing its
+   * neighbours apart to make room. Rows read their own share of it from the
+   * `--ow-p` proximity variable, so a row growing and the gap opening for it stay
+   * in lockstep frame by frame. Default 0 (uniform rows, original behaviour).
+   */
+  activeExtra?: number;
   /** Index centered on first render. Default 0. */
   defaultSelected?: number;
   /** Fires when the wheel settles on a new centered item. */
@@ -65,6 +72,7 @@ export interface OptionWheelProps {
 interface WheelConfig {
   count: number;
   rowH: number;
+  activeExtra: number;
   side: Side;
   curve: number;
   tilt: number;
@@ -81,6 +89,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export default function OptionWheel({
   items,
   rowHeight,
+  activeExtra = 0,
   defaultSelected = 0,
   onChange,
   onItemClick,
@@ -111,6 +120,7 @@ export default function OptionWheel({
   const cfgRef = useRef<WheelConfig>({
     count,
     rowH: rowHeight,
+    activeExtra,
     side,
     curve,
     tilt,
@@ -144,6 +154,7 @@ export default function OptionWheel({
     cfgRef.current = {
       count,
       rowH: rowHeight,
+      activeExtra,
       side,
       curve,
       tilt,
@@ -214,6 +225,12 @@ export default function OptionWheel({
     const mirror = cfg.side === "right" ? -1 : 1;
     const tiltRad = (cfg.tilt * Math.PI) / 180;
     const R = tiltRad > 0.0005 ? rowH / tiltRad : 0;
+    // The centered row's extra height, in row units. Rows grow by
+    // `activeExtra * max(0, 1 - dist)` (that is exactly `--ow-p`), so shifting a
+    // row out by half of that, ramped over the first row of distance, keeps every
+    // pair of neighbours edge-to-edge at any scroll position — mid-transition
+    // included, where two half-grown rows split the extra between them.
+    const spread = rowH > 0 ? cfg.activeExtra / rowH / 2 : 0;
 
     for (let i = 0; i < n; i++) {
       const el = itemRefs.current[i];
@@ -226,22 +243,25 @@ export default function OptionWheel({
         if (d > n / 2) d -= n;
       }
       const dist = Math.abs(d);
+      const dLaid = d + spread * clamp(d, -1, 1);
 
       let x = 0;
       let y: number;
       let rot = 0;
       if (R > 0) {
-        const ang = clamp(d * tiltRad, -Math.PI / 2, Math.PI / 2);
+        const ang = clamp(dLaid * tiltRad, -Math.PI / 2, Math.PI / 2);
         y = R * Math.sin(ang);
         x = -mirror * R * (1 - Math.cos(ang)) * cfg.curve;
         rot = (mirror * ang * 180) / Math.PI;
       } else {
-        y = d * rowH;
+        y = dLaid * rowH;
       }
 
       el.style.transform = `translate(${x}px, calc(${y}px - 50%)) rotate(${rot}deg)`;
       el.style.opacity = String(Math.max(cfg.minOpacity, 1 - dist * cfg.fade));
       el.style.filter = cfg.blur > 0 ? `blur(${dist * cfg.blur}px)` : "none";
+      // A grown row overflows its slot, so it has to paint over its neighbours.
+      el.style.zIndex = String(100 - Math.round(Math.min(dist, 99)));
       // 0..1 proximity to center, so cards can emphasize the active row via CSS
       el.style.setProperty("--ow-p", String(Math.max(0, 1 - Math.min(dist, 1))));
     }
@@ -399,7 +419,7 @@ export default function OptionWheel({
   useEffect(() => {
     applyTarget(targetRef.current, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowHeight, side, curve, tilt, blur, fade, minOpacity, smoothing, inset, loop, count]);
+  }, [rowHeight, activeExtra, side, curve, tilt, blur, fade, minOpacity, smoothing, inset, loop, count]);
 
   useEffect(() => {
     return () => {
@@ -444,7 +464,10 @@ export default function OptionWheel({
           }}
           role="option"
           aria-selected={i === selectedIndex}
-          className="absolute top-1/2 w-full will-change-[transform,opacity,filter]"
+          // Flex-centered, not stretched: a row taller than its slot (the grown
+          // centered card) then overflows evenly above and below its own middle,
+          // which is the point the wheel positions.
+          className="absolute top-1/2 flex w-full items-center will-change-[transform,opacity,filter]"
           style={{
             left: 0,
             right: 0,
