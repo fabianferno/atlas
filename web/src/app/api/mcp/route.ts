@@ -38,6 +38,7 @@ import { fanOutDetailed } from "@/lib/kit/fanout";
 import { registryCoverage } from "@/lib/kit/sources";
 import { resolveSourcesDetailed } from "@/lib/kit/resolver";
 import { resolveWithReport } from "@/lib/identity/publish";
+import { assessCoverage } from "@/lib/coverage/gap";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -93,6 +94,22 @@ const TOOLS = [
     description:
       "List the standardized subgraph schema families this server can query, with how many health-checked deployments exist per network. Call this first — it tells you which schemas and networks the other tools will accept.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "check_coverage",
+    description:
+      "Ask whether The Graph can answer a question at all: how many standardized subgraph deployments exist for it, and whether any Substreams package is published for it. Returns a verdict of covered, subgraph-only, substreams-only, uncovered, or unknown, with the reasons behind it. 'uncovered' means both lookups completed and found nothing; 'unknown' means the substreams.dev lookup itself failed, so the absence of a package is unproven — treat that as 'ask again', never as 'nothing exists'. Call this before concluding that data is unavailable — and before building an indexing pipeline, so you do not rebuild something already published.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: {
+          type: "string",
+          description: "The protocol or activity to check, e.g. 'Hyperliquid vault flows on Arbitrum'.",
+        },
+      },
+      required: ["question"],
+      additionalProperties: false,
+    },
   },
   {
     name: "plan_mini_app",
@@ -172,6 +189,21 @@ async function callTool(name: string, args: Record<string, unknown>) {
         // schema rather than a subgraph id is that this list is plural.
         coverage,
       });
+    }
+
+    case "check_coverage": {
+      const question = String(args.question ?? "");
+      if (!question.trim()) return toolText("question is required", true);
+      // Reuse the planner so the schemas checked are the ones this system would
+      // actually query. Checking coverage against a different set than the one
+      // the query path uses would make the verdict describe a system nobody runs.
+      const planned = await plan({ question });
+      const report = await assessCoverage({
+        query: question,
+        schemas: planned.schemas,
+        networks: planned.networks,
+      });
+      return jsonText(report);
     }
 
     case "plan_mini_app": {
