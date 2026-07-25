@@ -203,6 +203,16 @@ export interface StreamUndo {
 
 export type StreamEvent = ({ kind: "tick" } & StreamTick) | StreamUndo;
 
+/**
+ * The streaming call, injectable. Mirrors the existing `loadPackage` seam: the
+ * session-lifetime test must observe the abort signal without opening a socket.
+ */
+export type StreamBlocksFn = (
+  transport: ReturnType<typeof createConnectTransport>,
+  request: ReturnType<typeof createRequest>,
+  options?: { signal?: AbortSignal },
+) => AsyncIterable<Awaited<ReturnType<typeof streamBlocks>> extends AsyncIterable<infer R> ? R : never>;
+
 export interface StreamTicksOptions {
   target: StreamTarget;
   /** Resume from this cursor. Overrides the cursor store. */
@@ -216,6 +226,8 @@ export interface StreamTicksOptions {
   firstTickTimeoutMs?: number;
   /** Injectable for tests; defaults to `@substreams/core`'s fetch-based loader. */
   loadPackage?: (spkg: string) => Promise<Package>;
+  /** Injectable for tests; defaults to `@substreams/core`'s `streamBlocks`. */
+  streamBlocksImpl?: StreamBlocksFn;
 }
 
 /**
@@ -370,10 +382,18 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
   } finally {
     clearTimeout(firstTickTimer);
     options.signal?.removeEventListener("abort", onOuterAbort);
+    // Release the session. A consumer that stops early — `maxTicks` reached, an
+    // error upstream — has already finalized the inner iterator, but the HTTP/2
+    // session survives that and keeps both the socket and the event loop alive.
+    // The FREE tier allows two concurrent sessions, so a leaked one is a slot
+    // the next run does not get. Aborting a call that already finished is a
+    // no-op, which is why this is unconditional.
+    deadline.abort();
   }
 
   async function* consume(): AsyncGenerator<StreamEvent> {
-  for await (const response of streamBlocks(transport, request, { signal: deadline.signal })) {
+  const runStreamBlocks = options.streamBlocksImpl ?? streamBlocks;
+  for await (const response of runStreamBlocks(transport, request, { signal: deadline.signal })) {
     const message = response.message;
 
     if (message.case === "fatalError") {

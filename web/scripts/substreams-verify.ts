@@ -302,7 +302,15 @@ async function main(): Promise<void> {
   if (!ok) process.exitCode = 1;
 }
 
-main().catch((err: unknown) => {
-  console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
-  process.exitCode = 1;
-});
+// Exit explicitly rather than waiting for the event loop to drain. The Connect
+// transport pools its HTTP/2 session and there is no public handle to close it,
+// so a successful run would otherwise sit open indefinitely — which is exactly
+// how two completed runs held both FREE-tier slots for four hours.
+main()
+  .catch((err: unknown) => {
+    console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    process.exit(process.exitCode ?? 0);
+  });
