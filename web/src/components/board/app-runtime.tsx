@@ -28,6 +28,7 @@ import { TradeLog } from "@/components/board/ledger";
 import { Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
+import { cn } from "@/lib/utils";
 
 export function AppRuntime({ name }: { name: string }) {
   const board = useBoard();
@@ -89,8 +90,10 @@ export function AppRuntime({ name }: { name: string }) {
               <button
                 type="button"
                 onClick={() => void haltRemote(m, !policy.halted)}
-                className="border-2 border-[var(--card-b)] px-2 py-0.5 text-[0.625rem] uppercase tracking-[0.08em]"
-                style={policy.halted ? { background: "var(--card-b)", color: "var(--ink)" } : { background: "var(--loss)", color: "#fff" }}
+                className={cn(
+                  "btn press px-2.5 py-0.5 text-[0.625rem] uppercase tracking-[0.08em]",
+                  !policy.halted && "btn--danger",
+                )}
               >
                 {policy.halted ? "Release" : "Kill switch"}
               </button>
@@ -98,7 +101,7 @@ export function AppRuntime({ name }: { name: string }) {
           </div>
         ) : null}
 
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b-[2.5px] border-rule p-3 sm:p-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline p-3 shadow-[inset_0_-1px_0_var(--bevel-hi)] sm:p-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="display text-base leading-none sm:text-xl">{m.title}</h1>
@@ -164,7 +167,7 @@ export function AppRuntime({ name }: { name: string }) {
                 {m.data.sources.map((s) => (
                   <li key={s.subgraphId} className="flex items-baseline gap-2">
                     <span
-                      className="mt-[3px] h-2 w-2 shrink-0"
+                      className="mt-[3px] h-2 w-2 shrink-0 rounded-full shadow-[inset_0_-1px_1px_rgba(0,0,0,0.25)]"
                       style={{ background: s.healthy ? "var(--gain)" : "var(--loss)" }}
                       aria-hidden
                     />

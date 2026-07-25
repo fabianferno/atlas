@@ -105,7 +105,7 @@ export function StudioInput() {
   if (state.phase === "idle") {
     return (
       <section className="panel">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-[1.5px] border-rule bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
           <span className="mono text-[0.625rem] uppercase tracking-[0.12em]">Studio</span>
           <span className="mono text-[0.625rem] tracking-[0.02em] opacity-70">
             15,000+ subgraphs · 9 standardized schemas · 4 chains
@@ -139,7 +139,7 @@ export function StudioInput() {
             rows={3}
             placeholder="Describe an onchain app…"
             aria-label="Describe an onchain app"
-            className="w-full resize-none border-[2.5px] border-rule bg-[var(--card-b)] p-3 text-base leading-snug outline-none placeholder:text-[var(--muted-ink)] sm:text-lg"
+            className="w-full resize-none rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] p-3 text-base leading-snug shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)] outline-none placeholder:text-[var(--muted-ink)] sm:text-lg"
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button type="submit" className="btn press text-sm" disabled={text.trim().length < 4}>
@@ -179,7 +179,7 @@ export function StudioInput() {
   if (state.phase === "resolving" || !state.draft) {
     return (
       <section className="panel panel--monitor">
-        <div className="flex items-center gap-2 border-b-[2.5px] border-rule bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
+        <div className="flex items-center gap-2 border-b border-hairline bg-[var(--ink)] px-3 py-1.5 text-[var(--card-b)] sm:px-5">
           <span className="live-dot" aria-hidden />
           <span className="mono text-[0.625rem] uppercase tracking-[0.12em]">Resolving</span>
         </div>
@@ -252,7 +252,7 @@ function PlanRow({ step, state }: { step: PlanStep; state: "queued" | "running" 
       className={cn("flex items-start gap-2 text-xs", state === "queued" && "opacity-35", state !== "queued" && "snap-in")}
     >
       <span
-        className="mt-[3px] h-2.5 w-2.5 shrink-0 border-[1.5px] border-rule"
+        className="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full border border-hairline shadow-[inset_0_-1px_1px_rgba(0,0,0,0.2)]"
         style={{
           background: state === "done" ? "var(--ink)" : state === "running" ? "var(--live)" : "transparent",
         }}
@@ -291,11 +291,11 @@ function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished
   const valid = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(name);
 
   return (
-    <div className="mt-4 border-t-[2.5px] border-rule pt-3">
+    <div className="mt-4 border-t border-hairline pt-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1 basis-56">
           <Label>Name</Label>
-          <div className="mt-1 flex items-baseline border-[2.5px] border-rule bg-[var(--card-b)] px-2 py-1.5">
+          <div className="mt-1 flex items-baseline rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]">
             <input
               value={name}
               onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
@@ -308,7 +308,7 @@ function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished
 
         <div className="basis-28">
           <Label>Price per run</Label>
-          <div className="mt-1 flex items-baseline border-[2.5px] border-rule bg-[var(--card-b)] px-2 py-1.5">
+          <div className="mt-1 flex items-baseline rounded-[calc(var(--radius)*0.6)] border border-hairline bg-[var(--card-b)] px-2 py-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]">
             <span className="fig text-sm text-[var(--muted-ink)]">$</span>
             <input
               value={price}
@@ -322,8 +322,7 @@ function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished
         <button
           type="button"
           disabled={!valid || publishing}
-          className="btn press text-sm disabled:opacity-40"
-          style={{ background: "var(--ink)", color: "var(--card-b)" }}
+          className="btn btn--primary press text-sm"
           onClick={() => {
             const priceUsd = Number(price) || 0;
             setPublishing(true);
