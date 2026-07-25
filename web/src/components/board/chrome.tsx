@@ -22,9 +22,14 @@ export function TierTag({ tier, className }: { tier: AgencyTier; className?: str
     <span
       className={cn("tag inline-flex items-center gap-1.5 whitespace-nowrap", className)}
       style={{
-        borderWidth: tier === "autonomous" ? "3px" : tier === "monitor" ? "2px" : "1.5px",
-        background: tier === "autonomous" ? "var(--ink)" : "transparent",
-        color: tier === "autonomous" ? "var(--card-b)" : "var(--ink)",
+        background: tier === "autonomous" ? "var(--action)" : "var(--card-b)",
+        color: tier === "autonomous" ? "#fff" : "var(--ink)",
+        boxShadow:
+          tier === "autonomous"
+            ? "inset 0 1px 0 rgba(255,255,255,0.4), var(--elev-2)"
+            : tier === "monitor"
+              ? "inset 0 1px 0 var(--bevel-hi), var(--elev-1), 0 0 0 1px color-mix(in srgb, var(--live) 30%, transparent)"
+              : "var(--inset-groove)",
       }}
       title={TIER_BLURB[tier]}
     >
@@ -54,7 +59,7 @@ export function SectionHead({
   right?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-[2.5px] border-rule pb-2">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)] pb-2">
       <h2 className="display text-[0.9375rem] leading-none sm:text-base">{title}</h2>
       <div className="flex items-baseline gap-3">
         {note ? <span className="mono text-[0.6875rem] text-[var(--muted-ink)]">{note}</span> : null}

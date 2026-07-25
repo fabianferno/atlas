@@ -301,6 +301,10 @@
     border: none;
     border-radius: 100vh;
     color: var(--ink);
+    padding: .5rem 1rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
     background-color: var(--btn-color);
     background-image: radial-gradient(circle at 30% 25%,
       color-mix(in srgb, var(--btn-color), white 45%), transparent 70%);

@@ -134,7 +134,7 @@ export function TierLegend() {
       {(["readonly", "monitor", "autonomous"] as const).map((tier) => (
         <span key={tier} className="flex items-center gap-1.5">
           <span
-            className="h-3 w-5 border-rule bg-[var(--card-b)]"
+            className="h-3 w-5 border-hairline bg-[var(--card-b)]"
             style={{ borderWidth: tier === "autonomous" ? "5px" : tier === "monitor" ? "2.5px" : "1.5px" }}
             aria-hidden
           />

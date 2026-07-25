@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { connectWallet, fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
 import { LiveDot } from "@/components/board/chrome";
+import { cn } from "@/lib/utils";
 
 export function TopBar({ active }: { active?: "board" | "registry" }) {
   const board = useBoard();
@@ -15,7 +16,7 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
   const spent = spentToday(board);
 
   return (
-    <header className="sticky top-0 z-40 border-b-[2.5px] border-rule bg-[var(--paper)]">
+    <header className="sticky top-0 z-40 border-b border-hairline bg-[var(--paper)] shadow-[var(--elev-1)]">
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-5 sm:py-2.5">
         <Link href="/" className="display shrink-0 text-[0.9375rem] leading-none sm:text-[1.0625rem]">
           Graph Mini Apps
@@ -59,8 +60,10 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
           <button
             type="button"
             onClick={() => setHalted(!board.halted)}
-            className="btn ml-auto shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em] sm:ml-0"
-            style={board.halted ? undefined : { background: "var(--loss)", color: "#fff" }}
+            className={cn(
+              "btn ml-auto shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em] sm:ml-0",
+              !board.halted && "btn--danger",
+            )}
             aria-pressed={board.halted}
           >
             {board.halted ? "Release halt" : "Halt all"}
@@ -78,7 +81,7 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
 
       {board.halted ? (
         <div
-          className="border-t-[2.5px] border-rule px-3 py-1.5 text-center sm:px-5"
+          className="border-t border-hairline px-3 py-1.5 text-center sm:px-5"
           style={{ background: "var(--loss)", color: "#fff" }}
         >
           <span className="mono text-[0.6875rem] uppercase tracking-[0.1em]">

@@ -198,8 +198,10 @@ function Block({ block, compact }: { block: UiBlock; compact: boolean }) {
               {d.unit}
             </span>
           </div>
-          <div className="relative mt-3 h-4 w-full border-[1.5px] border-rule">
-            <div className="absolute inset-y-0 left-0" style={{ width: `${pct * 100}%`, background: accentVar(d.status) }} />
+          <div className="relative mt-3 h-4 w-full">
+            <div className="absolute inset-0 overflow-hidden rounded-full border border-hairline">
+              <div className="absolute inset-y-0 left-0" style={{ width: `${pct * 100}%`, background: accentVar(d.status) }} />
+            </div>
             <div
               className="absolute inset-y-[-4px] w-[3px]"
               style={{ left: `calc(${tPct * 100}% - 1.5px)`, background: "var(--ink)" }}
@@ -228,7 +230,7 @@ function Block({ block, compact }: { block: UiBlock; compact: boolean }) {
               of {spending ? fmtUsd(d.target) : `${d.target} ${d.unit}`}
             </Fig>
           </div>
-          <div className="mt-2 h-3 w-full border-[1.5px] border-rule">
+          <div className="mt-2 h-3 w-full overflow-hidden rounded-full border border-hairline">
             <div
               className="h-full"
               style={{ width: `${pct * 100}%`, background: spending ? "var(--spend)" : "var(--ink)" }}
@@ -336,7 +338,7 @@ function Block({ block, compact }: { block: UiBlock; compact: boolean }) {
       const dark = d.level !== "risk";
       return (
         <div
-          className="flex items-center gap-2 border-[1.5px] border-rule px-2.5 py-2"
+          className="flex items-center gap-2 rounded-full border border-hairline px-2.5 py-2"
           style={{ background: accentVar(d.level), color: dark ? "#fff" : "var(--ink)" }}
         >
           <span className="mono text-[0.625rem] uppercase tracking-[0.1em] opacity-80">{d.level}</span>
