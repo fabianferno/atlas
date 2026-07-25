@@ -87,7 +87,11 @@ export const zPolicy = z.object({
 export type Policy = z.infer<typeof zPolicy>;
 
 export const zAction = z.object({
-  kind: z.enum(["swap", "supply", "withdraw", "repay", "claim", "notify"]),
+  // `approve` is additive to the original set. Granting a spender an allowance
+  // is a real onchain action a mini app takes — it is the first step of every
+  // swap — and it needs its own name: describing it as a `swap` would make the
+  // manifest lie about what the signer did.
+  kind: z.enum(["swap", "approve", "supply", "withdraw", "repay", "claim", "notify"]),
   target: z.string().optional(),
   params: z.record(z.string(), z.unknown()).default({}),
   label: z.string(),

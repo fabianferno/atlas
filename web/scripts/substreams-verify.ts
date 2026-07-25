@@ -29,9 +29,104 @@
  */
 import { runStream } from "@/lib/agency/stream-runner";
 import { getJournal } from "@/lib/agency/journal";
-import { ensureDemoApp } from "@/lib/agency/wallet";
+import {
+  BASE_SEPOLIA_SWAP_ROUTER,
+  BASE_SEPOLIA_USDC,
+  defaultPolicyForTier,
+  ensureDemoApp,
+  getApp,
+  provisionWallet,
+  registerApp,
+  type RegisteredApp,
+} from "@/lib/agency/wallet";
 import { isStreamLive, resolveStreamTarget, type StreamTick } from "@/lib/kit/substreams";
-import { NETWORKS, type Network } from "@/lib/contracts/manifest";
+import { NETWORKS, type Agency, type Network, type Policy } from "@/lib/contracts/manifest";
+
+/* ------------------------------------------------------------------ *
+ * --real: a transaction that actually lands, and is exactly what it says
+ *
+ * WHY NOT THE DEMO APP'S SWAP. `calldataFrom` returns `0x` unless the action
+ * declares explicit `data`, and `derisk` declares none — so a real run would
+ * send a 0-value, empty-calldata call to Uniswap's SwapRouter02, whose
+ * `receive()` requires `msg.sender == WETH9`. That reverts. A real tx hash for a
+ * FAILED transaction is worse than an honest simulation: it puts a red entry on
+ * Basescan in the middle of a demo.
+ *
+ * A successful swap needs testnet WETH, an approval, and correct
+ * `exactInputSingle` params. That is a different piece of work.
+ *
+ * So `--real` registers a SEPARATE app whose action is a real
+ * `approve(router, 25 USDC)` on Base Sepolia USDC. It is genuinely the first
+ * step of the swap, it lands, it costs only gas (approving a zero balance is
+ * legal), it is signed by the app's own session key, and it passes through the
+ * same policy gate — the target must be allowlisted or it is refused.
+ *
+ * NARRATE IT AS AN APPROVAL. "The agent signed this itself, under its policy,
+ * and here it is onchain" is true. "It executed a swap" is not.
+ *
+ * The product's `ensureDemoApp` is deliberately left untouched.
+ * ------------------------------------------------------------------ */
+
+/** `approve(address,uint256)` */
+const APPROVE_SELECTOR = "0x095ea7b3";
+
+function encodeApprove(spender: string, amount: bigint): string {
+  const pad = (hex: string) => hex.replace(/^0x/, "").toLowerCase().padStart(64, "0");
+  return `${APPROVE_SELECTOR}${pad(spender)}${pad(amount.toString(16))}`;
+}
+
+async function signerBalance(): Promise<string> {
+  const { createPublicClient, http, formatEther } = await import("viem");
+  const { baseSepolia } = await import("viem/chains");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const pk = process.env.AGENT_SESSION_PRIVATE_KEY as `0x${string}` | undefined;
+  if (!pk) return "0";
+  const client = createPublicClient({
+    chain: baseSepolia,
+    transport: http(process.env.AGENCY_RPC_URL ?? "https://sepolia.base.org"),
+  });
+  const balance = await client.getBalance({ address: privateKeyToAccount(pk).address });
+  return formatEther(balance);
+}
+
+async function registerRealApp(): Promise<RegisteredApp> {
+  const appId = "substreams-verify-real";
+  const existing = getApp(appId);
+  if (existing) return existing;
+
+  // The token contract is the target, because `approve` is called ON the token.
+  // It therefore has to be the allowlisted address, or the gate refuses it —
+  // which is the gate working, not a loophole.
+  const policy: Policy = {
+    ...defaultPolicyForTier("autonomous"),
+    allowlist: [BASE_SEPOLIA_USDC.address],
+    maxPerTxUsd: 50,
+    maxSpendUsd: 250,
+  };
+  const wallet = await provisionWallet({ appId, tier: "autonomous", policy });
+  policy.wallet = wallet.address;
+
+  const agency: Agency = {
+    tier: "autonomous",
+    triggers: [
+      { on: "stream", when: "healthFactor < 1.15", run: "approveRouter", intervalSec: undefined },
+    ],
+    actions: {
+      approveRouter: {
+        kind: "approve",
+        target: BASE_SEPOLIA_USDC.address,
+        params: {
+          amountUsd: 25,
+          data: encodeApprove(BASE_SEPOLIA_SWAP_ROUTER, 25_000_000n), // 25 USDC, 6 decimals
+        },
+        label: "Approve the router to spend 25 USDC",
+      },
+    },
+    policy,
+  };
+
+  return registerApp({ appId, agency, wallet });
+}
 
 function flag(name: string): string | undefined {
   const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -56,6 +151,8 @@ const network = networkRaw as Network;
 const blocks = intFlag("blocks", 3);
 const behind = intFlag("behind", 20);
 const breachOn = flag("no-breach") !== undefined ? -1 : intFlag("breach-on", 2);
+/** Send a real Base Sepolia transaction instead of a simulated one. */
+const real = flag("real") !== undefined;
 
 /**
  * Derive the injected metric from the app's OWN trigger condition.
@@ -108,7 +205,18 @@ async function main(): Promise<void> {
   console.log(`  module    ${target.module}`);
   console.log(`  start     ${behind} blocks behind head`);
 
-  const app = await ensureDemoApp("substreams-verify");
+  const app = real ? await registerRealApp() : await ensureDemoApp("substreams-verify");
+  if (real) {
+    const balance = await signerBalance();
+    console.log(`  signer    ${app.wallet.sessionKeyAddress ?? app.wallet.address} · ${balance} ETH on ${app.wallet.chainName}`);
+    if (balance === "0") {
+      console.error(
+        `\nThe session key holds no gas, so the transaction cannot be sent.\n` +
+          `Fund ${app.wallet.sessionKeyAddress ?? app.wallet.address} with Base Sepolia ETH and re-run.`,
+      );
+      process.exit(1);
+    }
+  }
 
   // The condition this app actually declares — not one this script assumes.
   const streamTrigger = app.agency.triggers.find((t) => t.on === "stream");
