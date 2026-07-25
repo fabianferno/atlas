@@ -12,7 +12,7 @@ import Link from "next/link";
 import type { JournalEntry } from "@/lib/contracts/policy";
 import type { LedgerLine } from "@/lib/seed";
 import type { BoardState } from "@/lib/store";
-import { fmtTime, fmtUsd, shortHash, spentToday, useBoard, useLedgerTicker } from "@/lib/store";
+import { fmtTime, fmtUsd, shortHash, spentToday, useBoard } from "@/lib/store";
 import { Label, SectionHead } from "@/components/board/chrome";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +26,15 @@ const KIND_STYLE: Record<JournalEntry["kind"], { color: string }> = {
 };
 
 /**
- * Drives the background feed. Mount once per page — running agents keep
- * writing to the ledger whether or not their app is open.
+ * There is no `LedgerTicker`. It mounted a 4.2-second interval that invented a
+ * block number, a tx hash and a swap amount, and wrote the invented spend into
+ * app stats — so this component's job was to make the board look busy while
+ * nothing ran. Removed with the hook behind it; see the note in `lib/store.ts`.
+ *
+ * Lines now arrive from `runApp`, `watchBlocks`, `dispatchAction`, `haltRemote`
+ * and `publishApp`. Nothing needs mounting for that to work, because a real
+ * event writes to the store wherever it is triggered from.
  */
-export function LedgerTicker() {
-  useLedgerTicker();
-  return null;
-}
 
 /**
  * The newest `limit` lines, newest first. Shared by the body below and by the

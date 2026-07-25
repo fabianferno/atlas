@@ -5,7 +5,6 @@
  */
 import type { Metadata } from "next";
 import { AppRuntime } from "@/components/board/app-runtime";
-import { LedgerTicker } from "@/components/board/ledger";
 import { TopBar } from "@/components/board/top-bar";
 import { SEED_APPS } from "@/lib/seed";
 
@@ -28,7 +27,6 @@ export default async function MiniAppPage({ params }: { params: Promise<{ name: 
   return (
     <>
       <TopBar />
-      <LedgerTicker />
       <AppRuntime name={name} />
     </>
   );
