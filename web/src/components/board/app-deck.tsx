@@ -14,7 +14,7 @@
  * to `/a/[name]` still render the same runtime full-width, so nothing here is
  * load-bearing for sharing.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { myApps, tierCounts, useBoard } from "@/lib/store";
 import { SectionHead } from "@/components/board/chrome";
@@ -42,6 +42,34 @@ export function AppDeck() {
   // separate on purpose: scrolling moves the highlight, only a click opens.
   const [selected, setSelected] = useState(0);
   const [openName, setOpenName] = useState<string | null>(null);
+
+  // Where the wheel's center row sits, so the globe can put its equator on the
+  // same line. Measured rather than assumed: the wheel's distance from the top
+  // of the page is the sum of the top bar, the section heading and the mask —
+  // whereas the globe is centered on the VIEWPORT, so the two only agreed at one
+  // window height and drifted apart from there. Page coordinates (rect + scroll)
+  // rather than viewport ones, because the globe is fixed and this is measured
+  // whenever the layout changes, not on every scroll.
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const [wheelCenterY, setWheelCenterY] = useState<number | null>(null);
+  const measureWheel = useCallback(() => {
+    const el = wheelRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setWheelCenterY(r.top + window.scrollY + r.height / 2);
+  }, []);
+  useEffect(() => {
+    measureWheel();
+    const el = wheelRef.current;
+    if (!el) return;
+    // The box changes height with nothing but its own constants, but it MOVES
+    // with anything above it — a wrapped heading at a narrow width, say — so the
+    // observer watches the box and the window both.
+    const ro = new ResizeObserver(measureWheel);
+    ro.observe(el);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [measureWheel, apps.length]);
 
   const items: WheelItem[] = useMemo(
     () =>
@@ -76,7 +104,7 @@ export function AppDeck() {
         wheel rather than asking the wheel to step aside, off the same globe
         edge (`PANEL_WIDTH`). Change the gutter and the panel follows.
       */}
-      <BoardGlobe open={openName !== null} />
+      <BoardGlobe open={openName !== null} centerY={wheelCenterY} />
 
       <div
         className="relative z-10 grid grid-cols-1 items-center lg:grid-cols-[minmax(0,var(--deck-gutter))_minmax(0,var(--deck-wheel))_1fr]"
@@ -120,6 +148,7 @@ export function AppDeck() {
                 clipping at a hard edge.
               */}
               <div
+                ref={wheelRef}
                 className="relative mx-auto mt-3 lg:mx-0 [mask-image:linear-gradient(to_bottom,transparent,black_14%,black_86%,transparent)]"
                 style={{
                   height: WHEEL_CARD_EXPAND + ROW_HEIGHT * VISIBLE_ROWS,

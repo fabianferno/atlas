@@ -45,7 +45,20 @@ function useIsDesktop(): boolean {
   );
 }
 
-export function BoardGlobe({ open }: { open: boolean }): React.JSX.Element {
+export function BoardGlobe({
+  open,
+  centerY,
+}: {
+  open: boolean;
+  /**
+   * px from the top of the page to put the globe's equator on — the wheel's
+   * center row, measured by the deck. The sphere's rim and the card arc then
+   * bulge from the same line, which is the only way the two read as one curve.
+   * Null before the deck has measured (and when it has no wheel to measure), and
+   * the globe falls back to the middle of the viewport.
+   */
+  centerY: number | null;
+}): React.JSX.Element {
   const isDesktop = useIsDesktop();
 
   return (
@@ -59,6 +72,11 @@ export function BoardGlobe({ open }: { open: boolean }): React.JSX.Element {
     <div
       aria-hidden
       className="pointer-events-none fixed left-1/2 top-0 -z-10 hidden h-screen w-screen -translate-x-1/2 items-center overflow-hidden lg:flex"
+      // The layer centers the globe on the viewport; this lifts it to the deck's
+      // center row instead. Safe alongside the `-translate-x-1/2` above, which
+      // Tailwind v4 writes to the `translate` property — a different property
+      // that composes with this one rather than overwriting it.
+      style={centerY === null ? undefined : { transform: `translateY(calc(${centerY}px - 50vh))` }}
     >
       <div
         className={cn(
