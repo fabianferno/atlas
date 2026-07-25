@@ -13,5 +13,6 @@ import "./triggers.test";
 import "./session.test";
 import "./stream-runner.test";
 import "../kit/shapes.test";
+import "../coverage/registry.test";
 
 void report();
