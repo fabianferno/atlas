@@ -34,6 +34,10 @@ The tier is not decoration: **depth encodes agency**, and an autonomous app alwa
 
 **The agent cannot inject code.** It emits [A2UI](https://github.com/google/A2UI) v0.9.1 — declarative data, not executable code. The client holds the approved component catalog and the agent may only reference components by name. For a generated interface that can move money, this is the whole safety argument.
 
+**The theme swap proves it.** One attribute (`data-skin`) re-expresses the entire system in a different material — `tactile`, the skeuomorphic default, and `flat`, the neo-brutalism this shipped before. Tokens and material only: no component changes, no catalog entry changes, no manifest re-read, nothing round-trips to the agent. Press the button in the top bar while a live autonomous app is on screen and the same manifest renders in a different skin. That is A2UI's core property in one gesture, and it is why the aesthetic is a choice sitting on the architecture rather than being the architecture.
+
+Agency stays legible in both, which is the part that isn't negotiable — depth encodes it in `tactile`, border weight (1.5/2.5/5px) in `flat`. A skin that hid which apps can spend would be a bug, not a theme.
+
 **Form follows data, not keywords.** The composer picks components from the shape of what came back: a bounded ratio becomes a gauge, a ranked categorical becomes a leaderboard. Not from words in the prompt.
 
 ---

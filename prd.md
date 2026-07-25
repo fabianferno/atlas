@@ -441,6 +441,18 @@ The agent has no idea what any of this looks like. It emits semantic A2UI; the c
 
 That demonstrates A2UI's entire design property in one gesture — and it proves the aesthetic is a choice sitting on real architecture, not the architecture itself.
 
+**As built.** One attribute — `data-skin` on the root element — and `globals.css` re-expresses the system in a different material. Two skins ship: `tactile` (the v7 skeuomorphic default) and `flat` (the v6 neo-brutalism, kept alive rather than thrown away). The swap touches **tokens and material only**: no component, no catalog entry, no manifest re-read, and nothing round-trips to the agent. Delete the second skin and the app still works with one.
+
+**Rule 1 holds in both, by different means, and that is the non-negotiable part** — a skin that hid which apps can spend would be a bug, not a theme:
+
+| | `tactile` | `flat` |
+|---|---|---|
+| agency reads as | depth — flush · raised · standing proud | border weight — 1.5px · 2.5px · 5px |
+| accent | warm orange `--action` | `--live` blue |
+| shadow | soft elevation, catch-lights | hard offset, or nothing |
+
+Verified by reading computed style back off the page in both skins: autonomous is `5px` in `flat` and `1px` with a 225-character box-shadow in `tactile`. The preference is applied by an inline script before first paint, because a flash of the wrong skin on camera reads as a bug in the product rather than a feature of it.
+
 ---
 
 # 7. Agency and safety
@@ -913,7 +925,7 @@ Each owns a directory, has a definition of done, and shares no mutable state wit
 | W2 | **Streams** | Substreams packages, subscription, trigger evaluation | source | ✅ **Done.** Block 487508074 on Arbitrum fired `0:stream:derisk`, the gate passed it, the journal recorded it — plus a control run that consumed three healthy blocks and fired nothing. `scripts/substreams-verify.ts` re-runs both |
 | W3 | **Planner** | NL → plan, on 0G Compute, attestation capture | manifest, api | Arbitrary question → valid plan + stored attestation |
 | W4 | **Composer** | plan + data → A2UI doc, form-follows-data rules | catalog, a2ui | Every catalog component reachable from some data shape |
-| W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch; theme swap works |
+| W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | ✅ **Done.** Fixture and composed manifests render, Button server-events dispatch, and the theme swap works — `[data-skin]` on the root element, tokens and material only, no component or catalog change. Verified round-trip: tier reads as depth in `tactile` and as border weight (1.5/2.5/5px) in `flat`, so agency stays legible in both |
 | W5b | **Shell** | ~~desktop, windows, taskbar, tray, Start menu, Task Manager~~ **cut — see §6.** Board, Ledger, App | — | Board lists apps by tier; Ledger streams every action; global halt in the top bar |
 | W6 | **Agency** | policy engine, smart account + session keys, signer, kill switch, journal | policy, manifest | Action executes on testnet; every policy rejection path tested |
 | W7 | **Identity** | ENS issuance + records, ERC-7857 + oracle + mint, mutual verification | manifest | Name resolves to app; ENSIP-25 binding verifies both directions |

@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { connectWallet, fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
 import { LiveDot } from "@/components/board/chrome";
+import { SkinToggle } from "@/components/board/skin-toggle";
 import { cn } from "@/lib/utils";
 
 export function TopBar({ active }: { active?: "board" | "registry" }) {
@@ -57,11 +58,15 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
             </span>
           </span>
 
+          {/* The theme swap. Sits next to halt because both are client-held
+              controls the agent cannot reach — see skin-toggle.tsx. */}
+          <SkinToggle className="ml-auto sm:ml-0" />
+
           <button
             type="button"
             onClick={() => setHalted(!board.halted)}
             className={cn(
-              "btn ml-auto shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em] sm:ml-0",
+              "btn shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em]",
               !board.halted && "btn--danger",
             )}
             aria-pressed={board.halted}

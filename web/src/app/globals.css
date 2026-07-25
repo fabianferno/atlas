@@ -199,6 +199,145 @@
   --ring: var(--action);
 }
 
+/* ============================================================================
+   THE SECOND SKIN — prd.md §6, "the theme swap"
+
+   The agent has no idea what any of this looks like. It emits semantic A2UI;
+   the client holds the catalog and decides how a `gauge` or a `leaderboard`
+   draws. So the same manifest, byte for byte, can render in a completely
+   different skin — and the swap is the shortest possible proof of that
+   property, which is why it earns five seconds of a 2:50 video.
+
+   Everything below is TOKENS AND MATERIAL ONLY. No component is touched, no
+   catalog entry changes, no manifest is re-read, nothing re-renders from the
+   agent. If this file were deleted the app would still work; it would just
+   have one skin. That separation is the architecture, and it is what makes
+   this a demonstration rather than a coat of paint.
+
+   RULE 1 HOLDS IN BOTH SKINS, by different means, and this is the part that
+   is not negotiable: you must always be able to see which apps can spend.
+     tactile  agency = DEPTH        flush · raised · standing proud
+     flat     agency = BORDER WEIGHT 1.5px · 2.5px · 5px
+   The flat skin is the neo-brutalism this product shipped before v7 (see
+   Appendix C), so the two skins are the two directions the design actually
+   went through — both encoding the same true thing about capability.
+   ========================================================================= */
+
+[data-skin="flat"] {
+  --paper:  #EFEEE9;
+  --card-b: #FFFFFF;
+  --ink:    #0A0A0A;   /* true black, not warm charcoal */
+  --rule:   #000000;   /* Rule 2: borders are pure black, never a tint */
+  --muted-ink: #75736C;
+  --hairline: #000000;
+
+  --action: #0047FF;   /* the flat skin's accent is --live blue, not orange */
+  --live:  #0047FF;
+  --gain:  #007A3D;
+  --loss:  #D6220F;
+  --risk:  #FFB800;
+  --spend: #7B2FF7;
+
+  /* No catch-lights, no soft elevation. A hard offset shadow or nothing. */
+  --bevel-hi: transparent;
+  --bevel-lo: transparent;
+  --elev-1: 3px 3px 0 var(--rule);
+  --elev-2: 5px 5px 0 var(--rule);
+  --elev-3: 5px 5px 0 var(--rule);
+  --inset-groove: none;
+
+  --radius: 0;
+}
+
+@layer components {
+  /* Rule 1, restated in the flat material: tier drives BORDER WEIGHT. */
+  [data-skin="flat"] .panel {
+    border: 1.5px solid var(--rule);
+    box-shadow: none;
+  }
+  [data-skin="flat"] .panel--monitor {
+    border: 2.5px solid var(--rule);
+    box-shadow: none;
+  }
+  [data-skin="flat"] .panel--autonomous {
+    border: 5px solid var(--rule);
+    box-shadow: none;
+  }
+
+  [data-skin="flat"] .policy-strip {
+    border-radius: 0;
+    border-bottom: 2.5px solid var(--rule);
+    background: var(--risk);
+    box-shadow: none;
+  }
+
+  /* The hard offset shadow is reserved for things you can act on — never a
+     static panel. Restraint is what makes the shadow mean something. */
+  [data-skin="flat"] .raise,
+  [data-skin="flat"] .raise-sm { box-shadow: var(--elev-1); }
+  [data-skin="flat"] .press:active { transform: translate(1px, 1px); box-shadow: none; }
+
+  [data-skin="flat"] .btn {
+    border: 1.5px solid var(--rule);
+    border-radius: 0;
+    background-image: none;
+    background-color: var(--btn-color);
+    box-shadow: 3px 3px 0 var(--rule);
+    text-shadow: none;
+  }
+  [data-skin="flat"] .btn:hover,
+  [data-skin="flat"] .btn:focus-visible {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--rule);
+  }
+  [data-skin="flat"] .btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--rule);
+  }
+  [data-skin="flat"] .btn:disabled { box-shadow: none; transform: none; }
+  /* White clears AA on this blue, unlike on the tactile skin's orange. */
+  [data-skin="flat"] .btn--primary { --btn-color: var(--action); color: #fff; text-shadow: none; }
+  [data-skin="flat"] .btn--danger  { --btn-color: var(--loss); color: #fff; }
+  [data-skin="flat"] .btn--quiet   { background-color: var(--card-b); box-shadow: none; }
+
+  [data-skin="flat"] .tag {
+    border: 1.5px solid var(--rule);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Rule 3 survives the swap unchanged in spirit: ink at varying weight, one
+     accent. Only the bevel goes. */
+  [data-skin="flat"] .bar,
+  [data-skin="flat"] .bar--60,
+  [data-skin="flat"] .bar--35,
+  [data-skin="flat"] .bar--accent {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  [data-skin="flat"] .bar { background-image: none; background-color: var(--ink); }
+  [data-skin="flat"] .bar--60 { background-image: none; background-color: color-mix(in srgb, var(--ink) 60%, var(--paper)); }
+  [data-skin="flat"] .bar--35 { background-image: none; background-color: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
+  [data-skin="flat"] .bar--accent { background-image: none; background-color: var(--action); }
+
+  /* A flat square lamp, not a lit dome. */
+  [data-skin="flat"] .live-dot {
+    border-radius: 0;
+    background: var(--live);
+    box-shadow: none;
+  }
+}
+
+@layer base {
+  /* Brutalism needs black rules on light ground, and no emboss on type. */
+  [data-skin="flat"] body { background: var(--paper); }
+  [data-skin="flat"] h1,
+  [data-skin="flat"] h2,
+  [data-skin="flat"] h3,
+  [data-skin="flat"] .display { text-shadow: none; }
+  [data-skin="flat"] :focus-visible { outline: 3px solid var(--action); outline-offset: 2px; }
+}
+
 @theme inline {
   --color-paper: var(--paper);
   --color-ink: var(--ink);
