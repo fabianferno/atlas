@@ -177,6 +177,8 @@ MCP server config, SKILL library, and the generator all live inside this app. A 
 
 Generative UI over live Graph data, with actions. NL → intent → standardized schema resolution → parallel fan-out across **all ten standardized schema families** → Substreams subscription for anything event-driven → A2UI document with interactive components → rendered, live, acting.
 
+> **"All ten" is the resolver's reach, not the coverage — say nine.** §13's audit found `dex-aggregator@1.0.2` and `network@1.2.0` have **zero standardized deployments on any network**, so 9 of 11 declared families have anything live behind them: 86 verified deployment IDs of 96 registry entries (9 placeholders, 1 unverified), re-counted off `GET /api/graph` this pass. The registry's schema filter labels a declared-but-dead family *"— no live deployment"* rather than offering it as coverage. Neither this document nor the README claims eleven anywhere; keep it that way, and claim nine in the demo, because every one of the 86 was checked.
+
 Track 3's bar is *"compose two or more Graph products, OR build meaningfully on a standardized schema."* We do both, several times over (§10). Track 3 also scores **Breadth at 20%** — so full schema coverage across ≥3 chains is directly rewarded, not just thoroughness for its own sake.
 
 ## P3 — Identity → ENS Track 1 + 2, 0G Track 1
@@ -184,6 +186,8 @@ Track 3's bar is *"compose two or more Graph products, OR build meaningfully on 
 Every mini app gets an **ENS subname** and an **Agentic ID (ERC-7857) on 0G Chain**. The name is how humans and agents find and run it. The Agentic ID is its onchain identity and the thing its wallet is bound to.
 
 Naming is not decoration here — **a mini app has a wallet, so it needs a name a human can verify before funding it.** `aave-guard.atlas-apps.eth` resolving to both a UI and an address is the entire safety UX.
+
+> **Not what runs — read this with §7's "Wallets" and §14 #1b.** "Every mini app gets its own wallet" is the design. `AGENT_SESSION_PRIVATE_KEY` is process-wide, so **one session key signs for every mini app** and every app's `addr` resolves to the same address — verified by registering two apps and comparing. The paragraph above is kept because it is the argument the build was made against and because it states correctly *why* per-app isolation matters; it is not a description of the current state. The safety UX degrades in a specific way worth naming: the name still tells you what the app is, and no longer tells you that funding it funds only it.
 
 ## P4 — The Ecosystem → Graph Track 1, ENS Track 1
 
@@ -270,7 +274,7 @@ The single most important object in the system. Registry, ENS, forking, provenan
 
 **Design notes**
 
-- **`data` is separate from `ui`.** Re-running the data plan gives fresh results, so a resolved ENS name is *live*, not a screenshot. This is what makes it a mini app rather than a permalink.
+- **`data` is separate from `ui`.** Re-running the data plan gives fresh results, so a resolved ENS name is *live*, not a screenshot. This is what makes it a mini app rather than a permalink. **As built, and this was argued for long before it was true:** the app's **Run** button used to increment a counter and write a ledger line *claiming* a query had happened. It now reconstructs the plan from the manifest's pinned `queries`/`variables` — reproducible without going back through inference, which is what pinning them was for — re-fires the fan-out at `/api/graph`, re-composes through `/api/compose`, and reports rows, deployments that answered of deployments queried, cost and elapsed, or says `FIXTURES — the gateway is not keyed, so no deployment was queried`. Also `PublishedStrip`, the app's only caller of `GET /api/resolve`: until it existed, nothing in the product exercised this design note at all.
 - **`sources` is health-checked at generation time.** ~28% of standardized deployments are dead at any moment (§17) — freezing a verified-live source is a correctness requirement.
 - **`agency.policy` is the security boundary.** It is enforced at the signer, not suggested to the model. See §7.
 - **`forkedFrom` pins a version.** Forking a moving target is how you get a fork that silently breaks.
@@ -430,6 +434,8 @@ Without an OS metaphor, three surfaces carry the load:
 
 Global halt lives in the top bar, always reachable. Per-app kill switch lives in the app.
 
+**A fourth thing shipped that this list did not anticipate — the Published strip.** `/registry` opens with a row per issued subname, each resolved live through `GET /api/resolve/<label>` on mount, rendering `addr`, `contenthash` → whether the manifest bytes arrived, the ENSIP-25 binding with its Agentic ID token linked to the 0G explorer, and the two-directional verification. It belongs in §6 rather than only in §8 because it is the surface that makes §14 #7's "standards leverage visible in the demo" true, and because it is where the design rules get their hardest test: it renders records that are *absent* (`aave-health-guard` has no `addr`) and must colour absence as muted rather than as `--loss`, since a missing record is not a failure and a plausible-looking substitute would be the actual dishonesty. Under §6 rule 1 as shipped it sits flush in the readonly groove — reading records is not agency, so it gets no depth.
+
 ### Build notes
 
 - Tailwind + shadcn/ui as the base, restyled to the tokens. shadcn is unstyled primitives, so it takes a brutalist skin cleanly — but **override the default radius to 0 and the default shadows to hard offsets globally**, or every component drifts back to generic.
@@ -491,6 +497,8 @@ proposed action
 
 ## Wallets
 
+> **Superseded by what runs — read this first.** "Each mini app gets its own wallet" is the design below and **not the current state.** `provisionWallet` reads `AGENT_SESSION_PRIVATE_KEY`, which is process-wide, so in the running `session-eoa` mode every app returns the same signer: `POST /api/agency/register` for two different app names both answer `0xedE65679…3fE12`, `sessionKeyAddress` identical. Only the `stub`/`readonly` paths derive per-app addresses, and those sign nothing. The rest of this subsection is kept intact because the isolation argument in it is the reason this is a defect rather than a detail — §8's case for the ENS name as a safety primitive assumes a funded address belongs to one app, and one shared key means funding one funds all. See §14 #1b for the verification and `README.md` → Not in scope for the user-facing disclosure.
+
 Each mini app gets its own wallet. Options, in order of speed-to-demo:
 
 | Approach | Notes |
@@ -526,6 +534,8 @@ Four signer modes behind one interface, selected by `AGENCY_WALLET_MODE`:
 | `requireConfirm` / tier | server — no validator models "a human pressed Confirm" |
 | kill switch | server — the onchain counterpart is `getRemoveSessionAction` |
 
+**"The UI reports it per constraint" was a specification, and for a while nothing displayed it.** `enforcementReport()` in `agency/wallet.ts` has always been the single author of that answer, and the app rendered caps with no enforcement site beside them — which invites the reader to assume the limits printed next to an address are enforced somewhere they are not. The autonomous app's enforcement block now renders the report row by row, verbatim, and `POST /api/agency/register` and `GET /api/act` return the identical block so a client cannot read a second, slightly-different wallet shape. Verified live: in the running `session-eoa` mode every row reads `server`, `verifiedOnchain: false`, and the report's own note says a compromised backend could exceed the limits.
+
 **Verified live on Base Sepolia:** all ten Rhinestone contracts deployed, a real `permissionId` computed, `isSessionEnabled()` read from the validator, and the signer refusing to sign with `SessionNotEnabled` rather than falling back to owner signing. **Not verified: the happy path** — a userOp actually landing needs a funded ERC-7579 account, a bundler URL, and the owner's enable transaction. Do not claim a completed onchain-enforced trade until one lands.
 
 **What HAS landed, in `session-eoa` mode:** a real transaction from a real trigger — `0x5a44e9d5…9d78`, status success, block 44604106. Be precise about what that does and does not prove. It proves the whole chain is connected: a block-level Substreams event reached the trigger evaluator, the policy gate allowed it against a real allowlist and cap, the app's own session key signed, and the effect is verifiable onchain. It does **not** prove onchain enforcement — in `session-eoa` the policy is enforced by this process, so "the policy stopped it" still means *our server chose not to sign*. And the action is an `approve`, not a swap. Two separate limits, both worth saying out loud rather than letting a tx hash imply more than it shows.
@@ -555,7 +565,9 @@ Four backends ship behind one interface, selected by `ENS_REGISTRAR_MODE`, degra
 | NameStone | Implemented, **but see below — do not demo it** |
 | Local mock | Default with no keys |
 
-**Verified end to end**, `aave-health-guard.atlas-apps.eth` and `wallet-bound-guard.atlas-apps.eth`: `addr` → the mini app's own wallet, `contenthash` → a CID that decodes to exactly the published manifest, ENSIP-26 `agent-context` / `agent-endpoint[web]` / `agent-endpoint[mcp]`, and an ENSIP-25 `agent-registration` entry the 0G registry confirms in the other direction. Deployment record: `contracts/deployments/ens-sepolia.json`.
+**Verified end to end** — but on a different name than this paragraph originally cited, and the substitution is the point. It named `aave-health-guard.atlas-apps.eth` and `wallet-bound-guard.atlas-apps.eth`; re-measured this pass, **neither can carry the claim any more**: both their manifest CIDs return 504 from ipfs.io permanently (§14 #9), `aave-health-guard` has no `addr` record at all, and both resolve `mutuallyVerified: false` because their tokens still assert the pre-rename parent. The name that does carry it is **`atlas-market-guard.atlas-apps.eth`**: `addr` → the address the record points at, `contenthash` → a CID that fetches from ipfs.io and decodes to exactly the published `atlas/2` manifest, ENSIP-26 `agent-context` / `agent-endpoint[web]` / `agent-endpoint[mcp]` on the live origin, and an ENSIP-25 `agent-registration` entry the 0G registry confirms in the other direction — `mutuallyVerified: true`, token 10.
+
+Deployment record: `contracts/deployments/ens-sepolia.json`, which now lists all **eight** issued subnames with `manifestAvailability` (five resolve, three permanently 504) and `registryGap` (one name the 0G registry does not assert — §14 #13a). One gap remains: its `verifiedSubname` still nominates `aave-health-guard`, the name that can no longer carry this claim. Read the chain for which subnames exist and what they assert; that file is a record of the chain, not a substitute for it.
 
 **Three findings that changed this plan:**
 
@@ -745,15 +757,29 @@ Dune's flywheel was never the dashboards — it was fork, attribution, and a lea
 
 Browse and search published mini apps. Filter by category (analytics / monitor / autonomous), chain, protocol, schema, tag. Show what matters: **times forked, times run, total value transacted, creator.** Vanity metrics are worse than none.
 
+> **Two corrections to that paragraph, both from this pass.**
+>
+> **"Published mini apps" is not what it browses.** The board and the registry are per-browser `localStorage` (`atlas.board`) over the seed snapshot. Publishing writes real ENS records and mints a real Agentic ID, but the grid a visitor sees is their own, not a directory — there is no server-side index of published apps, and fork counts and ratings are local for the same reason. `/registry`'s Published strip is the one part that reads shared state, because it resolves names off Sepolia.
+>
+> **"Total value transacted" was the vanity metric this paragraph warns about, and it was worse than vanity.** A client-side interval invented a block number, a tx hash and a dollar amount every 4.2 seconds and wrote them into `stats.valueTransactedUsd` and `stats.spentUsd`; the grid sorted on the first and the app panel displayed both as money moved. Deleted. `spentUsd` now comes from the server's `totalSpentUsd(appId)` — the same figure the lifetime cap is metered against, so `$0.00` is a measurement. `valueTransactedUsd` had no writer left once the ticker went, so it is rendered nowhere and sorts nothing. A figure with no writer is worse than a missing one precisely because it looks like a measurement.
+
 ## Fork and remix
 
 The reason the manifest exists. Fork any mini app → get an editable copy → refine it in natural language → publish under your own name, with `forkedFrom` preserved for attribution.
 
 **Forking strips `identity`, `agency.policy.wallet`, and `provenance`.** A fork gets a fresh wallet, a fresh ENS name, a fresh Agentic ID, and zero inherited spending authority. This is a security requirement, not a design preference — enforce it in code, and mention it in the demo.
 
+> **As built, and the last leg was missing until this pass.** The strip is enforced and verified. Two corrections:
+>
+> **"Publish under your own name" had no route.** `publishApp`'s only caller was the Studio's publish bar, so an app that arrived by *forking* could never be named — fork → refine → publish stopped one step short of the step that makes attribution mean anything, which is the whole reason this section exists. `publishExisting` in `store.ts`, behind a confirm-gated panel on `/a/[name]`, closes it. Forking itself still publishes nothing, deliberately: a fork is an editable copy until someone decides to name it. And publishing a fork was *itself* broken in a way nobody could see from the outside — see §14 #13a.
+>
+> **"A fresh wallet" is fresh in the manifest, not in custody.** One process-wide session key signs for every app (§14 #1b), so `aave-guard-fork` and `lineage-fallback-probe` both resolve `addr` to the same address as everything else. What forking genuinely guarantees is that no `identity`, `policy.wallet` or `provenance` is inherited *from the parent manifest*. §16's ecosystem beat was instructing the presenter to show two addresses differing; they do not, and it now says so.
+
 ## Ratings and reviews
 
 Thumbs plus a short review, weighted by whether the rater actually ran the app. Keep the schema trivial (`appId, rater, score, text, ranIt`) — this is ecosystem texture, not a product in itself. The point is that a registry with visible community signal *reads* like a platform, and an empty grid doesn't.
+
+> **Where "texture" stopped being texture.** The seeded reviews narrated specific transactions, amounts and timestamps that never happened, attributed to named `.eth` handles — which is a fabricated event log, not a fabricated score, and it read to a viewer as evidence that the app had traded. Rewritten to opinions about features that genuinely exist ("the kill switch sitting one press away is the reason I would fund something like this at all", "policy strip is always on screen"). The handles are still invented and the thumbs are still invented, and that is the line this section should have drawn in the first place: **a made-up opinion about a real feature is set dressing; a made-up transaction is a data claim.** `runs`, `forks` and thumbs stay seeded and are named as such in `README.md` and §14 #1a.
 
 ## Creator earnings
 
@@ -856,23 +882,28 @@ Agentic ID         ERC-7857. Deploy your own contract; oracle (TEE/ZKP) +
 
 Hard qualification requirements. **Anything unchecked at Sunday 07:00 is a disqualification, not a missing feature.**
 
-Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below was read back from the chain or the gateway, not inferred from the code.
+Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below was read back from the chain or the gateway, not inferred from the code. **And after v8's audit, it means verified against the thing the row is about:** three rows here previously held a real measurement of the wrong denominator. Where a claim turned out false it is struck and the replacement stated, never deleted.
+
+Lettered rows (`1a`, `1b`, `13a`) are **disclosures and corrections, not qualification requirements** — a ☐ on one is a gap this document is naming, not a track we fail. Every numbered row `1`–`19` is a hard requirement, and the sentence above applies to those.
 
 | # | Requirement | Track | Owner | Status |
 |---|---|---|---|---|
-| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **☑** data plane live, and **all 16 seed apps now run on it** — `scripts/seed-live.ts` puts every one through resolve → health-check → fan-out → compose, 16/16 live for $0.0084, snapshot in `kit/seed-live.generated.json`. Only `runs`/`forks`/ratings remain seeded, and they are social texture, not data |
+| 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **☑** data plane live, and **all 16 seed apps run on it** — `scripts/seed-live.ts` puts every one through resolve → health-check → fan-out → compose, 16/16 live for $0.0084, snapshot in `kit/seed-live.generated.json`, and an app the snapshot cannot measure is now **dropped** from `SEED_APPS` rather than backfilled with a fixture body. ~~Only `runs`/`forks`/ratings remain seeded.~~ **That list was wrong, and understated even when written.** Seed apps also carried fabricated ENS names, an Agentic ID contract address that was not the deployed one, invalid CIDs, per-app wallet addresses nobody held, and journals of invented tx hashes. All are now `null` or empty at the source — verified by reading `SEED_APPS`: `identity.ens`, `identity.agenticId`, `identity.manifestCid` and `agency.policy.wallet` are `null` on all 16, `provenance.attestationRef` is `null`, every journal is empty, and `valueTransactedUsd`/`spentUsd`/`earnedUsd` are `0`. **What is still seeded:** `runs`, `forks`, thumbs, and the **review text** — see #1a |
+| 1a | The seeded texture that remains, named exactly | Graph 1/2/3 | | **◐** `runs`, `forks`, `thumbsUp`/`thumbsDown` and reviews are invented, attributed to invented `.eth` handles. The reviews were the stronger claim and the one worth recording: they narrated specific transactions, amounts and timestamps that never happened. They now read as opinions about features that genuinely exist ("the kill switch sitting one press away", "policy strip is always on screen"). A fabricated score is set dressing; a fabricated event log is a data claim wearing a rating's clothes |
 | 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | **◐** MCP server live at `/api/mcp` (5 tools, verified handshake) and `SKILL.md` written. **npm package still not extracted** |
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | **☑** root `README.md` + `SKILL.md`, both naming deployment IDs, addresses and what is *not* built |
 | 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both, and *acts on* now ends in a real transaction: Arbitrum block 487540654 → Substreams tick → trigger fired → policy gate → session key signed → Base Sepolia tx `0x5a44e9d5…9d78`, **status success**, allowance read back off chain. Plan and compose run on 0G (`0gm-1.0-35b-a3b`). The action is an `approve`, not a swap, and is labelled as one |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **☑** 12 deployment IDs listed in the README, all 86 in `sources.ts`; every row carries `_source`/`_label`/`_schema`/`_network` |
-| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **☑** two products verified live: standardized subgraphs (86 deployment ids, health-checked fan-out) **and Substreams** — real subscription on `arb-one.streamingfast.io`, blocks 487508073→75, trigger fired on the breaching block, policy gate decided, plus a no-breach control run that fired nothing. Still coded-but-unexercised: **x402** (`X402_PRIVATE_KEY` unset; the reference run's $0.0014 is 14 × the *gateway's* $0.0001) and **Subgraph MCP** (env var only, nothing calls it). Two verified clears the ≥2 bar without needing the other two |
-| 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
+| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **☑** two products verified live: standardized subgraphs (86 deployment ids, health-checked fan-out) **and Substreams** — real subscription on `arb-one.streamingfast.io`, blocks 487508073→75, trigger fired on the breaching block, policy gate decided, plus a no-breach control run that fired nothing. Still coded-but-unexercised: **x402** (`X402_PRIVATE_KEY` unset; the reference run's $0.0014 is 14 × the *gateway's* $0.0001) and **Subgraph MCP** (env var only, nothing calls it). Two verified clears the ≥2 bar without needing the other two. **New, and a correction to what "verified" covered:** until this pass `POST /api/stream` had no caller in the product — the subscription was only ever opened by `scripts/substreams-verify.ts`, so an autonomous app's panel read "event-driven" while its process was subscribed to nothing. A bounded **Watch 3 blocks** control now opens the real subscription from the app. Its success path is **unexercised in-app**: the endpoint answers `[resource_exhausted] Concurrent stream limit exceeded (active sessions: 2/2)` — a real refusal from `arb-one.streamingfast.io`, account-wide on the thegraph.market free tier, from sessions outside this process. Verified end to end by the script; verified as far as the endpoint's answer by the app |
+| 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | **☑** verified this session, and it took a new surface to earn it. Two standards families are now on screen. **The Graph's:** every app panel renders its standardized schema families, its per-source `schema` label, `N of M deployments live`, and a registry filter that marks a declared family with no healthy deployment as *"— no live deployment"* rather than offering it as coverage; **Run** re-fires the fan-out and reports rows/deployments/cost. **ENS + ERC-7857's:** `/registry` (HTTP 200, `PublishedStrip` mounted) resolves five real subnames live through `GET /api/resolve/<label>` and renders per name — `addr`, `contenthash` → whether the manifest bytes arrived, the ENSIP-25 `agent-registration` binding with its Agentic ID token linked to the 0G explorer, and the two-directional verification result. All five resolves reproduced by hand this session. **What earned the tick is the second half:** the schema-family half was already rendered and this row stayed ☐ out of conservatism, but the ENSIP-7/25/26 claim lived only in a README until a surface exercised `/api/resolve` at all. **The caveat that keeps this honest:** the row sits under Graph 3, and a judge reading "standards leverage" as *standardized-subgraph* leverage specifically is reading it narrowly but not wrongly — the strip is ENS and 0G standards. Both halves are on screen; do not let the strip carry the Graph 3 argument alone |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |
-| 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑** and now verifiable **without our server**: `contenthash` read off Sepolia → CID fetched from ipfs.io → a valid `atlas/2` manifest. All six published manifests pinned and read back from a public gateway. Plus `addr` → the app's own wallet, both ENSIP-26 endpoints on the live origin, Agentic ID token 10, `mutuallyVerified: true`. Demo `atlas-market-guard` |
+| 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑ for the name we demo, and the scope of that tick is narrower than this row used to claim.** Verifiable **without our server** for `atlas-market-guard`: `contenthash` read off Sepolia → CID `bafkreiagp25njr…` fetched from ipfs.io → a valid `atlas/2` manifest, plus both ENSIP-26 endpoints on the live origin, Agentic ID token 10 and `mutuallyVerified: true`, all re-read this session. ~~All six published manifests pinned and read back from a public gateway.~~ **False, and unrecoverably so for three names.** `scripts/pin-backfill.ts --verify` pins 8 documents and reads 8/8 back from ipfs.io — but the row's denominator was documents, not names. Of the **eight subnames issued under `atlas-apps.eth`, five have a manifest ipfs.io serves** (`atlas-market-guard`, `durable-market-guard`, `rebalance-arbitrum-dex`, `aave-guard-fork`, `lineage-fallback-probe` — all five measured at 200) and **three return 504 permanently** (`attested-market-guard`, `wallet-bound-guard`, `aave-health-guard`). Those were published under `IPFS_MODE=local`, whose store was `web/.atlas/` — **gitignored, and the sole provider of the bytes behind every `contenthash` written at the time**, which is the root cause. A CID is the hash of its bytes, so regenerating a manifest yields a different CID that no longer matches the chain; this is not a pending pin. `IPFS_MODE=pinata` now, so it cannot recur. Also: `addr` is the address the record points at, **not** "the app's own wallet" — see #1b. Demo `atlas-market-guard` |
+| 1b | Per-app wallet isolation — **currently not true, and not previously disclosed** | ENS 1/2, 0G 1 | | **☐** `AGENT_SESSION_PRIVATE_KEY` is process-wide, so one session key signs for every mini app. Verified by `POST /api/agency/register` for two different app names: both return `0xedE65679…3fE12`, `sessionKeyAddress` identical, which is also exactly the `addr` record on `atlas-market-guard`. §4 P3 and §7 both say "each mini app gets its own wallet"; that is the design and it is not what runs. It matters beyond tidiness because §8's whole case — an ENS name is a *safety* primitive because you verify a funded address before funding it — assumes the address is that app's alone. Funding it funds all of them; revoking it revokes all of them. Now stated in the autonomous panel, in `README.md` under Not in scope, and here. Fixing it for real means a key per app held somewhere this process is not |
 | 10 | **Present at ENS booth, Sunday morning, in person** | ENS 1/2 | **assign a name** | ☐ |
 | 11 | Proof of 0G Compute / Private Computer inference | 0G 1 | | **☑** live on `verified` routing with `tee_verified: true`. The proof is a chain, not a screenshot: TEE request id → `provenance.attestationRef` → its keccak256 stored onchain in MiniAppRegistry against token 7 |
 | 12 | **Contract deployment addresses** | 0G 1 | | **☑** Galileo 16602 — AgenticId `0xeB2872…C3B0`, MiniAppRegistry `0x093319…8dA8`, Verifier `0x708aE7…aaD3` |
-| 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | **☑** token 10, `chainscan-galileo.0g.ai/token/0xeB2872…C3B0?a=10` — minted by the product's own publish path (`scripts/publish-under-parent.ts`), bound to `atlas-market-guard.atlas-apps.eth`, `mutuallyVerified: true` read off both chains. Tokens 6–8 predate the ENS rename and still assert the old parent; the binding is immutable by design, so that is the property working, not a defect |
+| 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | **☑** token 10, `chainscan-galileo.0g.ai/token/0xeB2872…C3B0?a=10` — minted by the product's own publish path (`scripts/publish-under-parent.ts`), bound to `atlas-market-guard.atlas-apps.eth`, `mutuallyVerified: true` read off both chains. Tokens 6–8 predate the ENS rename and still assert the old parent; the binding is immutable by design, so that is the property working, not a defect. **Eight subnames are now issued and three mutually verify — all re-read off both chains this session.** `atlas-market-guard` (token 10), `rebalance-arbitrum-dex` (**token 11**, CID `bafkreidplmme6w…`, manifest fetches, tier `autonomous`, but **no `addr` record**), and `lineage-fallback-probe` (**token 13**, and the important one — see #13a). Five read `false`: four pre-rename tokens, plus `aave-guard-fork` (token 12) for a different and repaired reason. All three of the new names came out of end-to-end tests of the publish path during the honesty audit rather than a curated flow; they are recorded because they are real onchain state and because they are the repeats that show the path is reproducible after the rename. `contracts/deployments/ens-sepolia.json` now lists all eight with `manifestAvailability` and `registryGap` sections; its `verifiedSubname` still nominates `aave-health-guard`, whose manifest no longer fetches, so the chain remains the authority and that file the record of it |
+| 13a | A **published fork** can be mutually verified — **it could not be, and the failure was silent** | 0G 1, ENS 2, Graph 1 | | **☑** verified this session. `MiniAppRegistry.registerFork` guards with `if (_records[parentKey].author == address(0)) revert ParentUnknown(parentKey)` — correct, lineage must not be fakeable against a name nobody published. But the publish path passed `parentKey` whenever a manifest carried `forkedFrom`, and every bundled app is unpublished, so publishing a fork went: ENS records written → Agentic ID minted → `registerFork` **reverts** → caught as a generic "registry write failed". **The name resolved, the token existed, and the 0G half of the mutual proof was quietly absent** — `mutuallyVerified: false` on every published fork, which is the exact property #9 and #13 rest on. Fixed in `registerMiniApp` (`identity/agentic-id.ts`) by asking the contract's own question first — `get(parentKey)` — and registering **without** the lineage link when the parent is genuinely absent, with `lineageSkipped` surfaced into the publish report's `warnings[]`. **The trade, stated because it is a judgment and not a workaround:** losing `forkedFrom` costs onchain attribution, recoverable because the manifest still carries it and §12's credit story survives; losing the registration costs mutual verification, which is §8's safety primitive. Forced to choose, keep the one that decides whether a stranger can verify a name before funding it — and *say* the other was skipped, rather than letting a manifest-only `forkedFrom` imply it was recorded. Evidence, both onchain: `aave-guard-fork` (token 12) is the artifact that exposed it, deliberately left broken — `registryAssertsName: false`; `lineage-fallback-probe` (token 13) is the identical situation published after the fix — all three assertions true, `mutuallyVerified: true`, manifest fetches, registry tx `0x02f178c0…2885b1` |
 | 14 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
 | 15 | Live demo link | 0G 1 | | **☑** **https://atlas-mini-apps.vercel.app**, with the ENS records rewritten to match under the renamed parent `atlas-apps.eth` (`scripts/ens-reorigin.ts`, 4 names, 4 Sepolia txs). Verified by reading the records back off the chain, then by resolving from the deployed origin with no write key present |
 | 16 | Team names + Telegram/X | 0G 1 | | **☑** Fabian Ferno, solo — GitHub/site/email verified from the repo remote, the Pinata account and git config. Telegram and X handles assumed to match `fabianferno`, which is consistent across every other identity but was not independently confirmed — correct them if wrong |
@@ -1023,35 +1054,90 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             Here's the permission id, and the app checked with the validator
             before it signed. The dollar conversion is still ours — we show you
             which is which."
-           [In stub mode the same panel says verifiedOnchain: false, so this
-            cannot overstate by accident. Never claim a completed onchain-
-            enforced trade until a userOp has actually landed.]
+           [The panel is now REAL — it renders `enforcementReport()` row by row
+            rather than restating caps, which is what it did when this beat was
+            written. But read what is on screen before saying the line above:
+            in `session-eoa`, the mode the landed transaction came from, EVERY
+            row reads `server` and `verifiedOnchain: false`, so "enforced by
+            the account itself" belongs to `smart-session` and to the
+            permission-id read, not to the tx you just showed. Two separate
+            facts, one panel. Never claim a completed onchain-enforced trade
+            until a userOp has actually landed.]
+           [The in-app "Watch 3 blocks" control opens a REAL bounded
+            Substreams subscription — and at the time of writing the account
+            is at its free-tier cap, so it returns
+            `[resource_exhausted] Concurrent stream limit exceeded
+            (active sessions: 2/2)`. Do not put that button on camera expecting
+            blocks. This beat is `scripts/substreams-verify.ts --real`, which
+            reproduces the whole chain; the pre-recorded fallback clip below
+            matters more than usual for exactly this reason.]
            Then hit the kill switch on the app, and global halt in the top bar.
            The Ledger shows the next trigger arriving and being refused.
            "And that's the kill switch — the app is still running, it just
             can't spend. Dune can't do any of this."
                                                     ← the differentiator
 
-1:50–2:08  IDENTITY. [USE durable-market-guard.atlas-apps.eth — aave-health-guard
-           predates wallet binding and has NO addr record, so it cannot carry
-           this beat. Verified live: source=contenthash, addr → the app's
-           wallet, both endpoints on the live origin, token 8 on 0G,
-           mutuallyVerified: true.]
-           The title bar reads durable-market-guard.atlas-apps.eth — resolving
-           to the UI, the wallet address, and Agentic ID #142 on 0G Chain. The
-           ENS record and the onchain token verify each other.
+1:50–2:08  IDENTITY. [USE atlas-market-guard.atlas-apps.eth. This annotation
+            used to say durable-market-guard and justified it with
+            "mutuallyVerified: true" — that reading is FALSE and was already
+            contradicted by the README: durable-market-guard was published
+            under the previous parent, its token still asserts
+            …graphminis.eth, and it resolves mutuallyVerified: FALSE.
+            Re-measured this session, all eight issued names:
+              atlas-market-guard      addr ✔  manifest ✔  token 10  mutual TRUE
+              lineage-fallback-probe  addr ✔  manifest ✔  token 13  mutual TRUE
+              rebalance-arbitrum-dex  addr ✖  manifest ✔  token 11  mutual TRUE
+              aave-guard-fork         addr ✔  manifest ✔  token 12  mutual false
+              durable-market-guard    addr ✔  manifest ✔  token  8  mutual false
+              attested-market-guard   addr ✔  manifest ✖  token  7  mutual false
+              wallet-bound-guard      addr ✔  manifest ✖  token  6  mutual false
+              aave-health-guard       addr ✖  manifest ✖  token  5  mutual false
+            atlas-market-guard is the one to use: addr + fetching manifest +
+            mutual TRUE, which is why §14 #9 and #13 both name it.
+            lineage-fallback-probe has all three too and is the FORK proof —
+            save it for the ecosystem beat. aave-guard-fork is broken on
+            purpose (§14 #13a) — do not put it on camera.
+            "manifest ✖" means ipfs.io returns 504 permanently — say nothing
+            on camera that implies otherwise.]
+           The title bar reads atlas-market-guard.atlas-apps.eth — resolving
+           to the UI, the address it points at, and Agentic ID token 10 on 0G
+           Chain. The ENS record and the onchain token verify each other.
+           [Say "the address the name points at", NOT "its own wallet" — one
+            process-wide session key signs for every app (§14 #1b), and that
+            address is that shared key. Overstating custody in the one beat
+            that is about verifying-before-funding is the worst place to do it.]
            Paste the name into a different agent — it resolves, reads
            agent-context, and runs.                 ← ENS T1 + T2, 0G T1
 
-2:08–2:28  THE ECOSYSTEM. The registry. Fork one — it lands on the Board as a
-           new card. Fresh wallet, fresh name, no inherited spending authority;
-           show the forked app's addr differing from its parent's. The creator
-           earns $0.05 per run via x402, on the same rail the agent uses to buy
-           its own data.
+2:08–2:28  THE ECOSYSTEM. The registry — open on the Published strip, which is
+           five real subnames resolving live off Sepolia while you talk.
+           Fork one — it lands on the Board as a new card. Fresh name, no
+           inherited spending authority, and the fork carries no wallet,
+           identity or provenance from its parent.
+           [DO NOT say "show the forked app's addr differing from its
+            parent's" — it does not. One process-wide session key signs for
+            every app (§14 #1b), so the two addresses are identical and the
+            camera would contradict the sentence. What forking genuinely
+            strips is `identity`, `agency.policy.wallet` and `provenance`
+            from the MANIFEST; say that.]
+           Then publish the fork under its own name — the panel on /a/[name].
+           [MEASURED, and worth the extra ten seconds if the beat has room:
+            lineage-fallback-probe.atlas-apps.eth is a published fork with
+            Agentic ID token 13 and mutuallyVerified TRUE, registry tx
+            0x02f178c0…2885b1. Until this pass a fork could not be named at
+            all (publishApp had one caller, the Studio bar) and publishing one
+            silently failed its 0G registration — §14 #13a. "A fork gets its
+            own verifiable name" is demonstrable now and was not before.]
+           The creator earns $0.05 per run via x402, on the same rail the
+           agent uses to buy its own data.
+           [Creator earnings are DISPLAY-ONLY — inbound x402 pays the gateway
+            and outbound needs our own facilitator. Say "this is the rail",
+            not "this has paid out".]
                                                     ← Graph T1, ecosystem
 
-2:28–2:50  Point any agent at atlas.vercel.app/api/mcp — five tools,
-           live, no install.
+2:28–2:50  Point any agent at atlas-mini-apps.vercel.app/api/mcp — five tools,
+           live, no install. [The origin is atlas-mini-apps, not atlas — an
+            URL that 404s in the last ten seconds undoes the whole beat.]
            "15,000 subgraphs. Every question is an app now, and every app can
             act. That's The Graph, finally pointed at everyone."
                                                     ← Graph T1
@@ -1085,7 +1171,13 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
 | Breadth without depth — 10 schemas all shallow | Med | Med | Demo shows 2–3 families composing *well*; the other seven prove the resolver generalizes. Don't try to showcase all ten in 2:50 |
 | Brutalism reads as unfinished rather than deliberate | Med | Med | §6 — borders on containers not cells, one heavy frame per panel then get quiet, hard shadow reserved for things you can act on. Judge it by screenshotting one panel and asking whether the *content* looks credible |
 | Live standardized data contains impossible values | **High** | Med | Real: 13 of 74 rows on a routine fan-out, incl. SushiSwap TVL at 7.2e22 from a broken upstream price feed. Rows are flagged `_suspect` and ranked last, never dropped — sorting by the broken field once put the worst row at the top of the table |
-| ~~Seed content is mistaken for live data~~ **Closed** | — | — | All 16 seed apps run through the real pipeline (`scripts/seed-live.ts`, 16/16 live). What remains seeded is `runs`/`forks`/ratings — social texture, not a data claim, and named as such in the README |
+| ~~Seed content is mistaken for live data~~ ~~**Closed**~~ **Reopened, then closed properly** | **High** | High | The first close was premature and its accounting was wrong: it said what remained seeded was "`runs`/`forks`/ratings", when seed apps also carried fabricated ENS names, an Agentic ID contract address that was not the deployed one, invalid CIDs, per-app wallet addresses nobody held, and journals of invented tx hashes — every one of which reads as onchain fact, not as texture. All are now `null` or empty at the source (verified against `SEED_APPS`). What remains: `runs`, `forks`, thumbs, and review *text* about real features by invented handles. **The generalisable lesson is the accounting, not the data:** a closed row that lists what remains is only as good as the audit behind the list, and this one was written from memory rather than from reading the objects |
+| **A figure with no writer, presented as a measurement** | **High** | **Fatal** | A client-side interval invented a block number, a tx hash and a dollar amount every 4.2 seconds and wrote them into `stats.valueTransactedUsd` and `stats.spentUsd`; the registry sorted on the first and both rendered as money moved by an autonomous agent. On a stage that is not a rough edge, it is the single claim this project cannot survive being caught on. Ticker deleted; `spentUsd` now reads the server's `totalSpentUsd(appId)`, the same figure the lifetime cap meters against; `valueTransactedUsd` has no writer and is rendered nowhere. **A field with no writer is more dangerous than a missing field**, because a zero looks like a measurement and a blank does not |
+| **Content-addressed records outliving their bytes** | **High** | High | Three of the eight subnames under `atlas-apps.eth` were published while `IPFS_MODE=local`, whose store — `web/.atlas/`, gitignored — was the sole provider their bytes ever had. Those bytes are gone; ipfs.io returns 504 for their CIDs permanently, and it is unrecoverable *because* of the property that made backfilling free — a CID is the hash of the bytes, so regenerating the manifest yields a different CID that no longer matches the `contenthash` on Sepolia. `IPFS_MODE=pinata` prevents recurrence and repairs nothing already written. **The class:** writing a content address onchain commits you to keeping the bytes; a local store is not a provider, and "it resolves on my machine" is exactly the shape of §14's earlier read-gated-on-write-credential bug |
+| **A revert caught as a generic failure** | **High** | **Fatal** | `registerFork` reverts `ParentUnknown` when a fork's parent is not in the registry, and the publish path passed a `parentKey` for every manifest with `forkedFrom` — which every bundled app has and none of them are published. The revert was caught as "registry write failed", so publishing a fork wrote ENS records, minted a token, and left the 0G half of the mutual proof absent: `mutuallyVerified: false` on every published fork, silently, on the one property §8 calls the safety primitive. Fixed by asking the contract's own guard question (`get(parentKey)`) before the call and degrading to a registration without lineage, reported via `lineageSkipped`. **The class:** a `catch` that flattens a *specific, named* contract error into a generic message converts a designed refusal into an invisible one — and a partial success that still resolves is the hardest kind to notice, because everything a demo touches still works. Evidence kept onchain in both states, `aave-guard-fork` (broken) and `lineage-fallback-probe` (fixed) |
+| **An alert that is true before anything happens** | Med | High | All ten seed triggers were unevaluable — four grammatically valid on paths no standardized family exposes, five unparseable prose, one `null` — so a board of "armed" monitors was armed against nothing. Re-phrased to protocol-level premises the fan-out answers, and all ten now pass `isConditionEvaluable`. One rewrite then came back *pre-fired* (`bridge-outflow-watch` would have alerted on its first block) and was re-armed with measured headroom. **A threshold that is already breached is the same class of lie as a counter that increments itself**: it produces the appearance of an event without one |
+| **A capability with no caller** | **High** | High | `POST /api/stream` had no caller anywhere in the product — only `scripts/substreams-verify.ts` ever subscribed — while autonomous apps' panels read "event-driven". The script's verification was real and the product's claim was not, and nothing in the test suite could tell the difference because there was nothing to test. A bounded "Watch 3 blocks" control now makes the call from the app. **The class: a verified script plus an unwired UI reads exactly like a working feature**, and the tell is asking who calls it, not whether it works |
+| **The design claim quietly diverging from the running config** | Med | **Fatal** | "Each mini app gets its own wallet" (§4 P3, §7) has never been true of the running `session-eoa` mode: `AGENT_SESSION_PRIVATE_KEY` is process-wide, so one key signs for all. It went undisclosed in both submission documents until this pass. It is fatal-shaped rather than cosmetic because §8's entire ENS argument is that you verify a funded address before funding it, and a shared address makes that verification mean less than the sentence implies. Now bannered at both sites, in §14 #1b, in `README.md`, and in the autonomous panel itself. **The class: a config default can silently falsify a design document**, and the only reliable check is to call the endpoint twice with different inputs and compare |
 | **A broken upstream value reaching an aggregate or a ranking** | **High** | High | Suspect-last was enforced in the fan-out and then silently undone one layer up by the shape detector's re-sort — `$7.2e22` led a leaderboard and summed into a `$131685267736T` headline. Now: ranking is suspect-aware at *every* sort, aggregates exclude suspect rows and state how many, and `kit/shapes.test.ts` pins both. The lesson generalises — an invariant enforced at one layer is not enforced |
 | **A field that does not exist on the live schema** | **High** | High | Three exceptions were documented in §13; a fourth (`nft-marketplace` denominates in ETH, so every `*USD` field is a hard query error) only appeared when the family was actually queried, and it zeroed the whole family. Introspect before trusting a schema doc |
 | **A capability gated on the wrong credential** | **High** | High | Reading ENS records was gated on holding a *write* key: `resolveRegistrarMode()` degrades to `mock` without one, and `readRecords` skipped the resolver in mock mode. So the deployed, read-only instance — the only one a judge sees — resolved nothing, while the dev machine that held the key worked perfectly. The class of bug matters more than the instance: a read path that depends on a write credential fails exactly where it is observed and nowhere it is tested |
@@ -1253,7 +1345,29 @@ await publish(ui, {
 
 ETHGlobal asks for planning artifacts in the repo, so the revision history below is the artifact: every entry records what changed and why, and each one was a decision made against something that had already been built. The v1 draft it started from was dropped as stale — v2's correction table is what survived of it, and that table is the useful part.
 
-## v7 — skeuomorphism, and depth replaces border weight (current)
+## v8 — the honesty audit, and what the matrix was counting (current)
+
+No positioning changed. What changed is that several ☑ rows and one closed risk were audited against the running system instead of against this document, and five of them did not hold. Every claim below was re-measured this pass — `/api/publish`, `/api/graph`, `/api/plan`, `/api/stream`, `/api/resolve/<label>` for all **eight** issued names, `POST /api/agency/register` twice with different app names, `scripts/pin-backfill.ts --verify`, `ipfs.io` by hand for every CID, `isConditionEvaluable` over `SEED_APPS`, `forge test`, and `agency/all.test.ts`.
+
+- **§14 #9 claimed all six published manifests read back from a public gateway. Five of eight names do; three never will.** Those three were published while `IPFS_MODE=local`, and ipfs.io returns 504 for their CIDs permanently — unrecoverable *because* a CID is the hash of its bytes, which is the same property that made backfilling the survivors free. The claim is struck rather than deleted, because the reason it was wrong is the more useful artifact: `pin-backfill --verify` reports **8 pinned, 8/8 retrievable** and reads as total coverage until you ask which *names* those documents belong to. A verification that counts the wrong denominator passes
+- **§14 #1's list of what remained seeded was wrong, and understated when written.** It said `runs`/`forks`/ratings. Seed apps also carried fabricated ENS names, a wrong Agentic ID contract address, invalid CIDs, wallet addresses nobody held, and journals of invented tx hashes — all now `null` or empty at the source. Split into #1 and #1a so the remaining texture is enumerated rather than summarised. **The reviews were the sharpest instance:** they narrated transactions, amounts and timestamps that never happened, attributed to named `.eth` handles, which is a fabricated event log wearing a rating's clothes. Rewritten to opinions about features that exist
+- **§4 P3 and §7 both say "each mini app gets its own wallet." One process-wide session key signs for all of them**, and neither submission document disclosed it. Registering two different app names returns the same address, which is also the `addr` record on the name we demo. Bannered at both sites rather than rewritten, and added as §14 #1b — it is a ☐, not a caveat, because §8's case for the ENS name as a *safety* primitive assumes the address belongs to one app
+- **§14 #7 flips to ☑, and it took a new surface to earn it.** `PublishedStrip` on `/registry` resolves five real subnames live through `GET /api/resolve` and renders `addr`, `contenthash` → manifest, the ENSIP-25 binding with its Agentic ID token, and the two-directional verification. Before it, nothing in the product called `/api/resolve` at all — the standards claim was a README claim. The Graph half of the row (schema families, deployments live of queried, "no live deployment" in the filter) was already rendered and the row had stayed ☐ conservatively. The caveat is recorded in the row: the strip is ENS/ERC-7857 standards under a Graph 3 requirement, so it must not carry that argument alone
+- **§12's own warning came true in §12's own metric.** "Vanity metrics are worse than none" sat above `total value transacted`, which a client-side ticker invented every 4.2 seconds along with block numbers and tx hashes, and which the grid sorted on. Deleted; `spentUsd` now reads the server's `totalSpentUsd(appId)`. A field with no writer is worse than a missing one because a zero looks measured
+- **Three things §14 could newly claim, and one it must qualify.** `POST /api/stream` had **no caller in the product** — only the verify script ever subscribed, while app panels read "event-driven"; a bounded watch control now makes the call, and its success path is unexercised in-app because the free tier answers `resource_exhausted (2/2)`. **Run** now genuinely re-queries and re-composes, delivering §5's "live, not a screenshot" in-product for the first time. And `enforcementReport()` — which §7 specified and nothing displayed — is now rendered per constraint
+- **A published fork was never mutually verifiable, and nothing said so — §14 #13a.** `registerFork`'s `ParentUnknown` guard is correct; the publish path passed a `parentKey` for every manifest carrying `forkedFrom`, which every bundled app does and none of them are published, and the revert was caught as a generic "registry write failed". So a fork published with a resolving name and a minted token and no registry entry: `mutuallyVerified: false`, silently. Now `get(parentKey)` is checked first and a genuinely-absent parent yields a registration *without* lineage plus a `lineageSkipped` warning — attribution is recoverable from the manifest, mutual verification is not recoverable at all. `aave-guard-fork` (token 12) is left broken as the evidence; `lineage-fallback-probe` (token 13) is the same case after the fix and reads `mutuallyVerified: true`
+- **Two things §12 claimed that the product could not do.** `publishApp`'s only caller was the Studio's publish bar, so **a fork could never be named** — "fork → refine → publish under your own name" was missing its last step, and it is the step attribution depends on. `publishExisting` closes it. And every one of the ten seed triggers was unevaluable (four valid-but-impossible paths, five unparseable prose, one `null`), so a board of armed monitors was armed against nothing; re-phrased to protocol-level premises, all ten now pass, and one that came back pre-fired was re-armed with measured headroom
+- **What could not be verified, and is labelled as unverified rather than dropped:** the `smart-session` happy path still needs a funded ERC-7579 account and a bundler (unchanged, §7); x402 still has no receipt; and Substreams-from-the-app is verified only as far as the endpoint's refusal
+- **Two stale records reported, not silently relied on:** `contracts/deployments/ens-sepolia.json` omits `atlas-market-guard` — the one name every claim leads with — and its `verifiedSubname` points at `aave-health-guard`, whose manifest no longer fetches. `rebalance-arbitrum-dex` (token 11, `mutuallyVerified: true`) is recorded in §14 #13 because it is real Sepolia + 0G Galileo state and the repeat that shows the publish path is reproducible after the rename
+- **§16 corrected in three places, not re-pitched.** The identity beat's annotation asserted `mutuallyVerified: true` for `durable-market-guard`, which resolves `false` and which the README already contradicted; the ecosystem beat instructed the presenter to show a fork's `addr` differing from its parent's, which it does not; and the MCP origin was wrong. The measured state of all five names is now in the beat so the next reader does not have to re-derive it
+- **Counts:** agency suite 154 → **159** (123 of them the agency layer proper), `forge test` 13 unchanged, registry 96 = 86 verified + 9 placeholder + 1 unverified. The condition grammar moved to `agency/condition.ts` (zero imports) with `isConditionEvaluable`, so a trigger the runtime cannot evaluate is reported as inert instead of listed as armed
+
+- **Two stale records reported, one since repaired.** `contracts/deployments/ens-sepolia.json` omitted `atlas-market-guard` entirely when this pass began; it now lists all **eight** issued subnames with `manifestAvailability` and `registryGap` sections. Its `verifiedSubname` still nominates `aave-health-guard`, whose manifest no longer fetches, so that one gap stands
+- **Root cause of the lost bytes, worth recording because it is one line of config:** `web/.atlas/` was gitignored while being the sole provider of the bytes behind every on-chain `contenthash`. Writing a content address onchain commits you to hosting the bytes; "it resolves on my machine" is not a property of a decentralized record
+
+**The pattern across every bad row is the same, and it is worth stating once:** each one passed a check that was real. The pin verify really ran, the script really subscribed, `enforcementReport()` really existed, `registerFork`'s guard really worked, the seed audit really happened. What failed was the denominator, or the reporting — 8 of 8 *documents* is not 5 of 8 *names*; a script is not the product; a function is not a rendered row; a `catch` that flattens a named contract error is a designed refusal made invisible; and a list written from memory is not an audit. §14's preamble already says ☑ means *verified*; this pass adds that it has to mean **verified against the thing the row is about, by a caller the product actually has.**
+
+## v7 — skeuomorphism, and depth replaces border weight (superseded by v8's corrections; the design decisions stand)
 
 Neo-brutalism was the right *structural* argument and the wrong material. What changed and why:
 

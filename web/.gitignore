@@ -44,5 +44,22 @@ yarn-error.log*
 next-env.d.ts
 
 # Local content store for IPFS_MODE=local — real CIDs, machine-local bytes.
+#
+# Ignoring this is correct NOW and was dangerous BEFORE, and the difference is
+# worth writing down because it cost three ENS names.
+#
+# Under `IPFS_MODE=local` these files were the ONLY copy of the bytes behind every
+# `contenthash` record written to Sepolia. A CID is the hash of its bytes, so the
+# record is only resolvable while some provider holds them — and the sole provider
+# was an untracked directory on one laptop. Three subnames under `atlas-apps.eth`
+# (`attested-market-guard`, `wallet-bound-guard`, `aave-health-guard`) lost their
+# bytes that way. `ipfs.io` returns 504 for all three and permanently will:
+# regenerating the manifest produces a different CID that no longer matches the
+# chain, so there is no repair, only a re-publish.
+#
+# `IPFS_MODE` is now `pinata`, so Pinata is the provider and this directory is a
+# cache rather than the system of record — which is what makes ignoring it safe.
+# If you ever switch back to `local`, this line is a data-loss bug, not a hygiene
+# preference. See the IPFS block in `.env.example`.
 .atlas/
 .gstack/
