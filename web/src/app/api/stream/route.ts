@@ -72,9 +72,12 @@ export async function GET(): Promise<Response> {
     endpoints: SUBSTREAMS_ENDPOINTS,
     defaultPackage: DEFAULT_SPKG,
     defaultModule: DEFAULT_MODULE,
+    // Present tense would overstate it. This handler reports a capability read
+    // from configuration; it does not and cannot know whether a run is open, since
+    // a run only exists for the seconds POST spends consuming its N blocks.
     note:
       mode.mode === "substreams"
-        ? "Triggers re-evaluate once per block."
+        ? "Triggers re-evaluate once per block while a bounded watch is running. POST here to open one; nothing is subscribed between calls."
         : "Triggers re-evaluate on an interval. Set SUBSTREAMS_API_TOKEN (thegraph.market) for per-block evaluation.",
   });
 }

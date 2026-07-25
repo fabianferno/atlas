@@ -97,13 +97,29 @@ export interface RunStreamSummary {
 }
 
 /**
- * Whether autonomy is event-driven right now, and if not, why not. The UI must
- * be able to say "polling" out loud: claiming block-level latency while actually
- * polling would be the same class of lie as an unattested provenance record.
+ * Which evaluation mode autonomy is CAPABLE of, and if it is the weaker one, why.
+ * The UI must be able to say "polling" out loud: claiming block-level latency
+ * while actually polling would be the same class of lie as an unattested
+ * provenance record.
+ *
+ * CAPABILITY, NOT ACTIVITY — and the distinction is load-bearing. This function
+ * reads one thing: whether a token is configured. It cannot know whether anything
+ * is subscribed, because subscriptions here are bounded by design (see the header
+ * of `app/api/stream/route.ts`) and exist only for the seconds a `watchBlocks` run
+ * lasts. The old `reason` string said "subscribed per block", which a UI would
+ * reasonably echo — and for a long time nothing in the product called
+ * `POST /api/stream` at all, so that string was describing a subscription that had
+ * never once been opened. `mode: "substreams"` means the run *would* be per-block
+ * when you start one. It does not mean one is running.
  */
 export function streamMode(): { mode: "substreams" | "interval"; reason: string } {
   return isStreamLive()
-    ? { mode: "substreams", reason: "SUBSTREAMS_API_TOKEN present — subscribed per block" }
+    ? {
+        mode: "substreams",
+        reason:
+          "SUBSTREAMS_API_TOKEN present — per-block evaluation available; a subscription " +
+          "opens only for the duration of a bounded watch",
+      }
     : {
         mode: "interval",
         reason: "SUBSTREAMS_API_TOKEN not set — falling back to interval polling",

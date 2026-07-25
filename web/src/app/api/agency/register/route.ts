@@ -22,11 +22,38 @@
  * Until then the mitigation is first-write-wins: a registered app cannot be
  * re-registered with a different policy. Raising a cap requires the kill
  * switch or a server restart, so a hostile client cannot widen a live grant.
+ *
+ * WHY THIS ALSO REPORTS. It used to answer with a flat `wallet` string, which
+ * was the one field a UI could not safely render on its own: an address with no
+ * chain and no enforcement site next to it invites the reader to assume the
+ * limits printed beside it are enforced somewhere they are not. So this route
+ * now returns the same nested `wallet` + `enforcement` blocks as
+ * `GET /api/act?appId=…`, on both branches. One call registers the app and
+ * tells the caller which key signs, on which testnet, and — per constraint —
+ * whether the chain or this process is what actually stops a bad action.
+ * `enforcementReport()` in `lib/agency/wallet.ts` is the single author of that
+ * answer and is reused verbatim; nothing here recomputes or summarises it.
+ *
+ * ONE KEY, EVERY APP — the fact the response cannot hide. `provisionWallet`
+ * derives from `AGENT_SESSION_PRIVATE_KEY`, which is process-wide, so the
+ * address returned for `aave-guard` is byte-identical to the one returned for
+ * `copy-trader-arb`. prd.md §4 P3 and §7 both say "each mini app gets its own
+ * wallet"; that is the design, and per-app isolation is not what runs. §8's
+ * argument that an ENS name is a safety primitive rests on that isolation, so
+ * the shape below carries `sessionKeyAddress` alongside `address` and the UI
+ * states the sharing out loud rather than letting a per-app page imply it.
+ * Fixing it for real means a key per app, held somewhere this process is not.
  */
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { zManifest } from "@/lib/contracts/manifest";
-import { getApp, provisionWallet, registerApp } from "@/lib/agency/wallet";
+import {
+  enforcementReport,
+  getApp,
+  provisionWallet,
+  registerApp,
+  type MiniAppWallet,
+} from "@/lib/agency/wallet";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +65,28 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
+}
+
+/**
+ * The wire shape of "which key signs, and where". Deliberately identical to the
+ * `wallet` block `GET /api/act` returns, field for field, so a client can read
+ * one type off either route — a second, slightly-different wallet shape is how a
+ * UI ends up rendering `kind` without `chainName` and implying mainnet.
+ *
+ * `address` is the account that gets funded; `sessionKeyAddress` is the key that
+ * signs. In `session-eoa` mode they are the same value, and that is worth being
+ * able to see rather than inferring from the mode name.
+ */
+function walletReport(wallet: MiniAppWallet) {
+  return {
+    address: wallet.address,
+    kind: wallet.kind,
+    chainId: wallet.chainId,
+    chainName: wallet.chainName,
+    sessionKeyAddress: wallet.sessionKeyAddress,
+    onchainEnforced: wallet.onchainEnforced,
+    permissionId: wallet.permissionId,
+  };
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -57,15 +106,20 @@ export async function POST(request: NextRequest): Promise<Response> {
   const appId = manifest.name;
 
   // First write wins. Re-registering would let a caller widen a live grant.
+  //
+  // The response is the same shape as a fresh registration on purpose: a caller
+  // that has to branch on `alreadyRegistered` to find out what signs would sooner
+  // or later read the wrong field on one of the two paths. `alreadyRegistered`
+  // stays, because it means something the caller may want to know — the policy
+  // now in force is the one from the FIRST manifest, not the one just posted.
   const existing = getApp(appId);
   if (existing) {
     return json({
       ok: true,
       appId,
       alreadyRegistered: true,
-      wallet: existing.wallet.address,
-      kind: existing.wallet.kind,
-      onchainEnforced: existing.wallet.onchainEnforced,
+      wallet: walletReport(existing.wallet),
+      enforcement: enforcementReport(existing.wallet),
     });
   }
 
@@ -91,9 +145,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       ok: true,
       appId,
       alreadyRegistered: false,
-      wallet: wallet.address,
-      kind: wallet.kind,
-      onchainEnforced: wallet.onchainEnforced,
+      wallet: walletReport(wallet),
+      enforcement: enforcementReport(wallet),
     });
   } catch (error) {
     // provisionWallet refuses mainnet and refuses an incompletely scoped
