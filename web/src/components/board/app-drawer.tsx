@@ -176,9 +176,13 @@ export function AppDrawer({
 
   // Closed transform differs by layout: a desktop panel parks off the right
   // edge (X); a phone sheet drops below the bottom edge (Y). Open is the same
-  // GPU-friendly identity in both. While dragging the sheet, an inline transform
-  // takes over so the surface tracks the finger in real time.
-  const closedTransform = isDesktop ? "translate3d(100%,0,0)" : "translate3d(0,100%,0)";
+  // GPU-friendly identity in both. The panel floats inside a margin, so the
+  // closed offset is its own size *plus* that margin — otherwise a sliver of
+  // the floating edge would peek back onto the screen. While dragging the sheet,
+  // an inline transform takes over so the surface tracks the finger in real time.
+  const closedTransform = isDesktop
+    ? "translate3d(calc(100% + 1rem),0,0)"
+    : "translate3d(0,calc(100% + 0.5rem),0)";
   const dragging = dragY !== null;
   const panelStyle: React.CSSProperties = dragging
     ? { transform: `translate3d(0,${dragY}px,0)`, transition: "none" }
@@ -204,13 +208,13 @@ export function AppDrawer({
         tabIndex={-1}
         style={panelStyle}
         className={cn(
-          "fixed flex flex-col outline-none",
+          "fixed flex flex-col overflow-hidden outline-none",
           "bg-[var(--paper)] shadow-[var(--elev-3)]",
           "transition-transform duration-300 ease-out will-change-transform",
-          // Mobile: bottom sheet.
-          "inset-x-0 bottom-0 h-[88dvh] w-full rounded-t-2xl border-t border-hairline",
-          // Desktop: right-hand panel (~60vw, capped).
-          "sm:inset-x-auto sm:right-0 sm:top-0 sm:h-dvh sm:w-[60vw] sm:max-w-[860px] sm:rounded-none sm:border-t-0 sm:border-l",
+          // Mobile: a floating bottom sheet inset from the edges.
+          "inset-x-2 bottom-2 h-[86dvh] rounded-2xl border border-hairline",
+          // Desktop: a floating right-hand panel (~58vw, capped), margin on all sides.
+          "sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:h-auto sm:w-[58vw] sm:max-w-[860px] sm:rounded-2xl sm:border",
         )}
       >
         <header className="relative shrink-0 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)]">
