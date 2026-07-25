@@ -55,7 +55,7 @@ export const ZEROG_DEFAULT_TRUST_MODE = "verified";
 export const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
 export const OPENAI_DEFAULT_MODEL = "gpt-4o-mini";
 /** Reported in provenance when no key is configured. */
-export const STUB_MODEL = "graphminis-deterministic-stub";
+export const STUB_MODEL = "atlas-deterministic-stub";
 
 export interface InferenceConfig {
   backend: ComputeBackend;

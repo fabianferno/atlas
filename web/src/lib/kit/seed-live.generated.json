@@ -70,7 +70,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-watch-my-aave-position-on-arbitr",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "autonomous",
               "primaryColor": "#0047FF"
@@ -1825,7 +1825,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-mirror-this-wallet-s-arbitrum-sw",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "autonomous",
               "primaryColor": "#0047FF"
@@ -2799,7 +2799,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-move-my-stablecoins-to-whichever",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "autonomous",
               "primaryColor": "#0047FF"
@@ -5047,7 +5047,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-if-my-perp-leverage-goes-above-8",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "autonomous",
               "primaryColor": "#0047FF"
@@ -6219,7 +6219,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-claim-my-optimism-protocol-rebat",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "autonomous",
               "primaryColor": "#0047FF"
@@ -6724,7 +6724,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-tell-me-when-any-of-my-lending-p",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "monitor",
               "primaryColor": "#0047FF"
@@ -7966,7 +7966,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-alert-me-on-any-single-swap-over",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "monitor",
               "primaryColor": "#0047FF"
@@ -8639,7 +8639,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-tell-me-when-funding-on-the-same",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "monitor",
               "primaryColor": "#0047FF"
@@ -8986,7 +8986,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-warn-me-if-a-lending-market-on-o",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "monitor",
               "primaryColor": "#0047FF"
@@ -9530,7 +9530,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-alert-me-when-bridge-outflows-fr",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "monitor",
               "primaryColor": "#0047FF"
@@ -9946,7 +9946,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-show-me-the-top-dexs-by-volume-o",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"
@@ -10690,7 +10690,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-compare-lending-and-dex-tvl-acro",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"
@@ -13314,7 +13314,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-rank-stablecoin-vaults-by-net-ap",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"
@@ -14886,7 +14886,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-where-is-bridged-value-coming-fr",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"
@@ -15194,7 +15194,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-show-open-interest-and-funding-b",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"
@@ -15508,7 +15508,7 @@
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "mini-how-much-nft-volume-is-actually-",
-            "catalogId": "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json",
+            "catalogId": "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json",
             "theme": {
               "tier": "readonly",
               "primaryColor": "#0047FF"

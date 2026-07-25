@@ -255,7 +255,7 @@ export function grantFromPolicy(policy: Policy, chainId: number): SessionKeyGran
 
 /** Stable per-app pseudo-address so the demo looks the same on every reload. */
 export function deterministicAddress(seed: string): Address {
-  return getAddress(`0x${keccak256(toHex(`graphmini:${seed}`)).slice(-40)}`);
+  return getAddress(`0x${keccak256(toHex(`atlas:${seed}`)).slice(-40)}`);
 }
 
 /**
@@ -542,7 +542,7 @@ export function grantFingerprint(grant: SessionKeyGrant, sessionKeyAddress: Addr
       : null,
     nativeValueLimitWei: (grant.nativeValueLimitWei ?? 0n).toString(),
   };
-  return keccak256(toHex(`graphmini:grant:${JSON.stringify(canonical)}`));
+  return keccak256(toHex(`atlas:grant:${JSON.stringify(canonical)}`));
 }
 
 /** 16 empty param rules, as the UniversalActionPolicy ABI requires. */
@@ -788,7 +788,7 @@ export interface RegisteredApp {
   intent?: string;
 }
 
-const REGISTRY_KEY = "__graphminis_app_registry__";
+const REGISTRY_KEY = "__atlas_app_registry__";
 type RegistryGlobal = typeof globalThis & { [REGISTRY_KEY]?: Map<string, RegisteredApp> };
 
 function registry(): Map<string, RegisteredApp> {

@@ -181,7 +181,7 @@ export class MemorySignalLedger implements SignalLedger {
   }
 }
 
-const LEDGER_KEY = "__graphminis_signal_ledger__";
+const LEDGER_KEY = "__atlas_signal_ledger__";
 type LedgerGlobal = typeof globalThis & { [LEDGER_KEY]?: SignalLedger };
 
 export function getSignalLedger(): SignalLedger {

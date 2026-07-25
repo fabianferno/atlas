@@ -88,7 +88,12 @@ export function LedgerDock() {
   const lineCount = ledgerLines(board, LIMIT).length;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 left-4 z-40 flex flex-col items-start gap-2">
+    // Above the app panel (z-50), not under it. The Board's panel opens on the
+    // left and would otherwise bury this corner, and a ledger you cannot reach
+    // while an agent is spending is the wrong half of the trade. Floating over
+    // the running app is already the arrangement everywhere else — the runtime
+    // reserves bottom padding for exactly this pill.
+    <div className="pointer-events-none fixed bottom-4 left-4 z-[60] flex flex-col items-start gap-2">
       {/* Kept in the tree at all times so the grow-in has something to
           transition from — only the contents are conditional. */}
       <div

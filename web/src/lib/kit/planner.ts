@@ -806,7 +806,7 @@ const zModelPlan = z.object({
 });
 type ModelPlan = z.infer<typeof zModelPlan>;
 
-const SYSTEM_PROMPT = `You are the query planner for Graph Mini Apps. You turn one natural-language question about onchain data into a structured plan.
+const SYSTEM_PROMPT = `You are the query planner for Atlas. You turn one natural-language question about onchain data into a structured plan.
 
 You do NOT write GraphQL. You choose a schema family, the networks, a template shape, and its variables. The runtime assembles the query.
 

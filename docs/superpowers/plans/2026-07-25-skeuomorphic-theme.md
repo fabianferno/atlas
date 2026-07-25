@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Convert the whole Graph Minis UI — studio chrome and generated mini-apps — from neo-brutalism to a tactile Dieter Rams / Braun skeuomorphic look, re-encoding (not dropping) every signal the current design carries.
+**Goal:** Convert the whole Atlas UI — studio chrome and generated mini-apps — from neo-brutalism to a tactile Dieter Rams / Braun skeuomorphic look, re-encoding (not dropping) every signal the current design carries.
 
 **Architecture:** The design language is centralized in `web/src/app/globals.css` (`:root` tokens + `@layer components` classes) which the `brutal/` primitives and `catalog/` components consume by class name. Re-authoring that CSS converts ~90% of the app with no component churn. The remaining work is (a) the few `brutal/` primitives that hard-code brutalist assumptions in TSX, (b) the board-chrome components that use raw hard-rule / zero-radius Tailwind, and (c) a repo-wide sweep for stragglers.
 
@@ -24,10 +24,10 @@
 
 ### Task 1: Re-author the design system in `globals.css`
 
-This is the core. It replaces the product design-system section of `globals.css` (everything from the `GRAPH MINI APPS — DESIGN SYSTEM` banner comment to end of file) with the skeuomorphic system. Lines 1–130 (shadcn `@theme inline`, the oklch neutral `:root`/`.dark`, and the first `@layer base`) are left untouched — shadcn primitives still need them.
+This is the core. It replaces the product design-system section of `globals.css` (everything from the `Atlas — DESIGN SYSTEM` banner comment to end of file) with the skeuomorphic system. Lines 1–130 (shadcn `@theme inline`, the oklch neutral `:root`/`.dark`, and the first `@layer base`) are left untouched — shadcn primitives still need them.
 
 **Files:**
-- Modify: `web/src/app/globals.css` (replace from the `/* ===… GRAPH MINI APPS — DESIGN SYSTEM …*/` banner at line ~131 through EOF)
+- Modify: `web/src/app/globals.css` (replace from the `/* ===… Atlas — DESIGN SYSTEM …*/` banner at line ~131 through EOF)
 
 **Interfaces:**
 - Produces (CSS classes/tokens the rest of the plan relies on):
@@ -42,11 +42,11 @@ Expected: build succeeds (records the pre-change baseline; if it already fails, 
 
 - [ ] **Step 2: Replace the product design-system block**
 
-In `web/src/app/globals.css`, replace everything from the line beginning `/* ============` (the `GRAPH MINI APPS — DESIGN SYSTEM` banner, ~line 131) through the end of the file with exactly:
+In `web/src/app/globals.css`, replace everything from the line beginning `/* ============` (the `Atlas — DESIGN SYSTEM` banner, ~line 131) through the end of the file with exactly:
 
 ```css
 /* ============================================================================
-   GRAPH MINI APPS — DESIGN SYSTEM
+   Atlas — DESIGN SYSTEM
    Skeuomorphic, Dieter Rams / Braun. Tactile plastic + warm charcoal controls,
    one orange action accent. Meaning is preserved but re-expressed as material:
 

@@ -1,4 +1,4 @@
-# Graph Mini Apps — Product Requirements Document
+# Atlas — Product Requirements Document
 
 > *Describe an onchain app. Get an agent with a UI, a wallet, and a name.*
 
@@ -42,7 +42,7 @@ Both indexed the same chains. Both solved the same problem. But Dune shipped a s
 
 That's not a technology gap. It's a surface gap. The Graph's data is richer, more real-time, more composable, and more decentralized than Dune's — and almost nobody outside of web3 engineering has ever touched it directly.
 
-**Graph Mini Apps is the consumer surface The Graph never built.**
+**Atlas is the consumer surface The Graph never built.**
 
 ## Why now
 
@@ -62,7 +62,7 @@ But with one difference that matters more than the rest:
 
 > **Opal's mini apps produce text. Ours hold wallets.**
 
-A Graph mini app isn't a dashboard that answers. It's an agent that acts. It watches live onchain data, renders whatever interface fits the moment, and can execute — trade, rebalance, claim, mirror another wallet, alert you. Each one has its own wallet, its own ENS name, and its own onchain identity.
+A Atlas app isn't a dashboard that answers. It's an agent that acts. It watches live onchain data, renders whatever interface fits the moment, and can execute — trade, rebalance, claim, mirror another wallet, alert you. Each one has its own wallet, its own ENS name, and its own onchain identity.
 
 **The one-liner:** *Describe an onchain app. Get an agent with a UI, a wallet, and a name.*
 
@@ -70,7 +70,7 @@ A Graph mini app isn't a dashboard that answers. It's an agent that acts. It wat
 
 Dune dashboards can't trade. They can't watch for a liquidation and act on it at 4am. They can't be handed to another agent. They can't exist for a question nobody has asked yet.
 
-| | Dune | Graph Mini Apps |
+| | Dune | Atlas |
 |---|---|---|
 | Who builds it | A human, in SQL | An agent, from a sentence |
 | When it exists | After someone builds it | The moment you ask |
@@ -117,7 +117,7 @@ The generated mini app:
             nobody specified "gauge")
   WALLET   session key, $500 cap, allowlisted to one DEX router
   ACTION   swap(), gated by policy + the kill switch
-  IDENTITY aave-guard.graphminis.eth · Agentic ID #142 on 0G Chain
+  IDENTITY aave-guard.atlas-apps.eth · Agentic ID #142 on 0G Chain
 ```
 
 Nobody wrote that app. Nobody will ever write that app — it's one person's specific position, on one chain, with one risk tolerance. That's the long tail, and it's most of the demand.
@@ -146,7 +146,7 @@ People who build a good mini app and share it. They earn from it via x402 (§12)
 
 ## Tertiary — agent builders
 
-They install the MCP server or `@graphminis/kit` and get Graph-grounded generative UI inside their own agent. **This is the Graph Track 1 constituency**, and it's why the kit stays a real, published artifact even though the Studio is now the primary surface.
+They install the MCP server or `@atlas/kit` and get Graph-grounded generative UI inside their own agent. **This is the Graph Track 1 constituency**, and it's why the kit stays a real, published artifact even though the Studio is now the primary surface.
 
 ## Anti-user
 
@@ -171,7 +171,7 @@ The Studio is one page:
 
 MCP server config, SKILL library, and the generator all live inside this app. A user should never see a terminal.
 
-**`@graphminis/kit` still ships as a published npm package + MCP server + SKILL.md** — it's the engine, and Graph Track 1 requires *"reusable tooling/infrastructure, not a single end-user app."* The Studio is a client of the kit, not a wrapper around a private codebase. Publish it for real; an unpublished package reads as an assertion.
+**`@atlas/kit` still ships as a published npm package + MCP server + SKILL.md** — it's the engine, and Graph Track 1 requires *"reusable tooling/infrastructure, not a single end-user app."* The Studio is a client of the kit, not a wrapper around a private codebase. Publish it for real; an unpublished package reads as an assertion.
 
 ## P2 — The Runtime → Graph Track 2 + 3
 
@@ -183,7 +183,7 @@ Track 3's bar is *"compose two or more Graph products, OR build meaningfully on 
 
 Every mini app gets an **ENS subname** and an **Agentic ID (ERC-7857) on 0G Chain**. The name is how humans and agents find and run it. The Agentic ID is its onchain identity and the thing its wallet is bound to.
 
-Naming is not decoration here — **a mini app has a wallet, so it needs a name a human can verify before funding it.** `aave-guard.graphminis.eth` resolving to both a UI and an address is the entire safety UX.
+Naming is not decoration here — **a mini app has a wallet, so it needs a name a human can verify before funding it.** `aave-guard.atlas-apps.eth` resolving to both a UI and an address is the entire safety UX.
 
 ## P4 — The Ecosystem → Graph Track 1, ENS Track 1
 
@@ -197,7 +197,7 @@ The single most important object in the system. Registry, ENS, forking, provenan
 
 ```jsonc
 {
-  "spec": "graphmini/2",
+  "spec": "atlas/2",
   "name": "aave-guard",
   "title": "Aave Position Guard — Arbitrum",
   "intent": "Watch my Aave position. If health factor < 1.4, sell ETH to reach 1.8.",
@@ -248,7 +248,7 @@ The single most important object in the system. Registry, ENS, forking, provenan
 
   // ── WHO IT IS ─────────────────────────────────────────────────
   "identity": {
-    "ens": "aave-guard.graphminis.eth",
+    "ens": "aave-guard.atlas-apps.eth",
     "agenticId": { "chain": "0g", "contract": "0x<ERC7857>", "tokenId": 142 }
   },
 
@@ -263,7 +263,7 @@ The single most important object in the system. Registry, ENS, forking, provenan
   // ── ECOSYSTEM ─────────────────────────────────────────────────
   "author": "fabianferno.eth",
   "appVersion": "1.0.0",
-  "forkedFrom": "lending-watch.graphminis.eth@0.9.2",
+  "forkedFrom": "lending-watch.atlas-apps.eth@0.9.2",
   "pricing": { "x402": { "enabled": true, "priceUsd": 0.05 } }
 }
 ```
@@ -540,22 +540,22 @@ Four signer modes behind one interface, selected by `AGENCY_WALLET_MODE`:
 
 Under the old framing, ENS was a nice shareable name. Under this one it's a **safety primitive**: a mini app has a wallet and can spend money, so before you fund one you need to verify what it is and who made it. A name that resolves to a UI, an address, an author, and an onchain identity — all from one lookup — is exactly that verification.
 
-`aave-guard.graphminis.eth` is simultaneously: where the app lives, where its wallet is, who wrote it, and what it's allowed to do.
+`aave-guard.atlas-apps.eth` is simultaneously: where the app lives, where its wallet is, who wrote it, and what it's allowed to do.
 
 ## Namespace
 
-Register a 2LD you control (`graphminis.eth`) and issue subnames beneath it:
+Register a 2LD you control (`atlas-apps.eth`) and issue subnames beneath it:
 
 Four backends ship behind one interface, selected by `ENS_REGISTRAR_MODE`, degrading to a local mock with a warning rather than throwing.
 
 | Mechanism | Status |
 |---|---|
-| **Onchain NameWrapper + PublicResolver** | **Primary — this is what runs.** `graphminis.eth` registered and wrapped on Sepolia 2026-07-25; subnames issued and read back off the chain by a client that is not ours. Slower, and worth it: nothing about it depends on a third party staying up |
+| **Onchain NameWrapper + PublicResolver** | **Primary — this is what runs.** `atlas-apps.eth` registered and wrapped on Sepolia 2026-07-25; subnames issued and read back off the chain by a client that is not ours. Slower, and worth it: nothing about it depends on a third party staying up |
 | Namespace — offchain CCIP-Read, `POST /api/v1/subnames` | Implemented against their live OpenAPI spec. Needs an API key and the parent's resolver pointed at their hybrid resolver — a signup step and a propagation wait we no longer have to take |
 | NameStone | Implemented, **but see below — do not demo it** |
 | Local mock | Default with no keys |
 
-**Verified end to end**, `aave-health-guard.graphminis.eth` and `wallet-bound-guard.graphminis.eth`: `addr` → the mini app's own wallet, `contenthash` → a CID that decodes to exactly the published manifest, ENSIP-26 `agent-context` / `agent-endpoint[web]` / `agent-endpoint[mcp]`, and an ENSIP-25 `agent-registration` entry the 0G registry confirms in the other direction. Deployment record: `contracts/deployments/ens-sepolia.json`.
+**Verified end to end**, `aave-health-guard.atlas-apps.eth` and `wallet-bound-guard.atlas-apps.eth`: `addr` → the mini app's own wallet, `contenthash` → a CID that decodes to exactly the published manifest, ENSIP-26 `agent-context` / `agent-endpoint[web]` / `agent-endpoint[mcp]`, and an ENSIP-25 `agent-registration` entry the 0G registry confirms in the other direction. Deployment record: `contracts/deployments/ens-sepolia.json`.
 
 **Three findings that changed this plan:**
 
@@ -578,8 +578,8 @@ addr                             → 0x<the mini app's wallet>        ← now me
 contenthash                      → ipfs://<manifest CID>
 agent-context                    → YAML: what it does, which schemas, what it can
                                    spend, how to run it                    (ENSIP-26)
-agent-endpoint[web]              → https://graphminis.xyz/a/aave-guard     (ENSIP-26)
-agent-endpoint[mcp]              → https://mcp.graphminis.xyz/sse          (ENSIP-26)
+agent-endpoint[web]              → https://atlas.xyz/a/aave-guard     (ENSIP-26)
+agent-endpoint[mcp]              → https://mcp.atlas.xyz/sse          (ENSIP-26)
 agent-registration[<erc7930>][142] → "1"                                   (ENSIP-25)
 url · description · avatar       → standard profile records
 ```
@@ -621,7 +621,7 @@ A provenance record that silently degrades to unattested is worse than no proven
 
 **Thinking must be switched off, and this is not a tuning preference.** 0G's models reason by default and reasoning tokens come out of the *same* budget as the answer — measured live, `{"ok":true}` cost 123 reasoning tokens before 6 of content, and a realistic planner prompt cost 1172. The planner's 700-token ceiling meant the JSON was truncated away, the call returned nothing, and every caller read that as "no model configured" and quietly used the rules engine. **A paid, attested, live inference path looked identical to an unconfigured one.** Pass `chat_template_kwargs: { enable_thinking: false }` — it yields 0 reasoning tokens. `reasoning_effort: "low"` (248) and `chat_template_kwargs: { thinking: false }` (223) both make it *worse* than the default.
 
-**What "proof of inference" actually means here** (§14 #11): the TEE returns a request id, it becomes `provenance.attestationRef`, and its keccak256 is written onchain into `MiniAppRegistry.attestationHash` alongside the token and the name. Verified: `keccak256("0g://f1ade7e8-e9ca-4fb2-b5c9-79cd400e3195")` = `0xa651240d…52f1`, which is what the registry returns for `attested-market-guard.graphminis.eth`. A judge can check that without trusting the UI.
+**What "proof of inference" actually means here** (§14 #11): the TEE returns a request id, it becomes `provenance.attestationRef`, and its keccak256 is written onchain into `MiniAppRegistry.attestationHash` alongside the token and the name. Verified: `keccak256("0g://f1ade7e8-e9ca-4fb2-b5c9-79cd400e3195")` = `0xa651240d…52f1`, which is what the registry returns for `attested-market-guard.atlas-apps.eth`. A judge can check that without trusting the UI.
 
 The attestation is stored in the manifest's `provenance`. **This matters more now than it did as a dashboard tool:** if a generated UI can move money, "did this model really produce this plan, from this data" stops being a nicety and becomes an audit trail. Verifiable provenance for an agent that spends.
 
@@ -694,7 +694,7 @@ Coverage target: **all ten schema families, three chains.** The demo only needs 
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │  imports, never reaches around
 ┌───────────────────────────────▼──────────────────────────────────────┐
-│  @graphminis/kit   (npm · MCP server · SKILL.md)                     │
+│  @atlas/kit   (npm · MCP server · SKILL.md)                     │
 │                                                                      │
 │   PLANNER ──────────► RESOLVER ──────────► FAN-OUT ──────► COMPOSER  │
 │   intent → plan       schema → live         parallel        → A2UI   │
@@ -723,7 +723,7 @@ Coverage target: **all ten schema families, three chains.** The demo only needs 
 ## Repo layout
 
 ```
-packages/kit/          # @graphminis/kit — planner, resolver, fan-out, composer, policy
+packages/kit/          # @atlas/kit — planner, resolver, fan-out, composer, policy
 packages/mcp/          # MCP server wrapping the kit
 apps/studio/           # Next.js — Studio, registry, /a/[name] runtime
 contracts/
@@ -874,7 +874,7 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | 12 | **Contract deployment addresses** | 0G 1 | | **☑** Galileo 16602 — AgenticId `0xeB2872…C3B0`, MiniAppRegistry `0x093319…8dA8`, Verifier `0x708aE7…aaD3` |
 | 13 | **Minted Agentic ID linked on 0G explorer** (bonus qualification) | 0G 1 | | **☑** token 6, `chainscan-galileo.0g.ai/token/0xeB2872…C3B0?a=6` |
 | 14 | Demo video **under 3:00** (satisfies 0G *and* Graph's 2–4) | all | | ☐ |
-| 15 | Live demo link | 0G 1 | | **☑** **https://graph-minis.vercel.app** — and the ENS records were rewritten to match it (`scripts/ens-reorigin.ts`, 4 names, 4 Sepolia txs), so `agent-endpoint[web]`/`[mcp]` and `url` no longer point at `localhost:3000`. Verified by reading the records back off the chain, then by resolving from the deployed origin with no write key present |
+| 15 | Live demo link | 0G 1 | | **☑** **https://atlas.vercel.app** — and the ENS records were rewritten to match it (`scripts/ens-reorigin.ts`, 4 names, 4 Sepolia txs), so `agent-endpoint[web]`/`[mcp]` and `url` no longer point at `localhost:3000`. Verified by reading the records back off the chain, then by resolving from the deployed origin with no write key present |
 | 16 | Team names + Telegram/X | 0G 1 | | ☐ |
 | 17 | **Proper git history** — small, frequent, descriptive commits | ETHGlobal | everyone | **◐** on track |
 | 18 | AI-tool usage attributed; specs/prompts committed | ETHGlobal | | **☑** this document is the artifact, with Appendix C recording why each major decision changed; plus `docs/superpowers/specs/` and `plans/` for the theme and drawer work. The stale v1 draft was dropped and every reference to it removed — a planning doc that links a missing file argues against itself |
@@ -898,7 +898,7 @@ The highest-leverage hour in the whole build. N agents can only produce composab
 
 | Artifact | Location | Why it blocks |
 |---|---|---|
-| Manifest JSON Schema (`graphmini/2`) | `packages/kit/src/contracts/manifest.schema.json` | Every workstream reads or writes it |
+| Manifest JSON Schema (`atlas/2`) | `packages/kit/src/contracts/manifest.schema.json` | Every workstream reads or writes it |
 | Component + action catalog | `packages/kit/src/contracts/catalog.ts` | Composer emits against it; renderer implements it. Mismatch = nothing renders |
 | Kit public API signatures | `packages/kit/src/contracts/api.ts` | `plan · fanOut · compose · publish · policy` — Studio and MCP both bind to it |
 | Policy engine interface | `packages/kit/src/contracts/policy.ts` | Signer, triggers, and UI all call through it |
@@ -914,7 +914,7 @@ These are **queues, not work.** No amount of parallelism speeds them up, and eve
 - **ENS 2LD registration** — plus propagation. Also the booth conversation (§18 Q1) that decides the issuance mechanism
 - **Graph gateway API key** — Studio, wallet connect
 - **0G testnet access** — faucet, RPC, Private Computer API key
-- **npm org/package name** — claim `@graphminis` before someone else does
+- **npm org/package name** — claim `@atlas` before someone else does
 - **Domain + deploy target** — the live demo link is a 0G requirement
 
 ## Workstreams — fully parallel once Phase 0 lands
@@ -1032,12 +1032,12 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
             can't spend. Dune can't do any of this."
                                                     ← the differentiator
 
-1:50–2:08  IDENTITY. [USE durable-market-guard.graphminis.eth — aave-health-guard
+1:50–2:08  IDENTITY. [USE durable-market-guard.atlas-apps.eth — aave-health-guard
            predates wallet binding and has NO addr record, so it cannot carry
            this beat. Verified live: source=contenthash, addr → the app's
            wallet, both endpoints on the live origin, token 8 on 0G,
            mutuallyVerified: true.]
-           The title bar reads durable-market-guard.graphminis.eth — resolving
+           The title bar reads durable-market-guard.atlas-apps.eth — resolving
            to the UI, the wallet address, and Agentic ID #142 on 0G Chain. The
            ENS record and the onchain token verify each other.
            Paste the name into a different agent — it resolves, reads
@@ -1050,13 +1050,13 @@ Satisfies 0G's <3:00 and Graph's 2–4:00. One cut.
            its own data.
                                                     ← Graph T1, ecosystem
 
-2:28–2:50  Point any agent at graph-minis.vercel.app/api/mcp — five tools,
+2:28–2:50  Point any agent at atlas.vercel.app/api/mcp — five tools,
            live, no install.
            "15,000 subgraphs. Every question is an app now, and every app can
             act. That's The Graph, finally pointed at everyone."
                                                     ← Graph T1
 
-           [DO NOT say "npm i @graphminis/kit" — it is not published and the
+           [DO NOT say "npm i @atlas/kit" — it is not published and the
             name 404s. The MCP endpoint is the real, verifiable Track 1
             artifact; claiming a package that does not exist, in the last
             sentence of the video, is the worst possible place to be caught.]
@@ -1156,11 +1156,11 @@ Catalog size is a design decision, not a budget one: a wider catalog means riche
 ## README.md skeleton
 
 ```markdown
-# Graph Mini Apps
+# Atlas
 
 Describe an onchain app. Get an agent with a UI, a wallet, and a name.
 
-**Live:** <url>  ·  **Video:** <url>  ·  **npm:** @graphminis/kit
+**Live:** <url>  ·  **Video:** <url>  ·  **npm:** @atlas/kit
 **Agentic ID:** <0G explorer link>  ·  **Contracts:** 0x… (0G Chain)
 
 ## Why
@@ -1185,7 +1185,7 @@ whatever UI fits, and can act — within a policy you set.
                   with its own wallet, no shared API key)
 
 ## ENS
-graphminis.eth + per-app subnames. Records: addr · contenthash ·
+atlas-apps.eth + per-app subnames. Records: addr · contenthash ·
 agent-context · agent-endpoint[web|mcp] (ENSIP-26) ·
 agent-registration[registry][tokenId] (ENSIP-25), which mutually verifies
 against the Agentic ID on 0G Chain.
@@ -1217,19 +1217,19 @@ Name · Telegram · X
 ## SKILL.md skeleton
 
 ```markdown
-# Graph Mini Apps
+# Atlas
 
 Give any agent the ability to build onchain mini apps — generated UI over live
 Graph data, with actions.
 
 ## Install
-npm i @graphminis/kit
+npm i @atlas/kit
 # or add the MCP server:
-{ "mcpServers": { "graphminis": { "command": "npx",
-  "args": ["mcp-remote", "https://mcp.graphminis.xyz/sse"] } } }
+{ "mcpServers": { "atlas": { "command": "npx",
+  "args": ["mcp-remote", "https://mcp.atlas.xyz/sse"] } } }
 
 ## Use
-import { plan, fanOut, compose, publish } from '@graphminis/kit'
+import { plan, fanOut, compose, publish } from '@atlas/kit'
 
 const p  = await plan("watch my Aave position, rebalance under 1.4 HF")
 const d  = await fanOut(p)            // parallel, health-checked, ≥2 schemas
@@ -1239,7 +1239,7 @@ await publish(ui, {
   name: 'aave-guard',
   policy: { maxSpendUsd: 500, allowlist: ['0x…'], killSwitch: true }
 })
-// → aave-guard.graphminis.eth + Agentic ID on 0G Chain
+// → aave-guard.atlas-apps.eth + Agentic ID on 0G Chain
 
 ## Customization
 - Component + action catalog: packages/kit/src/catalog.ts
@@ -1315,7 +1315,7 @@ Build capacity stopped being the constraint (agent-executed build), so the plan 
 
 **Restored from v1, now justified:** ratings/reviews, fork/remix, Substreams streaming, x402 creator earnings, mobile responsive. Under "dashboards" these were unscored surface; under "ecosystem of agents" they're the flywheel.
 
-**Creation moved in-app.** The Studio is the primary surface; `@graphminis/kit` is the engine beneath it and still ships to npm for Graph Track 1. Telling a consumer to `npm install` reproduces the exact failure this product exists to fix.
+**Creation moved in-app.** The Studio is the primary surface; `@atlas/kit` is the engine beneath it and still ships to npm for Graph Track 1. Telling a consumer to `npm install` reproduces the exact failure this product exists to fix.
 
 **Added:** §7 agency and safety (mandatory once an LLM holds a wallet), action components in the catalog, §15 split between the product and the weekend.
 

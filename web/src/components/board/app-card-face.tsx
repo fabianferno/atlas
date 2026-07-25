@@ -67,7 +67,7 @@ export function AppCardFace({
             <div className="min-w-0">
               <h3 className="display text-[0.8125rem] leading-tight">{m.title}</h3>
               <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
-                {m.identity.ens ?? `${m.name}.graphminis.eth`}
+                {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
               </p>
             </div>
           </div>

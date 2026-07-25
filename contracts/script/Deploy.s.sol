@@ -35,7 +35,7 @@ contract Deploy is Script {
         uint256 pk = vm.envUint("ZEROG_DEPLOYER_KEY");
         address deployer = vm.addr(pk);
 
-        string memory collectionName = vm.envOr("AGENTIC_ID_NAME", string("Graph Mini Apps"));
+        string memory collectionName = vm.envOr("AGENTIC_ID_NAME", string("Atlas"));
         string memory collectionSymbol = vm.envOr("AGENTIC_ID_SYMBOL", string("GMINI"));
         string memory storageInfo =
             vm.envOr("ZEROG_STORAGE_INDEXER", string("https://indexer-storage-testnet-turbo.0g.ai"));

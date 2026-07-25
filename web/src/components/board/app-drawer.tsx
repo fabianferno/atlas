@@ -1,17 +1,23 @@
 "use client";
 
 /**
- * A running mini app, slid in over the board.
+ * A running mini app, slid into the board's left half.
  *
- * The board stays put; the app arrives as a surface on top of it. On a wide
- * screen that surface is a right-hand panel (~60vw); on a phone it is a bottom
- * sheet you can throw back down with your thumb. Either way the runtime inside
- * is the same one the full-page route mounts, so nothing about the app changes
- * — only its container does.
+ * The app takes the globe's side. That is the whole idea: at rest the left is a
+ * globe and the wheel sits beside it; open a card and the globe leaves to the
+ * left while the app arrives from the same edge, filling exactly the space the
+ * globe gave up. The wheel never moves and is never covered — it stays live on
+ * the right with the open card ringed, so the deck reads as a table of contents
+ * for the panel and you can flick to the next app without closing this one.
  *
- * On a wide screen the opened card's details take the space the globe vacates,
- * so the split stays a split: which app this is on the left, the app itself on
- * the right. See `AppDossier`.
+ * That is why this is NOT a modal on a wide screen. No scrim, no scroll lock,
+ * no `aria-modal`: those all exist to make the rest of the page inert, and the
+ * rest of the page is the point. On a phone there is no room for a split, so it
+ * degrades to what it always was — a bottom sheet you can throw back down with
+ * your thumb, scrim and all, genuinely modal.
+ *
+ * The runtime inside is the same one the full-page route mounts, so nothing
+ * about the app changes — only its container does.
  *
  * The container never unmounts the runtime mid-animation. `name` may go null
  * between selections and `open` may go false before the slide-out finishes, so
@@ -21,8 +27,7 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { AppDossier } from "@/components/board/app-dossier";
+import { ChevronDown, ChevronLeft } from "lucide-react";
 import { AppRuntime } from "@/components/board/app-runtime";
 import { cn } from "@/lib/utils";
 
@@ -47,10 +52,11 @@ function useMounted(): boolean {
 
 /**
  * True when the viewport is at least the `sm` breakpoint. SSR-safe: the server
- * snapshot is false (mobile-first), the client tracks `matchMedia`. The closed
- * transform depends on this — a right-panel hides along X, a sheet along Y — so
- * the two layouts carry genuinely different transforms rather than fighting over
- * one set of responsive classes.
+ * snapshot is false (mobile-first), the client tracks `matchMedia`. Three things
+ * hang off it, and all three are the same question — is this a side panel or a
+ * sheet? The closed transform (out the left edge along X, or down along Y), the
+ * modal behaviours (scrim, scroll lock, focus capture, `aria-modal`), and which
+ * way the close chevron points.
  */
 function useIsDesktop(): boolean {
   return useSyncExternalStore(
@@ -113,20 +119,24 @@ export function AppDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Body scroll-lock while open. Restore whatever was there before.
+  // Body scroll-lock, for the sheet only. The side panel leaves the board
+  // scrollable on purpose — the wheel beside it has to stay usable.
   useEffect(() => {
-    if (!open) return;
+    if (!open || isDesktop) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, isDesktop]);
 
-  // Focus lifecycle. On open, remember what was focused and move focus into the
-  // panel once it has painted; on close, hand focus back. Ref writes and
-  // `.focus()` are not state updates, so this stays out of the render loop.
+  // Focus lifecycle, also sheet-only. Pulling focus out of the wheel would take
+  // its arrow keys with it, and beside a non-modal panel the wheel is still
+  // something you are steering. On the sheet the board is inert, so focus moves
+  // in on open and is handed back on close. Ref writes and `.focus()` are not
+  // state updates, so this stays out of the render loop.
   useEffect(() => {
+    if (isDesktop) return;
     if (open) {
       restoreFocusRef.current = (document.activeElement as HTMLElement) ?? null;
       const id = window.requestAnimationFrame(() => panelRef.current?.focus());
@@ -135,7 +145,7 @@ export function AppDrawer({
     const prev = restoreFocusRef.current;
     restoreFocusRef.current = null;
     prev?.focus?.();
-  }, [open]);
+  }, [open, isDesktop]);
 
   const onHandlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -179,14 +189,15 @@ export function AppDrawer({
 
   if (!mounted || (!open && !rendered)) return null;
 
-  // Closed transform differs by layout: a desktop panel parks off the right
-  // edge (X); a phone sheet drops below the bottom edge (Y). Open is the same
-  // GPU-friendly identity in both. The panel floats inside a margin, so the
-  // closed offset is its own size *plus* that margin — otherwise a sliver of
-  // the floating edge would peek back onto the screen. While dragging the sheet,
-  // an inline transform takes over so the surface tracks the finger in real time.
+  // Closed transform differs by layout: a desktop panel parks off the LEFT edge
+  // (X), the same edge the globe leaves by; a phone sheet drops below the bottom
+  // edge (Y). Open is the same GPU-friendly identity in both. The panel floats
+  // inside a margin, so the closed offset is its own size *plus* that margin —
+  // otherwise a sliver of the floating edge would peek back onto the screen.
+  // While dragging the sheet, an inline transform takes over so the surface
+  // tracks the finger in real time.
   const closedTransform = isDesktop
-    ? "translate3d(calc(100% + 1rem),0,0)"
+    ? "translate3d(calc(-100% - 1rem),0,0)"
     : "translate3d(0,calc(100% + 0.5rem),0)";
   const dragging = dragY !== null;
   const panelStyle: React.CSSProperties = dragging
@@ -194,40 +205,49 @@ export function AppDrawer({
     : { transform: open ? "translate3d(0,0,0)" : closedTransform };
 
   return createPortal(
-    <div className="fixed inset-0 z-50" aria-hidden={!open}>
-      {/* Scrim: lighter on desktop where the board still shows, darker on mobile. */}
+    // The layer itself must not eat clicks — beside a non-modal panel every
+    // pixel it does not cover belongs to the board. Only the panel (and the
+    // sheet's scrim) opt back in.
+    <div className="pointer-events-none fixed inset-0 z-50" aria-hidden={!open}>
+      {/* Scrim, sheet only. A side panel that dimmed the wheel would be telling
+          you not to touch the thing it was put there to sit beside. */}
       <div
         className={cn(
-          "absolute inset-0 transition-opacity duration-300 ease-out",
-          "bg-black/45 sm:bg-black/20",
+          "pointer-events-auto absolute inset-0 bg-black/45 transition-opacity duration-300 ease-out sm:hidden",
           open ? "opacity-100" : "opacity-0",
         )}
         onClick={onClose}
       />
 
-      {/*
-        The left half of the split, once the globe has cleared it: the opened
-        card's own details, so the running app never arrives unlabelled. It sits
-        after the scrim in the tree, which is what floats it above the dim —
-        neither carries a z-index, so paint order is DOM order.
-      */}
-      <AppDossier name={shownName} open={open} />
-
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
+        // Modal on the sheet, where the board really is inert; not on the side
+        // panel, where claiming it would hide a live wheel from a screen reader.
+        aria-modal={isDesktop ? undefined : true}
         aria-label={shownName ?? "Mini app"}
         tabIndex={-1}
         style={panelStyle}
         className={cn(
-          "fixed flex flex-col overflow-hidden outline-none",
+          "pointer-events-auto fixed flex flex-col overflow-hidden outline-none",
           "bg-[var(--paper)] shadow-[var(--elev-3)]",
           "transition-transform duration-300 ease-out will-change-transform",
           // Mobile: a floating bottom sheet inset from the edges.
           "inset-x-2 bottom-2 h-[86dvh] rounded-2xl border border-hairline",
-          // Desktop: a floating right-hand panel (~58vw, capped), margin on all sides.
-          "sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:h-auto sm:w-[58vw] sm:max-w-[860px] sm:rounded-2xl sm:border",
+          // Tablet: a left-hand panel wide enough to be worth reading. The wheel
+          // is behind it at this size — there is no room to show both.
+          //
+          // It starts below the sticky top bar (45px) rather than at the top of
+          // the viewport. A modal could sit over the nav because nothing behind
+          // it was reachable anyway; this one is a pane of the board, and the
+          // board's nav and its halt-everything button have to stay clickable
+          // the whole time an app is running.
+          "sm:inset-x-auto sm:left-4 sm:top-[3.8125rem] sm:bottom-4 sm:h-auto sm:w-[58vw] sm:rounded-2xl sm:border",
+          // Desktop: narrowed to stop short of the wheel. 48vw minus the 1rem
+          // margin puts the panel's right edge a comfortable gap left of where
+          // the deck's grid places the wheel at every width from 1024 up — see
+          // the note on the wheel column in `app-deck.tsx`.
+          "lg:w-[calc(48vw-2rem)]",
         )}
       >
         <header className="relative shrink-0 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)]">
@@ -252,8 +272,10 @@ export function AppDrawer({
               aria-label="Close"
               className="btn press grid h-8 w-8 shrink-0 place-items-center p-0"
             >
+              {/* Points the way out: down for the sheet, back to the left edge
+                  for the panel. */}
               <ChevronDown className="h-4 w-4 sm:hidden" aria-hidden />
-              <ChevronRight className="hidden h-4 w-4 sm:block" aria-hidden />
+              <ChevronLeft className="hidden h-4 w-4 sm:block" aria-hidden />
             </button>
           </div>
         </header>

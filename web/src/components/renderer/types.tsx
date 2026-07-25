@@ -44,7 +44,7 @@ export type {
 
 export {
   A2UI_VERSION,
-  GRAPHMINIS_CATALOG_ID,
+  ATLAS_CATALOG_ID,
   bind,
   buildDocument,
   createSurface,

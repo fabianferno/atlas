@@ -238,7 +238,7 @@ interface SeedInput {
 function build(s: SeedInput): MiniApp {
   const ui: UiDoc = { spec: "a2ui/0.9.1", blocks: s.blocks };
   const manifest: Manifest = {
-    spec: "graphmini/2",
+    spec: "atlas/2",
     name: s.name,
     title: s.title,
     intent: s.intent,
@@ -279,7 +279,7 @@ function build(s: SeedInput): MiniApp {
       },
     },
     identity: {
-      ens: `${s.name}.graphminis.eth`,
+      ens: `${s.name}.atlas-apps.eth`,
       agenticId: {
         chain: "0g",
         contract: "0x9f2d8a1c4b6e7f0a3d5c8b9e1f2a4c6d8e0b3f57",
@@ -1441,7 +1441,7 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
   const name = slugify(intent);
 
   const manifest: Manifest = {
-    spec: "graphmini/2",
+    spec: "atlas/2",
     name,
     title: titleFromIntent(intent),
     intent,

@@ -21,7 +21,7 @@ interface IAgenticIdVerifierExt {
 
 /**
  * @title AgenticId
- * @notice ERC-7857 "Agentic ID" for Graph Mini Apps, on 0G Chain.
+ * @notice ERC-7857 "Agentic ID" for Atlas, on 0G Chain.
  *
  * Every published mini app is minted here. That is not decoration: a mini app
  * holds a wallet and can spend, so it needs an owner, and an owner needs

@@ -80,7 +80,7 @@ export type Publish = (
 /** W7 — ENS name to a rehydrated, live manifest. */
 export type Resolve = (ensName: string) => Promise<Manifest | null>;
 
-export interface GraphMinisKit {
+export interface AtlasKit {
   plan: Plan;
   resolveSources: ResolveSources;
   fanOut: FanOut;

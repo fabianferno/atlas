@@ -1,9 +1,9 @@
 ---
-name: graph-mini-apps
+name: atlas
 description: Use when a question needs live onchain data across many protocols or chains at once — DeFi TVL, lending positions, DEX liquidity, bridges, perps, yield — or when the user wants a runnable mini app, dashboard, or monitor built from that data. Resolves standardized subgraph schemas rather than individual subgraph IDs, so questions nobody anticipated still resolve.
 ---
 
-# Graph Mini Apps
+# Atlas
 
 Turn a question about onchain activity into live data, or into a mini app: a generated interface over that data which can also hold a wallet and act within a policy.
 
@@ -18,7 +18,7 @@ Do not use it for a single known subgraph id you already query, or for anything 
 The MCP server is the fastest path — no install:
 
 ```jsonc
-{ "mcpServers": { "graphminis": { "type": "http", "url": "https://<origin>/api/mcp" } } }
+{ "mcpServers": { "atlas": { "type": "http", "url": "https://<origin>/api/mcp" } } }
 ```
 
 Every published mini app also advertises this endpoint in its ENS records under `agent-endpoint[mcp]`, so resolving a name gives you the server to talk to.

@@ -32,7 +32,7 @@ export const SKINS = [
 ] as const;
 export type Skin = (typeof SKINS)[number];
 
-export const SKIN_STORAGE_KEY = "graphminis.skin";
+export const SKIN_STORAGE_KEY = "atlas.skin";
 export const DEFAULT_SKIN: Skin = "tactile";
 
 /** Proper label per skin, used on the button and in the title. */

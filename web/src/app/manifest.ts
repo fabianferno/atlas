@@ -6,8 +6,8 @@ import type { MetadataRoute } from "next";
 // Icons come from scripts/generate-brand-icons.mjs.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Graph Mini Apps",
-    short_name: "Graph Minis",
+    name: "Atlas",
+    short_name: "Atlas",
     description:
       "Describe an onchain app. Get an agent with a UI, a wallet, and a name.",
     start_url: "/",

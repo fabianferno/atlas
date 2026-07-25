@@ -37,7 +37,7 @@ const PROTOCOL_CORE = `
  * The last resort. Only interface fields, no arguments beyond `first` — if this
  * fails the deployment is not a standardized subgraph at all.
  */
-const CORE_QUERY = `query GraphMinisCore {
+const CORE_QUERY = `query AtlasCore {
   protocols(first: 1) {
     id
     name
@@ -55,9 +55,9 @@ const CORE_QUERY = `query GraphMinisCore {
  * asked about and the fan-out reaches four more.
  */
 export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
-  "generic@3.0.0": `query GraphMinisGeneric { protocols(first: 1) {${PROTOCOL_CORE} } }`,
+  "generic@3.0.0": `query AtlasGeneric { protocols(first: 1) {${PROTOCOL_CORE} } }`,
 
-  "dex-amm@1.3.2": `query GraphMinisDex {
+  "dex-amm@1.3.2": `query AtlasDex {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on DexAmmProtocol { cumulativeVolumeUSD totalPoolCount }
   }
@@ -67,7 +67,7 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   }
 }`,
 
-  "dex-amm-extended@4.0.1": `query GraphMinisDexExtended {
+  "dex-amm-extended@4.0.1": `query AtlasDexExtended {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on DexAmmProtocol { cumulativeVolumeUSD totalPoolCount }
   }
@@ -77,9 +77,9 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   }
 }`,
 
-  "dex-aggregator@1.0.2": `query GraphMinisDexAggregator { protocols(first: 1) {${PROTOCOL_CORE} } }`,
+  "dex-aggregator@1.0.2": `query AtlasDexAggregator { protocols(first: 1) {${PROTOCOL_CORE} } }`,
 
-  "lending-cdp@3.1.0": `query GraphMinisLending {
+  "lending-cdp@3.1.0": `query AtlasLending {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on LendingProtocol {
       totalDepositBalanceUSD
@@ -94,7 +94,7 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   }
 }`,
 
-  "yield-aggregator@1.3.1": `query GraphMinisYield {
+  "yield-aggregator@1.3.1": `query AtlasYield {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on YieldAggregator { protocolControlledValueUSD totalPoolCount }
   }
@@ -110,7 +110,7 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   // OpenSea Seaport mainnet (`2GmLsgYGWoFoouZzKjp8biYDkfmeLTkEY3VDQyZqSJHA`)
   // on 2026-07-25: the only value fields are ETH-denominated. Anything
   // presenting these as dollars has to convert, and has to say it converted.
-  "nft-marketplace@2.1.0": `query GraphMinisNft {
+  "nft-marketplace@2.1.0": `query AtlasNft {
   marketplaces(first: 1) {
     id
     name
@@ -128,7 +128,7 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
 }`,
 
   // Likewise the network schema: root entity `Network`, no protocol at all.
-  "network@1.2.0": `query GraphMinisNetwork {
+  "network@1.2.0": `query AtlasNetwork {
   networks(first: 1) {
     id
     blockHeight
@@ -138,13 +138,13 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   }
 }`,
 
-  "bridge@1.2.0": `query GraphMinisBridge {
+  "bridge@1.2.0": `query AtlasBridge {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on BridgeProtocol { totalValueExportedUSD totalPoolCount }
   }
 }`,
 
-  "perp-futures@1.3.4": `query GraphMinisPerp {
+  "perp-futures@1.3.4": `query AtlasPerp {
   protocols(first: 1) {${PROTOCOL_CORE}
     ... on DerivPerpProtocol {
       cumulativeVolumeUSD
@@ -155,7 +155,7 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   }
 }`,
 
-  "options@1.3.2": `query GraphMinisOptions { protocols(first: 1) {${PROTOCOL_CORE} } }`,
+  "options@1.3.2": `query AtlasOptions { protocols(first: 1) {${PROTOCOL_CORE} } }`,
 };
 
 /** Root fields whose rows we lift into the merged table. */

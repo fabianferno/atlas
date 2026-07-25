@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 /**
  * @title MiniAppRegistry
- * @notice The onchain half of the Graph Mini Apps identity binding.
+ * @notice The onchain half of the Atlas identity binding.
  *
  * A published mini app is three things that must agree with each other:
- *   1. an ENS name        (`aave-guard.graphminis.eth`)
+ *   1. an ENS name        (`aave-guard.atlas-apps.eth`)
  *   2. a manifest         (an IPFS CID, pinned, the executable artifact)
  *   3. an Agentic ID      (an ERC-7857 token on 0G Chain, the ownable asset)
  *
@@ -46,7 +46,7 @@ contract MiniAppRegistry {
     /* ---------------------------------------------------------------- */
 
     struct AppRecord {
-        /// Full ENS name, e.g. "aave-guard.graphminis.eth". Empty == unset.
+        /// Full ENS name, e.g. "aave-guard.atlas-apps.eth". Empty == unset.
         string ensName;
         /// IPFS CID of the manifest JSON (the ENS contenthash target).
         string manifestCID;

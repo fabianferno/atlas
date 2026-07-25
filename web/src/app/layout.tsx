@@ -3,6 +3,7 @@ import { Archivo, IBM_Plex_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { DEFAULT_SKIN, SKIN_BOOT_SCRIPT } from "@/components/board/skin-toggle";
 import { LedgerDock } from "@/components/board/ledger-dock";
+import { AgencyPrivyProvider } from "@/components/providers/privy";
 
 // Rule 4 (prd.md §6): Archivo carries a width axis, so display and UI are one
 // family. IBM Plex Mono is half the interface, not an accent.
@@ -26,7 +27,7 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700"],
 });
 
-const APP_NAME = "Graph Mini Apps";
+const APP_NAME = "Atlas";
 const APP_DESCRIPTION =
   "Describe an onchain app. Get an agent with a UI, a wallet, and a name.";
 
@@ -35,7 +36,7 @@ const APP_DESCRIPTION =
 // conventions and emit their own tags; declaring them again here would ship
 // every icon twice and give us two places to forget to update.
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://graphminis.xyz"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://atlas.xyz"),
   title: APP_NAME,
   description: APP_DESCRIPTION,
   openGraph: {
@@ -76,10 +77,17 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SKIN_BOOT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
-        {children}
-        {/* Mounted here rather than per page so it survives navigation with its
-            open state and unseen count intact — see ledger-dock.tsx. */}
-        <LedgerDock />
+        {/* Wraps the whole app, not just the top bar: the wallet button, the
+            ledger and anything that funds a mini app all read the same Privy
+            session, and a provider mounted deeper would unmount on navigation
+            and drop it. Passes children straight through when Privy is
+            unconfigured, so the board still runs with no keys set. */}
+        <AgencyPrivyProvider>
+          {children}
+          {/* Mounted here rather than per page so it survives navigation with its
+              open state and unseen count intact — see ledger-dock.tsx. */}
+          <LedgerDock />
+        </AgencyPrivyProvider>
       </body>
     </html>
   );

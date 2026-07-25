@@ -27,10 +27,14 @@ export const WHEEL_CARD_EXPAND = 112;
 export function AppWheelCard({
   app,
   active,
+  open,
   className,
 }: {
   app: MiniApp;
+  /** Centered in the wheel right now. Moves with every scroll. */
   active?: boolean;
+  /** Running in the panel beside the wheel. Only a click moves this. */
+  open?: boolean;
   className?: string;
 }): React.JSX.Element {
   const m = app.manifest;
@@ -45,7 +49,15 @@ export function AppWheelCard({
         tier,
         cn(
           "box-border flex min-w-0 flex-col overflow-hidden",
-          active ? "ring-1 ring-[var(--action)]/40 shadow-[var(--elev-2)]" : "",
+          // Two different states, so two different weights. Centered is a hint
+          // that a click would land here; open is a fact about what the panel is
+          // showing, and it has to survive being scrolled three rows away —
+          // blurred, faded and turned — so it takes the solid ring.
+          open
+            ? "ring-2 ring-[var(--action)] shadow-[var(--elev-3)]"
+            : active
+              ? "ring-1 ring-[var(--action)]/40 shadow-[var(--elev-2)]"
+              : "",
           className,
         ),
       )}
@@ -64,9 +76,21 @@ export function AppWheelCard({
           <p className="mono mt-0.5 truncate text-[0.5625rem] text-[var(--muted-ink)]">
             <span className="uppercase tracking-[0.08em]">{TIER_LABEL[tier]}</span>
             {" · "}
-            {m.identity.ens ?? `${m.name}.graphminis.eth`}
+            {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
           </p>
         </div>
+        {/* Says which one the panel is showing, in words, for the rows too far
+            from center for a ring to survive the blur. It sits beside the live
+            and halted marks rather than replacing them — an open app is still
+            running, or still stopped, and you want both facts. */}
+        {open ? (
+          <span
+            className="mono shrink-0 text-[0.5625rem] uppercase tracking-[0.08em]"
+            style={{ color: "var(--action)" }}
+          >
+            open
+          </span>
+        ) : null}
         {halted ? (
           <span
             className="mono shrink-0 text-[0.5625rem] uppercase tracking-[0.08em]"

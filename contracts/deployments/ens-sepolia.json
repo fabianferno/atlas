@@ -1,9 +1,9 @@
 {
-  "note": "Parent 2LD for mini app subnames. Registered via TestnetV1PremigrationRegistrar because ETHRegistrarController is not an authorised controller on Sepolia and register() reverts while available() still returns true. Wrapped afterwards so NameWrapper.setSubnodeRecord can issue subnames.",
+  "note": "Parent 2LD for mini app subnames. Registered via TestnetV1PremigrationRegistrar because ETHRegistrarController is not an authorised controller on Sepolia and register() reverts while available() still returns true. Wrapped afterwards so NameWrapper.setSubnodeRecord can issue subnames. Re-registered under atlas-apps.eth during the Atlas rebrand (atlas.eth was already taken on Sepolia); see scripts/ens-register-parent.ts.",
   "chain": "sepolia",
   "chainId": 11155111,
-  "parent": "graphminis.eth",
-  "node": "0xcd7ac3edd0b23f522d86c452c5dc12ab36e4bf825dfa0c0ea53206fd17755639",
+  "parent": "atlas-apps.eth",
+  "node": "0xb6535f89a4b401a09eb3caddc2e5151934e8501e030419e51d6f04b1893f92d3",
   "owner": "0x5a09e3eC3EFDD91205Cbb097142a4f4dCEFc7f02",
   "wrapped": true,
   "contracts": {
@@ -14,16 +14,41 @@
     "baseRegistrar": "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85"
   },
   "transactions": {
-    "register": "0xe460ef6c8277a259287803e0c23b3971a6c2b9bd7b709fd65e6984f25f7073bc",
-    "approveNameWrapper": "0x04e4665cd162b1c1715d1e4b0cbd8b89c5495942b12f745464f0737e8fa4dd1a",
-    "wrapETH2LD": "0x76b904f7df79c0eeeeadfc0abb9f90b16a36248c9f2af15d5e75556348377137"
+    "register": "0xdcf79e711522608ee6beb322ef3aadc3f75d7394f8e596f61cf81ed9130227fc",
+    "approveNameWrapper": "0xaac889bd9598c56d435a3f501d1effce041686aa4bb5be50f84d9cb3f71f5ed3",
+    "wrapETH2LD": "0xef8cb4998fe3a4a83fb6cf8719d8ef6f1ae46ab247a722f412c05ddecb7cc26b"
   },
+  "issuedSubnamesNote": "Re-issued under atlas-apps.eth by replaying each record set from the original *.graphminis.eth subname (scripts/ens-reissue-subnames.ts). The graphmini.* text keys were renamed to atlas.*, graphmini/2 -> atlas/2 in agent-context, and the ENSIP-25 agent-registration attestation preserved. `tx` is the final setRecords multicall that wrote the complete 10-key record set.",
+  "issuedSubnames": [
+    {
+      "name": "aave-health-guard.atlas-apps.eth",
+      "node": "0x5fc45832c661f90f9b1adbe1f68ba4f7ecd5946a7e14a4fca7a8f9497e2fac90",
+      "tx": "0x5eacb88d00984a5fe13e35026cde761c5cf299288ab472e4d3f01408fbd74e55"
+    },
+    {
+      "name": "wallet-bound-guard.atlas-apps.eth",
+      "node": "0xbb261ab58f1be19b1b8d0cf38e269186c544521dc44bb8d029b3631f89912951",
+      "tx": "0x1f48af90e9ddd2a6c188ae3e1f9e6ff1baa5d53693f2689bb32c3e3f2ded77ce"
+    },
+    {
+      "name": "attested-market-guard.atlas-apps.eth",
+      "node": "0xe5584be28b0138bfce86280f119ca2738dd351b75fc2c9809427a149ff3006cb",
+      "tx": "0xea0077bf6befeaa1fa054bf1b0fd809fd24e1b0d75c20a6806a60e9260703a49"
+    },
+    {
+      "name": "durable-market-guard.atlas-apps.eth",
+      "node": "0x6b61071809b055a6dac080f3dbceaa44bc9bce827a497eff5e81ce37c8ec2f5a",
+      "tx": "0x753dc9f60284ebd8845e17ba5ffc2bfcfb45e2e8b776a8299e1ec673aa5b97c7"
+    }
+  ],
   "verifiedSubname": {
-    "name": "aave-health-guard.graphminis.eth",
-    "node": "0xa4fe35f884a118aba08c76b1b4ac5ed70fa863925b1393bc10295a6b3901607d",
+    "name": "aave-health-guard.atlas-apps.eth",
+    "node": "0x5fc45832c661f90f9b1adbe1f68ba4f7ecd5946a7e14a4fca7a8f9497e2fac90",
     "contenthash": "ipfs://bafkreib7rymi3ybar667x6lhkc3vwc4efffsq7itw7bvpodwb7wvsbm5yu",
     "agenticIdTokenId": 5,
     "ensip25Key": "agent-registration[0x000100000240da14093319dbd3c21b037cb21199e468d3e15a748da8][5]",
-    "readBackFromChain": true
+    "issueTx": "0x5eacb88d00984a5fe13e35026cde761c5cf299288ab472e4d3f01408fbd74e55",
+    "readBackFromChain": true,
+    "note": "Re-issued under atlas-apps.eth during the Atlas rebrand by replaying the record set from the original aave-health-guard.graphminis.eth. Contenthash and Agentic ID (token 5, on 0G) are unchanged; only the ENS parent moved. Verified by reading the ENSIP-25 registration back off-chain via the atlas.agentic-id pointer."
   }
 }

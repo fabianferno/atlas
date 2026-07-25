@@ -1,4 +1,4 @@
-# Graph Mini Apps
+# Atlas
 
 **Describe an onchain app. Get an agent with a UI, a wallet, and a name.**
 
@@ -6,12 +6,12 @@ A mini app is not a dashboard. It watches live Graph data, renders whatever inte
 
 | | |
 |---|---|
-| **Live demo** | **https://graph-minis.vercel.app** |
+| **Live demo** | **https://atlas.vercel.app** |
 | **Video** | _TODO_ |
-| **ENS parent** | [`graphminis.eth`](https://sepolia.app.ens.domains/graphminis.eth) (Sepolia) |
-| **Example app** | `durable-market-guard.graphminis.eth` |
+| **ENS parent** | [`atlas-apps.eth`](https://sepolia.app.ens.domains/atlas-apps.eth) (Sepolia) |
+| **Example app** | `durable-market-guard.atlas-apps.eth` |
 | **Agentic ID** | [token 8 on 0G Galileo](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=8) |
-| **MCP endpoint** | `https://graph-minis.vercel.app/api/mcp` |
+| **MCP endpoint** | `https://atlas.vercel.app/api/mcp` |
 
 > **Status.** Everything marked ✅ below was verified by reading it back from the chain or the gateway, not inferred from the code. What isn't built is listed under [Not in scope](#not-in-scope) rather than left ambiguous.
 
@@ -147,7 +147,7 @@ Four properties the design turns on:
 We serve MCP at `/api/mcp` — the same URL every published mini app writes into its `agent-endpoint[mcp]` ENS record. Stateless Streamable HTTP, one JSON-RPC message per POST.
 
 ```jsonc
-{ "mcpServers": { "graphminis": { "type": "http", "url": "https://<origin>/api/mcp" } } }
+{ "mcpServers": { "atlas": { "type": "http", "url": "https://<origin>/api/mcp" } } }
 ```
 
 | Tool | Does |
@@ -164,7 +164,7 @@ Read-only by design. Nothing here signs or spends — `/api/act` owns the action
 
 ## ENS ✅
 
-`graphminis.eth`, registered and **wrapped** on Sepolia, issuing a subname per mini app. Records written per app:
+`atlas-apps.eth`, registered and **wrapped** on Sepolia, issuing a subname per mini app. Records written per app:
 
 ```
 addr                              → the mini app's own wallet        ← what you fund
@@ -179,10 +179,10 @@ url · description · avatar        → standard profile records
 **Verified live from the deployed origin, with no write key present** — which is how a public instance should be configured:
 
 ```
-GET https://graph-minis.vercel.app/api/resolve/durable-market-guard
+GET https://atlas.vercel.app/api/resolve/durable-market-guard
   source        contenthash          ← ENSIP-7, not a registry fallback
   address       0xf747bB26…3e47c     ← the mini app's own wallet
-  endpoints     web + mcp → https://graph-minis.vercel.app/…
+  endpoints     web + mcp → https://atlas.vercel.app/…
   agenticId     token 8 on 0G Galileo (16602)
   verification  mutuallyVerified: true
 ```
@@ -190,7 +190,7 @@ GET https://graph-minis.vercel.app/api/resolve/durable-market-guard
 Two things that only surfaced once this ran somewhere other than a dev machine, both now fixed:
 
 - **Reading was gated on write credentials.** `resolveRegistrarMode()` degrades to `mock` without a registrar private key, and `readRecords` skipped the resolver entirely in mock mode. A read-only deployment therefore resolved *nothing* and silently fell back — working perfectly on the machine that held the key. Reading ENS needs an RPC and nothing else, so the gate is now "mock was explicitly asked for".
-- **viem's `getEnsResolver` returns a non-resolver on Sepolia.** For `aave-health-guard.graphminis.eth` it answers `0x422484c2…`, where every `addr`/`text`/`contenthash` call reverts. The registry's own `resolver(node)` answers `0xE99638b4…`, which holds the records. We now ask the registry first and keep the UniversalResolver path second for wildcard/CCIP names.
+- **viem's `getEnsResolver` returns a non-resolver on Sepolia.** For `aave-health-guard.atlas-apps.eth` it answers `0x422484c2…`, where every `addr`/`text`/`contenthash` call reverts. The registry's own `resolver(node)` answers `0xE99638b4…`, which holds the records. We now ask the registry first and keep the UniversalResolver path second for wildcard/CCIP names.
 
 One honest gap: `aave-health-guard` has **no `addr` record** — it was published before wallets were bound to names, and `setRecords` skips a null address rather than writing zero. The other three carry their app's wallet. Use `durable-market-guard` for the demo.
 
@@ -270,7 +270,7 @@ Named explicitly, because a vague scope claim is worse than a small one:
 - **A real *swap* from a stream trigger.** A real transaction now lands (see below), but it is an `approve`, not a swap. A swap needs testnet WETH, an approval, and correct `exactInputSingle` params; `calldataFrom` also returns `0x` unless an action declares explicit `data`, so the seed apps' `derisk` action would send empty calldata to the router and revert. The signer, the gate and the transaction are real; the *swap* is not built.
 - **Per-account positions.** The standardized fan-out reads protocol-level scalars, so a condition on `lending.totalValueLockedUSD` works and one on `healthFactor` does not — no standardized family exposes a single user's position in that query shape. Conditions naming `healthFactor` evaluate to `false`, which is the safe direction, but it is a real gap: see `web/src/lib/agency/enrich.ts`.
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
-- **`@graphminis/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
+- **`@atlas/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
 - **Creator earnings.** x402 pays the gateway for data (inbound, working). Paying creators needs our own facilitator and is display-only today.
 - **IPFS pinning.** Manifests get a real CIDv1 and are durable on the host machine, but are not announced to a public network unless `PINATA_JWT` / `W3S_TOKEN` is set.
 - **Seed social metrics.** All 16 seed apps now run on live data (see below), but their `runs`, `forks` and ratings are still seeded texture — there is no community yet. Inventing a fan-out would be a data claim; inventing a fork count is set dressing. The distinction is deliberate.

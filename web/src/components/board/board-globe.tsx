@@ -12,8 +12,9 @@
  * the viewport's left edge no matter the container's padding.
  *
  * When a card opens (`open`) the globe slides off that left edge and fades, on
- * the same ~300ms curve the drawer arrives on from the right — the two read as
- * one gesture, the board making room. Closing reverses it.
+ * the same ~300ms curve the panel arrives on — from the same edge, into the same
+ * space. One gesture: the world steps out and the app steps in. Closing
+ * reverses it.
  *
  * Desktop only, and genuinely so: the layer is `hidden` below `lg` for layout,
  * but CSS `hidden` still leaves the WebGL canvas mounted and spinning off-screen.

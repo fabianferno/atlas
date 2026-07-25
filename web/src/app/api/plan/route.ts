@@ -6,7 +6,7 @@
  *       which compute backend actually ran.
  *
  * Works with no API keys: the planner falls back to its rules engine and
- * reports `model: "graphminis-deterministic-stub"`.
+ * reports `model: "atlas-deterministic-stub"`.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";

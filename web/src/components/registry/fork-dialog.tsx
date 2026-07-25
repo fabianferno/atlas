@@ -55,7 +55,7 @@ export function ForkDialog({ app, onClose }: { app: MiniApp; onClose: () => void
                   className="fig min-w-0 flex-1 bg-transparent text-sm outline-none"
                   autoFocus
                 />
-                <span className="fig shrink-0 text-sm text-[var(--muted-ink)]">.graphminis.eth</span>
+                <span className="fig shrink-0 text-sm text-[var(--muted-ink)]">.atlas-apps.eth</span>
               </div>
             </div>
 

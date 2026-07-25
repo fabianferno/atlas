@@ -18,14 +18,44 @@
  * Without `NEXT_PUBLIC_PRIVY_APP_ID` this renders children untouched, so the
  * whole app — including the policy loop — still runs with no keys configured.
  */
-import { PrivyProvider } from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { baseSepolia, zeroGGalileoTestnet } from "viem/chains";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { setWallet } from "@/lib/store";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
-/** True when Privy is configured. UI can use this to hide login affordances. */
+/**
+ * True when Privy is configured. A build-time constant — `NEXT_PUBLIC_*` is
+ * inlined into the client bundle — so branching a component tree on it is
+ * stable across renders and safe to gate hooks behind.
+ */
 export const PRIVY_ENABLED = PRIVY_APP_ID.length > 0;
+
+/**
+ * Publishes the authenticated user's address into board state, and clears it on
+ * logout. Renders nothing.
+ *
+ * `user.wallet` is Privy's own primary wallet — the embedded one it created at
+ * login, or the external one the user linked. `wallets[0]` is the fallback for
+ * the window where a wallet is connected but the user record has not caught up.
+ *
+ * Gated on `ready`: until Privy has restored its session `authenticated` is
+ * false for a beat, and mirroring that early would blank a connected wallet on
+ * every reload.
+ */
+function PrivyWalletBridge() {
+  const { ready, authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
+  const address = user?.wallet?.address ?? wallets[0]?.address ?? null;
+
+  useEffect(() => {
+    if (!ready) return;
+    setWallet(authenticated ? address : null);
+  }, [ready, authenticated, address]);
+
+  return null;
+}
 
 export function AgencyPrivyProvider({ children }: { children: ReactNode }) {
   if (!PRIVY_ENABLED) return <>{children}</>;
@@ -52,6 +82,7 @@ export function AgencyPrivyProvider({ children }: { children: ReactNode }) {
         },
       }}
     >
+      <PrivyWalletBridge />
       {children}
     </PrivyProvider>
   );

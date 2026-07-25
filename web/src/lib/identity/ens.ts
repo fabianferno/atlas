@@ -337,7 +337,7 @@ export function buildAgentContext(
 
   const lines = [
     `# ${manifest.title}`,
-    `spec: graphmini/2`,
+    `spec: atlas/2`,
     `name: ${yamlScalar(manifest.name)}`,
     `title: ${yamlScalar(manifest.title)}`,
     `intent: ${yamlScalar(manifest.intent)}`,
@@ -454,10 +454,10 @@ export function buildRecordSet(input: BuildRecordsInput): EnsRecordSet {
 
   // Non-standard but useful, and namespaced so it can never collide with a
   // future ENSIP: our own quick-look keys for the registry grid.
-  texts["graphmini.tier"] = manifest.agency.tier;
-  texts["graphmini.schemas"] = manifest.data.schemas.join(",");
-  texts["graphmini.version"] = manifest.appVersion;
-  if (manifest.forkedFrom) texts["graphmini.forked-from"] = manifest.forkedFrom;
+  texts["atlas.tier"] = manifest.agency.tier;
+  texts["atlas.schemas"] = manifest.data.schemas.join(",");
+  texts["atlas.version"] = manifest.appVersion;
+  if (manifest.forkedFrom) texts["atlas.forked-from"] = manifest.forkedFrom;
 
   // ENSIP-25 — the binding to the Agentic ID token on 0G Chain. This is the
   // forward half of the mutual proof; MiniAppRegistry holds the reverse half.
@@ -486,7 +486,7 @@ export function buildRecordSet(input: BuildRecordsInput): EnsRecordSet {
  * `eip155:16602:0x<registry>/<tokenId>`. Not an ENS standard, and deliberately
  * prefixed so it can never collide with a future ENSIP.
  */
-export const AGENTIC_ID_POINTER_KEY = "graphmini.agentic-id";
+export const AGENTIC_ID_POINTER_KEY = "atlas.agentic-id";
 
 export function agenticIdPointer(ref: AgenticIdRef): string {
   return `eip155:${ref.chainId}:${ref.registry.toLowerCase()}/${ref.tokenId}`;
@@ -520,7 +520,7 @@ export const ENS_REGISTRAR_MODES = ["namespace", "namestone", "onchain", "mock"]
 export type EnsRegistrarMode = (typeof ENS_REGISTRAR_MODES)[number];
 
 export interface IssueResult {
-  /** Fully qualified, e.g. `aave-guard.graphminis.eth`. */
+  /** Fully qualified, e.g. `aave-guard.atlas-apps.eth`. */
   name: string;
   label: string;
   parent: string;
@@ -571,14 +571,14 @@ export function assertLabel(label: string): void {
 }
 
 export function parentDomain(): string {
-  return (process.env.ENS_PARENT_DOMAIN ?? "graphminis.eth").toLowerCase();
+  return (process.env.ENS_PARENT_DOMAIN ?? "atlas-apps.eth").toLowerCase();
 }
 
 export function fullName(label: string): string {
   return `${label}.${parentDomain()}`;
 }
 
-/** Split `aave-guard.graphminis.eth` into label + parent. */
+/** Split `aave-guard.atlas-apps.eth` into label + parent. */
 export function splitName(name: string): { label: string; parent: string } {
   const parts = name.toLowerCase().trim().replace(/\.$/, "").split(".");
   if (parts.length < 3) return { label: parts[0] ?? "", parent: parts.slice(1).join(".") };
@@ -1300,10 +1300,10 @@ export function expectedTextKeys(agenticId?: AgenticIdRef | null): string[] {
     agentEndpointKey("web"),
     agentEndpointKey("mcp"),
     agentEndpointKey("a2a"),
-    "graphmini.tier",
-    "graphmini.schemas",
-    "graphmini.version",
-    "graphmini.forked-from",
+    "atlas.tier",
+    "atlas.schemas",
+    "atlas.version",
+    "atlas.forked-from",
     AGENTIC_ID_POINTER_KEY,
     // Mirrored by some offchain registrars; harmless when absent.
     "contenthash",
@@ -1357,7 +1357,7 @@ const REGISTRY_RESOLVER_ABI = [
  * answer.
  *
  * NOT `client.getEnsResolver`. On Sepolia that returned `0x422484c2…` for
- * `aave-health-guard.graphminis.eth`, and every `addr`/`text`/`contenthash` call
+ * `aave-health-guard.atlas-apps.eth`, and every `addr`/`text`/`contenthash` call
  * against that address reverts — it is not a resolver. The registry's own
  * `resolver(node)` returns `0xE99638b4…`, which holds the records. Trusting the
  * helper meant every direct read failed while the data sat there, and the failure

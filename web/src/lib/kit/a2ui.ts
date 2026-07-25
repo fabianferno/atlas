@@ -30,8 +30,8 @@ import type { AgencyTier } from "@/lib/contracts/manifest";
 export const A2UI_VERSION = "v0.9.1" as const;
 
 /** Our approved catalog. The renderer implements exactly this and nothing else. */
-export const GRAPHMINIS_CATALOG_ID =
-  "https://graphminis.eth/specification/v1/catalogs/graphminis/catalog.json";
+export const ATLAS_CATALOG_ID =
+  "https://atlas-apps.eth/specification/v1/catalogs/atlas/catalog.json";
 
 /* ────────────────────────────────────────────────────────────────────────
  * Primitives
@@ -300,7 +300,7 @@ export function buildDocument(input: BuildDocumentInput): A2UIDocument {
   return [
     createSurface({
       surfaceId: input.surfaceId,
-      catalogId: input.catalogId ?? GRAPHMINIS_CATALOG_ID,
+      catalogId: input.catalogId ?? ATLAS_CATALOG_ID,
       theme: input.theme,
       sendDataModel: true,
       layout: { order, columns: input.columns ?? 12 },
@@ -337,7 +337,7 @@ function hasKey<K extends string>(v: unknown, k: K): v is Record<K, unknown> {
 export function readSurface(doc: unknown): A2UISurfaceView | null {
   if (!Array.isArray(doc)) return null;
   let surfaceId = "";
-  let catalogId = GRAPHMINIS_CATALOG_ID;
+  let catalogId = ATLAS_CATALOG_ID;
   let theme: A2UITheme | null = null;
   let layout: A2UILayout = { order: [], columns: 12 };
   const byId = new Map<string, A2UIComponent>();

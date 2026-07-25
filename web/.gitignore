@@ -44,4 +44,5 @@ yarn-error.log*
 next-env.d.ts
 
 # Local content store for IPFS_MODE=local — real CIDs, machine-local bytes.
-.graphminis/
+.atlas/
+.gstack/

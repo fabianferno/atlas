@@ -108,7 +108,7 @@ export class MemoryJournalStore implements JournalStore {
  * Process-wide singleton, cached on globalThis so Next's dev server keeps one
  * journal across hot reloads instead of silently resetting the spend meter.
  */
-const GLOBAL_KEY = "__graphminis_journal__";
+const GLOBAL_KEY = "__atlas_journal__";
 type JournalGlobal = typeof globalThis & { [GLOBAL_KEY]?: JournalStore };
 
 export function getJournal(): JournalStore {

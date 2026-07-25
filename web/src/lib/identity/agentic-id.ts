@@ -519,7 +519,7 @@ function asAddress(v: string | undefined): Address | null {
 export function ensip25Registry(): { address: Address; mocked: boolean } {
   const real = asAddress(process.env.ZEROG_REGISTRY_ADDRESS);
   if (real) return { address: real, mocked: false };
-  const derived = keccak256(toHex(`graphminis:unregistered-registry:${zeroGChain().id}`));
+  const derived = keccak256(toHex(`atlas:unregistered-registry:${zeroGChain().id}`));
   return { address: `0x${derived.slice(26)}` as Address, mocked: true };
 }
 

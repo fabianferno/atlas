@@ -6,9 +6,10 @@
  * than one press away, on any surface, at any width.
  */
 import Link from "next/link";
-import { connectWallet, fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
+import { fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
 import { LiveDot } from "@/components/board/chrome";
 import { SkinToggle } from "@/components/board/skin-toggle";
+import { WalletButton } from "@/components/board/wallet-button";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
               swap without a per-skin asset. */}
           <BrandMark className="h-[1.375rem] w-[1.375rem] text-[var(--ink)] sm:h-6 sm:w-6" />
           <span className="display text-[0.9375rem] leading-none sm:text-[1.0625rem]">
-            Graph Mini Apps
+            Atlas
           </span>
         </Link>
 
@@ -81,13 +82,8 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
             {board.halted ? "Release halt" : "Halt all"}
           </button>
 
-          <button
-            type="button"
-            onClick={connectWallet}
-            className="btn shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em]"
-          >
-            {board.wallet ? <span className="fig normal-case">{board.wallet}</span> : "Connect wallet"}
-          </button>
+          {/* Real Privy login — see wallet-button.tsx. */}
+          <WalletButton />
         </div>
       </div>
 

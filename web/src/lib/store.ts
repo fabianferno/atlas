@@ -35,7 +35,7 @@ import {
   type Review,
 } from "@/lib/seed";
 
-const STORAGE_KEY = "graphminis.board";
+const STORAGE_KEY = "atlas.board";
 // Bump whenever the persisted SHAPE changes. Seed *content* is handled by
 // `LIVE_SEED_AT` below, which needs no bump.
 const STORAGE_VERSION = 6;
@@ -103,7 +103,10 @@ function persist(): void {
         apps: state.apps,
         ledger: state.ledger.slice(-LEDGER_MAX),
         halted: state.halted,
-        wallet: state.wallet,
+        // `wallet` is NOT persisted. Privy restores its own session on load and
+        // `PrivyWalletBridge` re-publishes the address once it is actually
+        // authenticated. Writing it here would mean a reload paints a connected
+        // wallet before — or without — anyone signing in.
       }),
     );
   } catch {
@@ -132,7 +135,8 @@ function hydrateOnce(): void {
           apps,
           ledger: Array.isArray(parsed.ledger) && !stale ? parsed.ledger : SEED_LEDGER,
           halted: Boolean(parsed.halted),
-          wallet: parsed.wallet ?? null,
+          // No `wallet` — see persist(). Any address left by an older build is
+          // ignored rather than restored.
         };
       }
     }
@@ -425,7 +429,7 @@ export function forkApp(parentName: string, newName: string): ForkResult | null 
     manifest: {
       ...forked,
       ui: resetOwnedValues(forked.ui, forked.agency.tier),
-      author: state.wallet ?? "you.graphminis.eth",
+      author: state.wallet ?? "you.atlas-apps.eth",
       pricing: null,
     },
     mine: true,
@@ -649,10 +653,20 @@ export function rateApp(name: string, score: "up" | "down", text: string, ranIt:
   });
 }
 
-export function connectWallet(): void {
-  // TODO(integrator): W6/identity owns the real connect. Privy and wagmi are
-  // already dependencies — swap this for the embedded wallet + smart account.
-  set({ wallet: state.wallet ? null : "0xd41a…7b09" });
+/**
+ * Mirrors the signed-in user's address into board state. Privy owns the truth —
+ * this is a read-only projection of it, written by `PrivyWalletBridge` and by
+ * nothing else. There is deliberately no `connectWallet()` here: a store cannot
+ * connect a wallet, only observe that one is connected, and the stub that used
+ * to live at this line toggled a hardcoded address that looked exactly like a
+ * successful connect while authenticating nobody.
+ *
+ * Holds the full address. Callers that show it truncate at the edge, because
+ * authorship (`newApp`, `rateApp`) wants the whole thing.
+ */
+export function setWallet(address: string | null): void {
+  if (state.wallet === address) return; // Idempotent: the bridge re-runs on every Privy tick.
+  set({ wallet: address });
 }
 
 /* ------------------------------------------------------------------ *

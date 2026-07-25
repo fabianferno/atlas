@@ -42,7 +42,7 @@ import { resolveWithReport } from "@/lib/identity/publish";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const SERVER_INFO = { name: "graphminis", version: "1.0.0" };
+const SERVER_INFO = { name: "atlas", version: "1.0.0" };
 /** Echoed back to the client when it asks for one we understand. */
 const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
@@ -149,7 +149,7 @@ const TOOLS = [
   {
     name: "resolve_mini_app",
     description:
-      "Resolve a published mini app by ENS name (e.g. 'attested-market-guard.graphminis.eth' or just the label). Returns its manifest, its wallet address, its Agentic ID on 0G Chain, and whether the name and the onchain token verify each other in both directions.",
+      "Resolve a published mini app by ENS name (e.g. 'attested-market-guard.atlas-apps.eth' or just the label). Returns its manifest, its wallet address, its Agentic ID on 0G Chain, and whether the name and the onchain token verify each other in both directions.",
     inputSchema: {
       type: "object",
       properties: {

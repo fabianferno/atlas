@@ -6,7 +6,7 @@
 
 ## Goal
 
-Convert the entire Graph Minis UI — the studio chrome **and** the generated mini-apps — from its current neo-brutalist design system to a tactile, Dieter Rams / Braun skeuomorphic look, while **preserving every signal the current design encodes**. This is a "translate the semantics" conversion, not a purely aesthetic reskin: each meaning-carrying visual (agency tier, actionability, semantic color) is re-expressed in the tactile language rather than dropped.
+Convert the entire Atlas UI — the studio chrome **and** the generated mini-apps — from its current neo-brutalist design system to a tactile, Dieter Rams / Braun skeuomorphic look, while **preserving every signal the current design encodes**. This is a "translate the semantics" conversion, not a purely aesthetic reskin: each meaning-carrying visual (agency tier, actionability, semantic color) is re-expressed in the tactile language rather than dropped.
 
 ## Decisions (locked)
 

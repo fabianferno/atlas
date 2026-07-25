@@ -134,7 +134,7 @@ const memory = new Map<string, string>();
  * retrievable from another one. Only a real pin (`PINATA_JWT` / `W3S_TOKEN`)
  * does that, and publish keeps warning until one is set.
  */
-const localDir = process.env.IPFS_LOCAL_DIR ?? path.join(process.cwd(), ".graphminis", "ipfs");
+const localDir = process.env.IPFS_LOCAL_DIR ?? path.join(process.cwd(), ".atlas", "ipfs");
 
 function localPath(cid: string): string | null {
   // A CID reaches this from a URL, so it is untrusted input and must never be

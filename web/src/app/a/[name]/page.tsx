@@ -17,7 +17,7 @@ export async function generateMetadata({
   const { name } = await params;
   const app = SEED_APPS.find((a) => a.manifest.name === name);
   return {
-    title: app ? `${app.manifest.title} — Graph Mini Apps` : `${name} — Graph Mini Apps`,
+    title: app ? `${app.manifest.title} — Atlas` : `${name} — Atlas`,
     description: app?.manifest.intent,
   };
 }

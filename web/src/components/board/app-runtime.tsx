@@ -115,7 +115,13 @@ export function AppRuntime({ name }: { name: string }) {
 
   return (
     // Bottom padding clears the docked ledger pill floating over this corner.
-    <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pt-4 pb-24 sm:px-5 sm:pt-6">
+    //
+    // `@container`, because this runtime mounts at two very different widths:
+    // full-bleed on `/a/[name]`, and inside the Board's left panel — which is
+    // narrower than the viewport it would otherwise be asked about. Viewport
+    // breakpoints answer the wrong question there; the panels below split on
+    // how much room *this* element actually has.
+    <main className="@container mx-auto w-full max-w-[1400px] flex-1 px-3 pt-4 pb-24 sm:px-5 sm:pt-6">
       <div className={panelClass(tier)}>
         {autonomous ? (
           <div className="policy-strip">
@@ -151,7 +157,7 @@ export function AppRuntime({ name }: { name: string }) {
               <h1 className="display text-base leading-none sm:text-xl">{m.title}</h1>
               {app.running && !policy.halted ? <LiveDot /> : null}
             </div>
-            <p className="mono mt-1.5 text-[0.6875rem]">{m.identity.ens ?? `${m.name}.graphminis.eth`}</p>
+            <p className="mono mt-1.5 text-[0.6875rem]">{m.identity.ens ?? `${m.name}.atlas-apps.eth`}</p>
             <p className="mt-2 max-w-[70ch] text-xs leading-snug text-[var(--muted-ink)]">{m.intent}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -205,7 +211,11 @@ export function AppRuntime({ name }: { name: string }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      {/* The 380px rail only earns its keep when the main column still has room
+          to breathe beside it. Container-relative, so the Board's panel stacks
+          and the full-page route splits — the same rule, asked of the real
+          width instead of the window's. */}
+      <div className="mt-4 grid grid-cols-1 gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
         <div className="min-w-0 space-y-4">
           <section className="panel p-3">
             <SectionHead

@@ -12,7 +12,7 @@ import { TopBar } from "@/components/board/top-bar";
 import { RegistryGrid, RegistryLegend } from "@/components/registry/registry-grid";
 
 export const metadata: Metadata = {
-  title: "Registry — Graph Mini Apps",
+  title: "Registry — Atlas",
   description:
     "Describe an onchain app, or browse and fork a published one. Every fork gets a fresh wallet and name.",
 };

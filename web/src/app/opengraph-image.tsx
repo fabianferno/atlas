@@ -9,7 +9,7 @@ import { ImageResponse } from "next/og";
  * mask support, so the asterisk is painted in the ground colour instead of
  * knocked out. The result is identical over a flat background like this one.
  */
-export const alt = "Graph Mini Apps — describe an onchain app, get an agent with a UI, a wallet, and a name.";
+export const alt = "Atlas — describe an onchain app, get an agent with a UI, a wallet, and a name.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -40,7 +40,7 @@ export default function OpengraphImage() {
           </g>
         </svg>
 
-        <div style={{ fontSize: 76, letterSpacing: "-0.02em", marginTop: 44 }}>Graph Mini Apps</div>
+        <div style={{ fontSize: 76, letterSpacing: "-0.02em", marginTop: 44 }}>Atlas</div>
         {/* Capped so the strapline breaks into two balanced lines instead of
             running to the edge and orphaning its last two words. */}
         <div style={{ fontSize: 34, color: "#8A857C", marginTop: 18, maxWidth: 720 }}>

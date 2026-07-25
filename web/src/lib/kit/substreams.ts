@@ -152,7 +152,7 @@ export class MemoryCursorStore implements StreamCursorStore {
   }
 }
 
-const CURSOR_KEY = "__graphminis_stream_cursors__";
+const CURSOR_KEY = "__atlas_stream_cursors__";
 type CursorGlobal = typeof globalThis & { [CURSOR_KEY]?: StreamCursorStore };
 
 export function getCursorStore(): StreamCursorStore {

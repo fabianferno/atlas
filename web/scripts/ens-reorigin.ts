@@ -2,7 +2,7 @@
  * Point already-published ENS names at the live origin.
  *
  *   cd web && pnpm dlx tsx --env-file=.env.local scripts/ens-reorigin.ts \
- *     --to=https://graph-minis.vercel.app --dry-run
+ *     --to=https://atlas.vercel.app --dry-run
  *   ... drop --dry-run to write
  *   ... [name ...]   override the default name list
  *

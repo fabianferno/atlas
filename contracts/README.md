@@ -19,7 +19,7 @@ OpenZeppelin 5.0.2, `via_ir = true`.
 
 ```
                     ENSIP-25 text record
-  aave-guard.graphminis.eth ──────────────────────► Agentic ID #142
+  aave-guard.atlas-apps.eth ──────────────────────► Agentic ID #142
     agent-registration[erc7930(registry)][142]="1"
               ▲                                            │
               │        MiniAppRegistry.verify()             │
@@ -186,7 +186,7 @@ Optional env, all with sane defaults:
 
 | Var | Default |
 |---|---|
-| `AGENTIC_ID_NAME` | `Graph Mini Apps` |
+| `AGENTIC_ID_NAME` | `Atlas` |
 | `AGENTIC_ID_SYMBOL` | `GMINI` |
 | `ZEROG_STORAGE_INDEXER` | `https://indexer-storage-testnet-turbo.0g.ai` |
 | `ZEROG_TEE_ATTESTOR` | `address(0)` — verifier stays permissive |

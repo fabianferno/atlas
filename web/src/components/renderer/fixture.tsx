@@ -443,7 +443,7 @@ export const HOSTILE_DOC: A2UIDocument = [
     version: "v0.9.1",
     createSurface: {
       surfaceId: "hostile",
-      catalogId: "graphminis",
+      catalogId: "atlas",
       theme: { tier: "readonly" },
       layout: { order: ["ok", "bad", "dangling"], columns: 12 },
     },

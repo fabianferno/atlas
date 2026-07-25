@@ -5,9 +5,14 @@
  *
  * Your mini apps ride a vertical **card-wheel** (curve, tilt, blur, scroll,
  * drag) instead of a static grid. Scrolling only highlights the centered card;
- * clicking one slides its full runtime in as a drawer — from the right on
- * desktop, from the bottom on mobile. Deep links to `/a/[name]` still render the
- * same runtime full-width, so nothing here is load-bearing for sharing.
+ * clicking one slides its full runtime in as a drawer — from the left on
+ * desktop, into the space the globe vacates, and from the bottom on mobile.
+ *
+ * On a wide screen the wheel keeps turning while the panel is open, and the
+ * open card wears a ring so the deck reads as the panel's table of contents:
+ * click another row and the panel swaps to it, no closing required. Deep links
+ * to `/a/[name]` still render the same runtime full-width, so nothing here is
+ * load-bearing for sharing.
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -73,9 +78,16 @@ export function AppDeck() {
     () =>
       apps.map((app, i) => ({
         key: app.manifest.name,
-        node: <AppWheelCard app={app} active={i === selected} className="w-full" />,
+        node: (
+          <AppWheelCard
+            app={app}
+            active={i === selected}
+            open={app.manifest.name === openName}
+            className="w-full"
+          />
+        ),
       })),
-    [apps, selected],
+    [apps, selected, openName],
   );
 
   return (
@@ -87,6 +99,14 @@ export function AppDeck() {
         space sits on the right so the wheel stays next to the globe instead of
         flush against the far edge. On a narrow screen the spacer collapses and
         the globe never mounts — the wheel takes the full width.
+
+        Nothing here moves when a card opens. The panel takes the left cell —
+        the globe's cell — and `AppDrawer` sizes itself to stop short of this
+        wheel rather than asking the wheel to step aside: the spacer resolves to
+        roughly 49vw at every width from 1024 up (`min(52vw, 640px)` clamped by
+        the container, plus the container's own offset and this gap), so a panel
+        ending at 48vw always clears it. Change the columns or the gap below and
+        that `lg:w-[calc(48vw-2rem)]` has to be re-checked against them.
       */}
       <BoardGlobe open={openName !== null} />
 
@@ -163,7 +183,9 @@ export function AppDeck() {
                 />
               </div>
               <p className="mono mt-2 text-center text-[0.625rem] text-[var(--muted-ink)]">
-                scroll or drag to browse · click a card to open
+                {openName === null
+                  ? "scroll or drag to browse · click a card to open"
+                  : "still live — click another card to switch"}
               </p>
             </>
           )}

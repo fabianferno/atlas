@@ -2,7 +2,7 @@
  * GET /api/resolve/<name> — ENS name to a rehydrated, live manifest.
  *
  * `<name>` may be a bare label (`aave-guard`) or fully qualified
- * (`aave-guard.graphminis.eth`).
+ * (`aave-guard.atlas-apps.eth`).
  *
  * This is the other half of the product thesis. One lookup returns the UI
  * (via the manifest at `contenthash`), the wallet (`addr`), the author and the

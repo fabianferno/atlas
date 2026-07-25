@@ -184,7 +184,7 @@ function RegistryCard({ app, index, onFork }: { app: MiniApp; index: number; onF
                 {m.title}
               </Link>
               <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
-                {m.identity.ens ?? `${m.name}.graphminis.eth`}
+                {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
               </p>
             </div>
           </div>

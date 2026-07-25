@@ -302,7 +302,7 @@ function PublishBar({ manifest, onPublished }: { manifest: Manifest; onPublished
               aria-label="Mini app name"
               className="fig min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
-            <span className="fig shrink-0 text-sm text-[var(--muted-ink)]">.graphminis.eth</span>
+            <span className="fig shrink-0 text-sm text-[var(--muted-ink)]">.atlas-apps.eth</span>
           </div>
         </div>
 
