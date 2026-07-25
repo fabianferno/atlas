@@ -10,10 +10,10 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { Manifest } from "@/lib/contracts/manifest";
-import type { Draft, PlanStep, UiDoc } from "@/lib/seed";
+import type { Draft, PlanStep } from "@/lib/seed";
 import { TIER_BLURB, TIER_LABEL } from "@/lib/seed";
 import { draftApp, publishApp } from "@/lib/store";
-import { AppBody } from "@/components/board/app-body";
+import { AppBody, isUiDoc } from "@/components/board/app-body";
 import { Label, TierTag, panelClass } from "@/components/board/chrome";
 import { cn } from "@/lib/utils";
 
@@ -235,7 +235,7 @@ export function StudioInput() {
             {assembled ? (
               <AppBody doc={draft.manifest.ui} animate compact />
             ) : (
-              <Skeleton count={(draft.manifest.ui as UiDoc).blocks.length} />
+              <Skeleton count={isUiDoc(draft.manifest.ui) ? draft.manifest.ui.blocks.length : Math.max(3, steps.length)} />
             )}
           </div>
         </div>

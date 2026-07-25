@@ -1,3 +1,22 @@
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
+# Build scripts (postinstall) we decline to run. These are optional native
+# speed-ups (bufferutil, utf-8-validate, keccak) with pure-JS fallbacks, a
+# wallet-UI postinstall (@reown/appkit), and image/resolver addons we already
+# skip. The app runs without any of them, so we don't execute their scripts.
+allowBuilds:
+  '@bufbuild/buf': set this to true or false
+  '@reown/appkit': false
+  bufferutil: false
+  keccak: false
+  sharp: false
+  unrs-resolver: false
+  utf-8-validate: false
+
+# Supply-chain guard: pnpm 11 rejects packages published within its
+# minimumReleaseAge window. These three are benign transitive infrastructure —
+# a web-framework runtime adapter and Chromium's version-lookup table, which
+# republishes several times a day and would perpetually trip the age gate.
+# Excluding them by name keeps the guard active for every other dependency.
+minimumReleaseAgeExclude:
+  - hono
+  - "@hono/node-server"
+  - electron-to-chromium

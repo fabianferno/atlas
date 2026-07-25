@@ -843,10 +843,10 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | # | Requirement | Track | Owner | Status |
 |---|---|---|---|---|
 | 1 | Live Graph data, no mocks — **anywhere in the demo** | Graph 1/2/3 | | **◐** data plane live (18 sources, 13 healthy, 74 rows, $0.0014). **Seed apps still fabricated — this is the open half** |
-| 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | ☐ **not started** — no `packages/kit`, no MCP server, nothing on npm |
-| 3 | Open source, clear README **or** SKILL.md | Graph 1 | | ☐ `web/README.md` is still the stock Next.js one |
+| 2 | Reusable tooling published + installable (npm + MCP + SKILL) | Graph 1 | | **◐** MCP server live at `/api/mcp` (5 tools, verified handshake) and `SKILL.md` written. **npm package still not extracted** |
+| 3 | Open source, clear README **or** SKILL.md | Graph 1 | | **☑** root `README.md` + `SKILL.md`, both naming deployment IDs, addresses and what is *not* built |
 | 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both — plan and compose run on 0G (`0gm-1.0-35b-a3b`), and the action loop is policy gate → signer → journal |
-| 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **◐** every row carries `_source`/`_label`/`_schema`/`_network`; needs saying in the README |
+| 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **☑** 12 deployment IDs listed in the README, all 86 in `sources.ts`; every row carries `_source`/`_label`/`_schema`/`_network` |
 | 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs + x402 live; Substreams not built |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |

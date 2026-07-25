@@ -10,9 +10,10 @@
  * For the autonomous tier the policy strip, the kill switch and the trade log
  * are always present — the renderer enforces that, not the composer.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { TIER_BLURB } from "@/lib/seed";
+import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import {
   dispatchAction,
   fmtDate,
@@ -34,6 +35,24 @@ export function AppRuntime({ name }: { name: string }) {
   const board = useBoard();
   const app = useApp(name);
   const [forking, setForking] = useState(false);
+
+  // This app's slice of the board ledger, feeding trade_log inside the
+  // generated body as well as the panel below it. Memoised so its identity is
+  // stable — the A2UI renderer reseeds its data model when the document's
+  // identity changes, which would otherwise reset a half-typed amount.
+  const journal = useMemo(
+    () => board.ledger.filter((l) => l.app === name),
+    [board.ledger, name],
+  );
+
+  // Autonomous seed apps carry a fixture body (display only). Compose it into a
+  // real A2UI document so the renderer draws the full action surface — the same
+  // path a live-composed app takes. Other tiers keep the fixture body.
+  const bodyDoc = useMemo(() => {
+    const mm = app?.manifest;
+    if (!mm) return null;
+    return mm.agency.tier === "autonomous" ? seedToA2ui(mm, { journal }) : mm.ui;
+  }, [app, journal]);
 
   if (!app && !board.hydrated) {
     // Published apps live in localStorage. Say nothing until we have looked.
@@ -66,9 +85,6 @@ export function AppRuntime({ name }: { name: string }) {
   const tier = m.agency.tier;
   const policy = m.agency.policy;
   const autonomous = tier === "autonomous";
-  // This app's slice of the board ledger, feeding trade_log inside the
-  // generated body as well as the panel below it.
-  const journal = board.ledger.filter((l) => l.app === m.name);
 
   return (
     <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-5 sm:py-6">
@@ -123,20 +139,38 @@ export function AppRuntime({ name }: { name: string }) {
 
         <div className="p-3 sm:p-4">
           <AppBody
-            doc={m.ui}
+            doc={bodyDoc ?? m.ui}
             animate
             policy={policy}
             spentUsd={app.stats.spentUsd}
             journal={journal}
             onAction={(action) => {
-              const a = action as { name?: string; context?: Record<string, unknown> };
-              if (!a?.name) return;
+              // Two shapes reach here: the fixture body dispatches a bare
+              // `{ name, context }`; the A2UI renderer dispatches a full
+              // client_to_server action `{ action: { name, context } }`.
+              const raw = action as {
+                name?: string;
+                context?: Record<string, unknown>;
+                action?: { name?: string; context?: Record<string, unknown> };
+              };
+              const name = raw.action?.name ?? raw.name;
+              const context = raw.action?.context ?? raw.context ?? {};
+              if (!name) return;
+
+              // The kill switch is not a spend — it flips the halt flag on the
+              // board and the server, same as the policy strip's button.
+              if (name === "halt_agent") {
+                void haltRemote(m, context.halted !== false);
+                return;
+              }
+
               // requireConfirm is satisfied here only because a human pressed
               // the button. A trigger-fired action goes through the signal
-              // path and never sets this.
-              void dispatchAction(m, { name: a.name, context: a.context ?? {} }, {
+              // path and never sets this. An explicit confirm_action carries
+              // its own consent.
+              void dispatchAction(m, { name, context }, {
                 userInitiated: true,
-                confirmed: !policy.requireConfirm,
+                confirmed: name === "confirm_action" || !policy.requireConfirm,
               });
             }}
           />

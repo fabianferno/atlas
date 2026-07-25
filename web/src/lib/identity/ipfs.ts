@@ -18,6 +18,8 @@
  * See prd.md §8 (contenthash) and §12 (fork provenance).
  */
 import { createHash } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { Manifest } from "@/lib/contracts/manifest";
 
 export type IpfsMode = "pinata" | "w3s" | "local";
@@ -118,6 +120,29 @@ function gatewayUrl(cid: string): string {
 /** Process-local content store. Survives a resolve within the same server. */
 const memory = new Map<string, string>();
 
+/**
+ * Disk mirror for local mode.
+ *
+ * In-memory alone made published names *decay*: the ENS records and the onchain
+ * CID survived a restart, the bytes they point at did not, so `resolve()`
+ * returned a name with a manifestCid, a wallet and an Agentic ID — and a null
+ * manifest. The demo beat where a name is pasted into a different agent and the
+ * app runs is exactly this path, and it broke on every rebuild.
+ *
+ * Content-addressed, so a flat directory of `<cid>.json` is the whole design.
+ * This is still not IPFS: it makes a name durable on THIS machine, not
+ * retrievable from another one. Only a real pin (`PINATA_JWT` / `W3S_TOKEN`)
+ * does that, and publish keeps warning until one is set.
+ */
+const localDir = process.env.IPFS_LOCAL_DIR ?? path.join(process.cwd(), ".graphminis", "ipfs");
+
+function localPath(cid: string): string | null {
+  // A CID reaches this from a URL, so it is untrusted input and must never be
+  // able to walk out of the directory.
+  if (!/^[A-Za-z0-9]+$/.test(cid)) return null;
+  return path.join(localDir, `${cid}.json`);
+}
+
 class LocalBackend implements IpfsBackend {
   readonly mode = "local" as const;
 
@@ -126,6 +151,19 @@ class LocalBackend implements IpfsBackend {
     const bytes = new TextEncoder().encode(json);
     const cid = cidV1Raw(bytes);
     memory.set(cid, json);
+
+    // Best effort. A read-only filesystem is a reason to lose durability, not
+    // a reason to fail a publish that has already minted onchain.
+    const file = localPath(cid);
+    if (file) {
+      try {
+        await fs.mkdir(localDir, { recursive: true });
+        await fs.writeFile(file, json, "utf8");
+      } catch (err) {
+        console.warn(`[ipfs] local mirror write failed for ${cid}:`, err);
+      }
+    }
+
     return {
       cid,
       uri: `ipfs://${cid}`,
@@ -139,6 +177,18 @@ class LocalBackend implements IpfsBackend {
   async fetchJson(cid: string): Promise<unknown | null> {
     const hit = memory.get(cid);
     if (hit !== undefined) return JSON.parse(hit);
+
+    const file = localPath(cid);
+    if (file) {
+      try {
+        const json = await fs.readFile(file, "utf8");
+        memory.set(cid, json);
+        return JSON.parse(json);
+      } catch {
+        // Not on disk either — fall through to the gateway.
+      }
+    }
+
     // Even in local mode, try the public gateway — a CID pinned by a previous
     // live run is still resolvable and resolve() should not lie about it.
     return fetchFromGateway(cid);
