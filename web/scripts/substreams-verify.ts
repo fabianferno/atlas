@@ -314,18 +314,59 @@ async function main(): Promise<void> {
 // drain, it just kills the process mid-write. The RESULT and JOURNAL blocks
 // this script exists to produce are exactly what gets cut off. Wait for both
 // streams to drain — if there is nothing pending, this resolves immediately.
+//
+// That wait is bounded. A reader that has stopped consuming — a wedged `tee`,
+// a dead CI log collector, a full disk — never fires "drain", and an
+// unbounded wait would trade the open-HTTP/2-session hang this task exists to
+// close for a hang on stdout backpressure instead. A couple of seconds is
+// ample for a flush (this is not a transfer): losing the tail of the output to
+// a stalled reader is strictly better than a process that never exits. A
+// stream that errors or closes instead of draining is likewise done — there is
+// nothing left to wait for on it.
+const FLUSH_TIMEOUT_MS = 2000;
+
 function exitAfterFlush(code: number | string): void {
   const pending = [process.stdout, process.stderr].filter((s) => s.writableLength > 0);
   if (pending.length === 0) {
     process.exit(code);
     return;
   }
+
+  let settled = false;
   let remaining = pending.length;
+  const cleanups: Array<() => void> = [];
+
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    for (const cleanup of cleanups) cleanup();
+    process.exit(code);
+  };
+
+  const timer = setTimeout(finish, FLUSH_TIMEOUT_MS);
+
   for (const stream of pending) {
-    stream.once("drain", () => {
+    // Whichever of the three fires first settles this stream; the other two
+    // are stale once it does, so drop all three rather than let a spurious
+    // second event (e.g. "close" after "drain") double-count it.
+    let streamSettled = false;
+    const cleanup = () => {
+      stream.removeListener("drain", onSettle);
+      stream.removeListener("error", onSettle);
+      stream.removeListener("close", onSettle);
+    };
+    const onSettle = () => {
+      if (streamSettled) return;
+      streamSettled = true;
+      cleanup();
       remaining -= 1;
-      if (remaining === 0) process.exit(code);
-    });
+      if (remaining === 0) finish();
+    };
+    cleanups.push(cleanup);
+    stream.once("drain", onSettle);
+    stream.once("error", onSettle);
+    stream.once("close", onSettle);
   }
 }
 
