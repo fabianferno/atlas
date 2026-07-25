@@ -1,12 +1,31 @@
 /**
- * W12 — seed content. Fifteen mini apps spanning the full range:
+ * W12 — seed content. Sixteen mini apps spanning the full range:
  * analytics (readonly) → monitoring (monitor) → autonomous.
  *
- * A registry with three apps looks like a prototype. Fifteen spanning the
- * range looks like a platform. Numbers are realistic Arbitrum / Optimism /
- * Base DeFi figures — these appear in the demo video.
+ * A registry with three apps looks like a prototype. Sixteen spanning the
+ * range looks like a platform.
  *
- * Everything here is fixture data. No API keys, no network.
+ * WHAT IS REAL AND WHAT IS NOT, because this file is the one most likely to be
+ * mistaken for measurement.
+ *
+ *   MEASURED    The data plan, the sources, the A2UI body, the per-run cost and
+ *               the provenance. All of it comes from the LIVE OVERLAY at the
+ *               bottom, which folds in what `scripts/seed-live.ts` really
+ *               resolved, health-checked, queried and composed. An app the
+ *               overlay could not measure is DROPPED, not backfilled.
+ *   TEXTURE     `runs`, `forks`, the thumbs, and the reviewers and their scores.
+ *               There is no community yet; the README says so. This is the only
+ *               invented category left, it is set dressing rather than a data
+ *               claim, and §12's argument for having any of it is sound.
+ *   ABSENT      Everything that would be a *claim*: an ENS name, a minted token,
+ *               a manifest CID, a wallet address, a dollar figure, a transaction
+ *               hash, a journal line, a position. Null, zero or empty — because
+ *               none of it happened, and a plausible value is worse than none.
+ *
+ * The reviews sit on the seam and get their own rule — see `Review` below:
+ * opinions about features that exist, never testimony about events that did not.
+ *
+ * Nothing in this file touches the network.
  */
 import type {
   AgencyTier,
@@ -17,15 +36,33 @@ import type {
 } from "@/lib/contracts/manifest";
 import type { JournalEntry } from "@/lib/contracts/policy";
 import { DEFAULT_QUERIES } from "@/lib/kit/fanout";
+// The real registry. `fanout.ts` above already pulls `sources.ts` into this
+// module graph (it needs `lookupEntry`), so this import adds no weight and
+// closes no cycle — `sources.ts` does not reach back here.
+import { candidateSources, entryToSource } from "@/lib/kit/sources";
+
+/**
+ * Mirrors `STUB_MODEL` in `@/lib/kit/inference`, which is the source of truth
+ * and the value the offline planner really reports. Copied rather than imported
+ * on purpose: `inference.ts` imports the `openai` package, the package declares
+ * no `sideEffects`, and `store.ts` is `"use client"` and imports this file — so
+ * importing the constant would ship the whole OpenAI SDK to the browser to read
+ * one string. If the constant there changes, change it here.
+ */
+const OFFLINE_MODEL = "atlas-deterministic-stub";
 
 /* ------------------------------------------------------------------ *
- * The rendered body of a mini app.
+ * The local body shape — `UiDoc`, a flat list of display blocks.
  *
- * TODO(integrator): this is a local stand-in for the A2UI document the
- * composer (W4) emits and the renderer (W5, `@/components/renderer`) draws.
- * It names the same catalog components (contracts/catalog.ts) so the swap is
- * mechanical: replace `<AppBody doc={...} />` with the real renderer and feed
- * it `manifest.ui` directly.
+ * NO SEED APP USES THIS ANY MORE. Every one carries a real A2UI document from
+ * the overlay and renders through `@/components/renderer`. What still emits a
+ * `UiDoc` is `draftFromIntent` at the bottom of this file — the offline fallback
+ * draft the Studio shows when the live plan/compose path is unavailable — which
+ * `AppBody` renders down its fixture branch. `resetOwnedValues` therefore still
+ * needs to handle this shape as well as the A2UI one.
+ *
+ * It names the same catalog components (contracts/catalog.ts), which is what let
+ * `kit/seed-to-a2ui.ts` translate one into the other.
  * ------------------------------------------------------------------ */
 
 export type Accent = "live" | "gain" | "loss" | "risk" | "spend" | "ink";
@@ -138,12 +175,35 @@ export interface MiniAppStats {
   costPerRunUsd: number;
 }
 
+/**
+ * A rating plus a short review. §12 argues an empty registry reads as a
+ * prototype rather than a platform, so the seed set carries reviews and the
+ * README discloses them as texture — there is no community yet.
+ *
+ * THE LINE THE SEED REVIEW TEXT HOLDS, because it is easy to cross by accident:
+ * a review may state an opinion about a feature that genuinely exists; it may
+ * not give testimony about an event that did not happen. "The kill switch being
+ * one press away is why I would fund it" is the first kind — `killSwitch` is
+ * real, enforced in the composer and re-enforced in the renderer. "Caught a 1.38
+ * at 04:12 and unwound $48 of it" was the second kind, and it is what these used
+ * to say: a trigger firing, a dollar amount moving, a timestamp, attributed to a
+ * named .eth handle. A judge reading that was being told a transaction occurred.
+ * A score is set dressing; a receipt in prose is a claim. Opinions stay,
+ * testimony goes.
+ *
+ * So: no review here names a tx, a block, a latency, a dollar figure, or an
+ * action it watched the app take. They still read as different people with
+ * different objections, because that was never the dishonest part.
+ */
 export interface Review {
   id: string;
   rater: string;
   score: "up" | "down";
   text: string;
-  /** Weighted higher — a rater who actually ran the app. */
+  /**
+   * Weighted higher — a rater who actually ran the app. Real feature:
+   * `RAN_IT_WEIGHT` in `components/registry/ratings.tsx`.
+   */
   ranIt: boolean;
   at: string;
 }
@@ -154,7 +214,20 @@ export interface MiniApp {
   reviews: Review[];
   /** On my board, versus browsed in the registry. */
   mine: boolean;
-  /** Subscribed to a stream right now. */
+  /**
+   * ARMED — published, not halted, and it would act if a trigger fired.
+   *
+   * This used to read "subscribed to a stream right now", which nothing backed:
+   * `POST /api/stream` is the only call that opens a Substreams subscription and
+   * it had no caller anywhere in the product, so ten seed apps asserted ten open
+   * subscriptions on the strength of a boolean literal in this file. Read it
+   * through `isArmed()` in `store.ts`, which also excludes the readonly tier and
+   * a tripped kill switch.
+   *
+   * A subscription is bounded and lives for the seconds `watchBlocks()` runs, so
+   * nothing on the client can hold "live" as state — which is why there is no
+   * live count and why `--live` is reserved for a run that is genuinely open.
+   */
   running: boolean;
   lastRunAt: string;
   /** Per-app action journal. Backs the trade log (W8 owns the real one). */
@@ -181,27 +254,63 @@ function daysAgo(days: number): string {
   return new Date(SEED_EPOCH - days * 86_400_000).toISOString();
 }
 
+/**
+ * The Substreams package every seed app subscribes through.
+ *
+ * These used to be per-protocol names — `aave-v3-arbitrum@v0.4.1` with
+ * `map_reserve_updates`, `uniswap-v3-arbitrum@v0.6.0` with `map_swaps`, and eight
+ * more. All ten were invented, and none was even the right *kind* of string: the
+ * runner needs an `.spkg` URL, so a real watch on any seed app died with
+ * `Failed to parse URL from aave-v3-arbitrum@v0.4.1`. They read as a curated set
+ * of protocol-specific streams and were a wish list.
+ *
+ * What runs is one verified package and one module — `map_block_meta`, which needs
+ * no custom protobuf codegen. That is not a downgrade, it is the actual design:
+ * the stream is a CLOCK, and the numbers a trigger compares are re-read
+ * server-side from the app's own health-checked sources on each block
+ * (`agency/enrich.ts`). §10's argument is about *when* a trigger re-evaluates —
+ * once per block instead of once per five-minute poll — not about which protobuf
+ * carried the tick.
+ *
+ * Literals rather than imports of `DEFAULT_SPKG`/`DEFAULT_MODULE` from
+ * `lib/kit/substreams.ts`: that module pulls `@substreams/core` and
+ * `@connectrpc/connect-node`, and `seed.ts` is reachable from a `"use client"`
+ * store — importing it would ship a gRPC stack to the browser to read two
+ * strings. `substreams.ts` is the source of truth; keep these in sync with it.
+ */
+const SEED_SPKG = "https://spkg.io/streamingfast/ethereum-explorer-v0.1.2.spkg";
+const SEED_STREAM_MODULE = "map_block_meta";
+
 const ROUTER_ARB = "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506";
 const AAVE_POOL_ARB = "0x794a61358d6845594f94dc1db02a252b5b4814ad";
 const ROUTER_OP = "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45";
 const VAULT_ROUTER = "0x2e234dae75c793f67a35089c9d99245e1c58470b";
 
-function src(
-  subgraphId: string,
-  schema: SchemaFamily,
-  network: Network,
-  healthy: boolean,
-  label: string,
-): Source {
-  return {
-    subgraphId,
-    schema,
-    network,
-    healthCheckedAt: healthy ? ago(3) : null,
-    healthy,
-    label,
-  };
-}
+/**
+ * The body a seed app carries before the live overlay replaces it — nothing.
+ *
+ * Each app used to declare a hand-written `blocks` fixture: `$84,200` of
+ * collateral, a health factor of `1.52`, a `$412,800 WETH → USDC` row, a whale
+ * table of truncated addresses. Those were the most convincing fabrications in
+ * the file, because a `position_card` reading "Collateral 13.84 WETH · $84,200"
+ * is not a rounded illustration, it is a specific claim about a specific
+ * account. They are deleted rather than kept behind a comment: an app that the
+ * overlay could not measure is now dropped from `SEED_APPS` entirely (see
+ * below), so no reachable path could render them — and an unreachable fixture
+ * full of plausible numbers is precisely the trap that let `resetOwnedValues`
+ * silently die.
+ *
+ * `data.sources` is empty for the same reason. The seed apps declared invented
+ * deployment IDs (`Jd8k2Lp`, `5zvR82Q`, …) with `healthy: true` and a
+ * health-check timestamp three minutes old — a health check that never ran,
+ * against IDs that do not exist. `scripts/seed-live.ts` resolves from
+ * `data.schemas` × `data.networks`, never from `data.sources`, so nothing needed
+ * them; the overlay writes the real, probed list.
+ *
+ * The `UiDoc` shape itself stays — `draftFromIntent` still emits it and
+ * `AppBody` still renders it for a Studio draft. It just has no seed content.
+ */
+const EMPTY_SEED_BODY: UiDoc = { spec: "a2ui/0.9.1", blocks: [] };
 
 interface SeedInput {
   name: string;
@@ -210,19 +319,42 @@ interface SeedInput {
   category: string;
   tags: string[];
   tier: AgencyTier;
+  /** What the overlay resolves against. The only source-of-data input there is. */
   schemas: SchemaFamily[];
   networks: Network[];
-  sources: Source[];
   stream?: { package: string; module: string } | null;
-  blocks: UiBlock[];
   author: string;
   mine: boolean;
   running: boolean;
-  stats: Partial<MiniAppStats> & { runs: number; forks: number };
+  /**
+   * `valueTransactedUsd`, `spentUsd` and `earnedUsd` are deliberately not
+   * accepted. A seed app has moved no money, so there is no figure to seed and
+   * no call site that should be able to supply one. `build()` writes 0.
+   */
+  stats: Partial<Omit<MiniAppStats, "valueTransactedUsd" | "spentUsd" | "earnedUsd">> & {
+    runs: number;
+    forks: number;
+  };
   reviews?: Review[];
-  journal?: JournalEntry[];
+  /*
+   * There is no `journal` field, on purpose. A journal line is a receipt — a
+   * block observed, a policy decision taken, a transaction signed — and a
+   * hand-written one, tx hash included, is indistinguishable on screen from one
+   * the signer produced. The seed apps' lines named blocks nobody watched and
+   * hashes nobody broadcast. The log fills from real runs (`appendLedger` in
+   * store.ts) or it stays empty.
+   */
+  /**
+   * No `wallet` here either. §8: a mini app holds a wallet, so the address on screen is what
+   * a human verifies *before funding it* — that is the safety primitive ENS is
+   * load-bearing for, not a decoration on the policy strip. A plausible address
+   * nobody holds the key to is the single worst thing this UI could print: it
+   * invites a transfer into a black hole and it makes the policy strip a prop.
+   * The server signs with one shared session key, which is not per-app, so there
+   * is no honest per-app value to put here. Leave it null until a real key is
+   * provisioned for a real app. Do not "fill this in".
+   */
   policy?: {
-    wallet: string;
     maxSpendUsd: number;
     maxPerTxUsd: number;
     allowlist: string[];
@@ -236,7 +368,6 @@ interface SeedInput {
 }
 
 function build(s: SeedInput): MiniApp {
-  const ui: UiDoc = { spec: "a2ui/0.9.1", blocks: s.blocks };
   const manifest: Manifest = {
     spec: "atlas/2",
     name: s.name,
@@ -247,7 +378,8 @@ function build(s: SeedInput): MiniApp {
     data: {
       schemas: s.schemas,
       networks: s.networks,
-      sources: s.sources,
+      // Empty until the overlay writes the probed list. See EMPTY_SEED_BODY.
+      sources: [],
       // The family's REAL query, keyed by family so `planQueryFor` matches it
       // exactly. This used to be a generated placeholder
       // (`nft_marketplace(first:$first){ id totalValueLockedUSD }`), which was
@@ -262,13 +394,16 @@ function build(s: SeedInput): MiniApp {
       stream: s.stream ? { ...s.stream, filter: {} } : null,
       transport: s.tier === "readonly" ? "gateway" : "x402",
     },
-    ui,
+    ui: EMPTY_SEED_BODY,
     agency: {
       tier: s.tier,
       triggers: s.triggers ?? [],
       actions: s.actions ?? {},
       policy: {
-        wallet: s.policy?.wallet ?? null,
+        // Always null — see the note on `SeedInput.policy`. The caps, the
+        // allowlist and the expiry are real policy *shape* and cost nothing to
+        // show; the address is a funding target and must not be invented.
+        wallet: null,
         maxSpendUsd: s.policy?.maxSpendUsd ?? 0,
         maxPerTxUsd: s.policy?.maxPerTxUsd ?? 0,
         allowlist: s.policy?.allowlist ?? [],
@@ -278,19 +413,46 @@ function build(s: SeedInput): MiniApp {
         halted: false,
       },
     },
-    identity: {
-      ens: `${s.name}.atlas-apps.eth`,
-      agenticId: {
-        chain: "0g",
-        contract: "0x9f2d8a1c4b6e7f0a3d5c8b9e1f2a4c6d8e0b3f57",
-        tokenId: 100 + (s.name.length % 97),
-      },
-      manifestCid: `bafybeig${s.name.replace(/-/g, "").padEnd(12, "x").slice(0, 12)}q7m4`,
-    },
+    /**
+     * Empty for every seed app, and this is the point of the whole file.
+     *
+     * Each of these three fields used to be derived from the app's own name,
+     * which made them look issued when nothing was. Concretely:
+     *
+     *   ens          `<name>.atlas-apps.eth` — the parent is real and wrapped on
+     *                Sepolia, but only four subnames were ever issued
+     *                (contracts/deployments/ens-sepolia.json), and none of them
+     *                is a seed app. A name that does not resolve is worse than no
+     *                name: §8 makes the name the thing you verify before funding,
+     *                so a fake one defeats the primitive it is advertising.
+     *   agenticId    a contract address that is not the deployed AgenticId
+     *                (that is 0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0 on 0G
+     *                Galileo, chainId 16602), plus a tokenId from a modulus of
+     *                the app's name length — which collided across apps and was
+     *                never minted. §9 asks for a link to a minted Agentic ID; a
+     *                number that resolves to nothing on the explorer is the
+     *                opposite of that.
+     *   manifestCid  24 characters of `bafybeig` + padding. A real CIDv1 is 59.
+     *                It was not a CID; it was the shape of one.
+     *
+     * `identity` is populated by the publish path when a name is actually issued
+     * and a token is actually minted. Until then the UI must render "not
+     * published" rather than a plausible string, and §5's note that forking
+     * strips identity means an unpublished app and a fresh fork read the same —
+     * which is correct.
+     */
+    identity: { ens: null, agenticId: null, manifestCid: null },
     provenance: {
-      model: "deepseek-chat-v3",
-      compute: "0g-private-computer",
-      attestationRef: `0g://att/${s.name}-7f31`,
+      // The seed bodies below were assembled by hand, not by a model. The live
+      // overlay replaces this wholesale for every app it measured; this is the
+      // value that survives if it ever cannot. `deepseek-chat-v3` used to sit
+      // here — §9 records that model as no longer existing on the 0G router,
+      // checked against a live GET /v1/models — alongside an `0g://att/…` ref
+      // for an attestation no TEE ever returned. Both were claims about compute
+      // that never ran.
+      model: OFFLINE_MODEL,
+      compute: "local",
+      attestationRef: null,
       generatedAt: daysAgo(s.createdDaysAgo),
     },
     author: s.author,
@@ -306,30 +468,37 @@ function build(s: SeedInput): MiniApp {
     mine: s.mine,
     running: s.running,
     lastRunAt: s.running ? ago(1) : ago(340),
-    journal: s.journal ?? [],
+    // Always empty — see the note on `SeedInput`. The trade log is a receipt
+    // surface; it fills when the app really runs, really receives a block, or
+    // really dispatches an action.
+    journal: [],
     reviews: s.reviews ?? [],
     stats: {
+      // Kept: seeded social texture, disclosed as such in the README. There is no
+      // community yet, and inventing a fork count is set dressing rather than a
+      // data claim. The line between the two is the whole argument, so:
       runs: s.stats.runs,
       forks: s.stats.forks,
-      valueTransactedUsd: s.stats.valueTransactedUsd ?? 0,
-      spentUsd: s.stats.spentUsd ?? 0,
       thumbsUp: s.stats.thumbsUp ?? 0,
       thumbsDown: s.stats.thumbsDown ?? 0,
-      earnedUsd: s.stats.earnedUsd ?? 0,
-      sourcesQueried: s.stats.sourcesQueried ?? s.sources.length,
-      sourcesHealthy: s.stats.sourcesHealthy ?? s.sources.filter((x) => x.healthy).length,
+      // Zeroed: money. These three are rendered as dollars moved, dollars spent
+      // against a policy cap, and dollars a creator received.
+      //
+      // `earnedUsd` is the sharpest of the three. §12 specifies creator earnings
+      // settling to the creator's wallet through an x402 facilitator, and the
+      // README's "Not in scope" admits that facilitator does not exist and the
+      // number is display-only. So any figure here asserts that money reached a
+      // person. It did not.
+      valueTransactedUsd: 0,
+      spentUsd: 0,
+      earnedUsd: 0,
+      // Measured, and overwritten by the live overlay with what the fan-out
+      // actually cost and how many deployments actually answered.
+      sourcesQueried: s.stats.sourcesQueried ?? 0,
+      sourcesHealthy: s.stats.sourcesHealthy ?? 0,
       costPerRunUsd: s.stats.costPerRunUsd ?? 0.01,
     },
   };
-}
-
-function j(
-  minutes: number,
-  kind: JournalEntry["kind"],
-  message: string,
-  extra?: Partial<JournalEntry>,
-): JournalEntry {
-  return { ts: ago(minutes), kind, message, ok: true, ...extra };
 }
 
 /* ================================================================== *
@@ -345,51 +514,15 @@ const dexVolumeArb = build({
   tier: "readonly",
   schemas: ["dex-amm@1.3.2"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
-    src("8YtQmXe", "dex-amm@1.3.2", "arbitrum-one", true, "camelot-v3"),
-    src("Ck2mQ8x", "dex-amm@1.3.2", "arbitrum-one", true, "balancer-v2-arbitrum"),
-    src("H1vP7dz", "dex-amm@1.3.2", "arbitrum-one", false, "sushiswap-arbitrum"),
-  ],
   author: "fabianferno.eth",
   mine: true,
   running: false,
   createdDaysAgo: 12,
   priceUsd: 0.02,
-  stats: { runs: 1842, forks: 37, thumbsUp: 96, thumbsDown: 4, earnedUsd: 36.84, sourcesQueried: 31, sourcesHealthy: 27, costPerRunUsd: 0.012 },
+  stats: { runs: 1842, forks: 37, thumbsUp: 96, thumbsDown: 4, sourcesQueried: 31, sourcesHealthy: 27, costPerRunUsd: 0.012 },
   reviews: [
-    { id: "r1", rater: "0xdegen.eth", score: "up", text: "Replaced three Dune tabs. Camelot numbers match the explorer.", ranIt: true, at: daysAgo(3) },
-    { id: "r2", rater: "mara.eth", score: "up", text: "Wish it did Base too — forked it and it took one sentence.", ranIt: true, at: daysAgo(6) },
-  ],
-  blocks: [
-    { id: "b1", component: "metric_card", label: "7d volume, all venues", data: { value: "$4.21B", delta: "+8.4%", dir: "up", sub: "vs previous 7d" } },
-    { id: "b2", component: "metric_card", label: "Swaps, 7d", data: { value: "6,214,880", delta: "+3.1%", dir: "up", sub: "27 of 31 deployments live" } },
-    { id: "b3", component: "metric_card", label: "Median swap size", data: { value: "$688", delta: "-2.0%", dir: "down", sub: "unweighted" } },
-    {
-      id: "b4",
-      component: "leaderboard",
-      label: "Volume by venue, 7d",
-      span: 2,
-      data: {
-        unit: "USD",
-        accentIndex: 0,
-        rows: [
-          { label: "Uniswap v3", value: 2810000000, note: "0.05% + 0.3% pools" },
-          { label: "Camelot v3", value: 486000000 },
-          { label: "Balancer v2", value: 312000000 },
-          { label: "Curve", value: 274000000 },
-          { label: "Ramses", value: 188000000 },
-          { label: "TraderJoe v2.1", value: 91400000 },
-          { label: "Sushi v3", value: 48200000 },
-        ],
-      },
-    },
-    {
-      id: "b5",
-      component: "time_series",
-      label: "Daily volume",
-      data: { unit: "USD", accent: "live", xFirst: "Jul 19", xLast: "Jul 26", points: [512, 604, 588, 641, 703, 590, 572] },
-    },
+    { id: "r1", rater: "0xdegen.eth", score: "up", text: "This is the three Dune tabs I keep open, without the SQL in between.", ranIt: true, at: daysAgo(3) },
+    { id: "r2", rater: "mara.eth", score: "up", text: "Wish it covered Base. Refining in a sentence beats waiting for someone else to add it.", ranIt: true, at: daysAgo(6) },
   ],
 });
 
@@ -402,47 +535,14 @@ const tvlCrosschain = build({
   tier: "readonly",
   schemas: ["lending-cdp@3.1.0", "dex-amm@1.3.2", "yield-aggregator@1.3.1"],
   networks: ["arbitrum-one", "optimism", "base"],
-  sources: [
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
-    src("Jd8k2Lp", "lending-cdp@3.1.0", "arbitrum-one", true, "aave-v3-arbitrum"),
-    src("Qm4x9Tz", "lending-cdp@3.1.0", "optimism", true, "aave-v3-optimism"),
-    src("Rr7n1Wc", "dex-amm@1.3.2", "base", true, "aerodrome-base"),
-    src("Zx3v6Kb", "yield-aggregator@1.3.1", "optimism", false, "beefy-optimism"),
-  ],
   author: "fabianferno.eth",
   mine: true,
   running: false,
   createdDaysAgo: 9,
   priceUsd: 0.05,
-  stats: { runs: 934, forks: 21, thumbsUp: 58, thumbsDown: 2, earnedUsd: 46.7, sourcesQueried: 44, sourcesHealthy: 38, costPerRunUsd: 0.031 },
+  stats: { runs: 934, forks: 21, thumbsUp: 58, thumbsDown: 2, sourcesQueried: 44, sourcesHealthy: 38, costPerRunUsd: 0.031 },
   reviews: [
     { id: "r3", rater: "pgov.eth", score: "up", text: "Three schema families in one query shape. This is the composability argument.", ranIt: true, at: daysAgo(2) },
-  ],
-  blocks: [
-    {
-      id: "b1",
-      component: "comparison_grid",
-      label: "TVL by chain and family",
-      span: 3,
-      data: {
-        columns: ["Arbitrum", "Optimism", "Base"],
-        rows: [
-          { label: "Lending / CDP", cells: ["$1.64B", "$412M", "$736M"] },
-          { label: "DEX AMM", cells: ["$986M", "$228M", "$1.12B"] },
-          { label: "Yield aggregator", cells: ["$204M", "$71M", "$93M"] },
-          { label: "Perp futures", cells: ["$518M", "$44M", "$62M"] },
-          { label: "Total", cells: ["$3.35B", "$755M", "$2.01B"] },
-        ],
-      },
-    },
-    {
-      id: "b2",
-      component: "bar_chart",
-      label: "Total TVL by chain",
-      span: 2,
-      data: { unit: "USD", accentIndex: 0, rows: [{ label: "Arbitrum", value: 3350000000 }, { label: "Base", value: 2010000000 }, { label: "Optimism", value: 755000000 }] },
-    },
-    { id: "b3", component: "metric_card", label: "Deployments merged", data: { value: "38 / 44", sub: "6 skipped as unhealthy" } },
   ],
 });
 
@@ -455,38 +555,12 @@ const bridgeFlows = build({
   tier: "readonly",
   schemas: ["bridge@1.2.0"],
   networks: ["arbitrum-one", "mainnet"],
-  sources: [
-    src("Bg9k4Vn", "bridge@1.2.0", "arbitrum-one", true, "across-v3"),
-    src("Cf2m8Xq", "bridge@1.2.0", "arbitrum-one", true, "stargate-v2"),
-    src("Dh5p3Yr", "bridge@1.2.0", "mainnet", true, "hop-protocol"),
-  ],
   author: "0xdegen.eth",
   mine: true,
   running: false,
   createdDaysAgo: 20,
   priceUsd: 0.02,
-  stats: { runs: 611, forks: 14, thumbsUp: 41, thumbsDown: 3, earnedUsd: 12.22, sourcesQueried: 18, sourcesHealthy: 16 },
-  blocks: [
-    { id: "b1", component: "metric_card", label: "Net inflow, 24h", data: { value: "$41.7M", delta: "+22.6%", dir: "up", sub: "in minus out" } },
-    { id: "b2", component: "metric_card", label: "Transfers", data: { value: "18,442", delta: "+6.9%", dir: "up" } },
-    { id: "b3", component: "metric_card", label: "Median transfer", data: { value: "$1,204", delta: "-4.4%", dir: "down" } },
-    {
-      id: "b4",
-      component: "flow_diagram",
-      label: "Source chain to Arbitrum",
-      span: 3,
-      data: {
-        unit: "USD",
-        flows: [
-          { from: "Ethereum", to: "Arbitrum", value: 24800000 },
-          { from: "Base", to: "Arbitrum", value: 8600000 },
-          { from: "Optimism", to: "Arbitrum", value: 5100000 },
-          { from: "Polygon", to: "Arbitrum", value: 2200000 },
-          { from: "BNB Chain", to: "Arbitrum", value: 1000000 },
-        ],
-      },
-    },
-  ],
+  stats: { runs: 611, forks: 14, thumbsUp: 41, thumbsDown: 3, sourcesQueried: 18, sourcesHealthy: 16 },
 });
 
 const perpOiBoard = build({
@@ -498,60 +572,19 @@ const perpOiBoard = build({
   tier: "readonly",
   schemas: ["perp-futures@1.3.4"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("Pk8w2Qe", "perp-futures@1.3.4", "arbitrum-one", true, "gmx-v2"),
-    src("Lm3r7Uy", "perp-futures@1.3.4", "arbitrum-one", true, "vertex"),
-    src("Nn6t4Ip", "perp-futures@1.3.4", "arbitrum-one", false, "mux-protocol"),
-  ],
   author: "vega.eth",
   mine: false,
   running: false,
   createdDaysAgo: 16,
   stats: { runs: 388, forks: 9, thumbsUp: 27, thumbsDown: 1 },
-  blocks: [
-    { id: "b1", component: "metric_card", label: "Total open interest", data: { value: "$612.4M", delta: "+4.8%", dir: "up", sub: "long + short" } },
-    { id: "b2", component: "metric_card", label: "Long / short skew", data: { value: "58 / 42", sub: "notional weighted" } },
-    {
-      id: "b3",
-      component: "bar_chart",
-      label: "Open interest by market",
-      span: 2,
-      data: {
-        unit: "USD",
-        accentIndex: 0,
-        rows: [
-          { label: "ETH-USD", value: 268000000 },
-          { label: "BTC-USD", value: 214000000 },
-          { label: "SOL-USD", value: 58400000 },
-          { label: "ARB-USD", value: 41200000 },
-          { label: "LINK-USD", value: 18900000 },
-        ],
-      },
-    },
-    {
-      id: "b4",
-      component: "data_table",
-      label: "Funding, 8h annualised",
-      span: 3,
-      data: {
-        columns: ["Market", "Venue", "Funding APR", "OI", "24h vol"],
-        numeric: [false, false, true, true, true],
-        rows: [
-          ["ETH-USD", "GMX v2", "+11.4%", "$268.0M", "$412M"],
-          ["BTC-USD", "GMX v2", "+8.9%", "$214.0M", "$388M"],
-          ["SOL-USD", "Vertex", "+18.2%", "$58.4M", "$96M"],
-          ["ARB-USD", "Vertex", "-3.1%", "$41.2M", "$44M"],
-          ["LINK-USD", "GMX v2", "+5.6%", "$18.9M", "$21M"],
-        ],
-      },
-    },
-  ],
 });
 
 // Mainnet, not Optimism: `nft-marketplace@2.1.0` has standardized deployments on
 // mainnet only (prd.md §13). Pointed at Optimism this app resolved zero live
 // sources, which made it the one seed app `scripts/seed-live.ts` could not put on
-// real data — so the app moved to where the schema actually exists.
+// real data — so the app moved to where the schema actually exists. Worth keeping
+// in mind now that an unmeasured app is dropped rather than backfilled: a
+// schema/network pair with no registry coverage costs you the card.
 const nftVolumeEth = build({
   name: "nft-volume-eth",
   title: "NFT marketplace volume — Ethereum, 30d",
@@ -561,26 +594,11 @@ const nftVolumeEth = build({
   tier: "readonly",
   schemas: ["nft-marketplace@2.1.0"],
   networks: ["mainnet"],
-  sources: [
-    src("Nf4d9Ke", "nft-marketplace@2.1.0", "mainnet", true, "opensea-seaport"),
-    src("Ng7h2Lw", "nft-marketplace@2.1.0", "mainnet", true, "looksrare-v2"),
-  ],
   author: "mara.eth",
   mine: false,
   running: false,
   createdDaysAgo: 26,
   stats: { runs: 176, forks: 3, thumbsUp: 11, thumbsDown: 4 },
-  blocks: [
-    { id: "b1", component: "metric_card", label: "30d volume", data: { value: "$3.84M", delta: "-18.2%", dir: "down", sub: "all collections" } },
-    { id: "b2", component: "metric_card", label: "Unique buyers", data: { value: "4,118", delta: "-9.7%", dir: "down" } },
-    {
-      id: "b3",
-      component: "time_series",
-      label: "Daily volume, 30d",
-      span: 2,
-      data: { unit: "USD", accent: "loss", xFirst: "Jun 26", xLast: "Jul 26", points: [188, 204, 176, 152, 149, 161, 133, 128, 118, 141, 109, 96, 104, 88] },
-    },
-  ],
 });
 
 const yieldLeaderboard = build({
@@ -592,289 +610,283 @@ const yieldLeaderboard = build({
   tier: "readonly",
   schemas: ["yield-aggregator@1.3.1", "lending-cdp@3.1.0"],
   networks: ["arbitrum-one", "optimism"],
-  sources: [
-    src("Yv2c8Rt", "yield-aggregator@1.3.1", "arbitrum-one", true, "yearn-v3-arbitrum"),
-    src("Yw5f1Sd", "yield-aggregator@1.3.1", "optimism", true, "beefy-optimism"),
-    src("Jd8k2Lp", "lending-cdp@3.1.0", "arbitrum-one", true, "aave-v3-arbitrum"),
-  ],
   author: "fabianferno.eth",
   mine: true,
   running: false,
   createdDaysAgo: 7,
   priceUsd: 0.03,
-  stats: { runs: 722, forks: 44, thumbsUp: 63, thumbsDown: 2, earnedUsd: 21.66, sourcesQueried: 22, sourcesHealthy: 19 },
+  stats: { runs: 722, forks: 44, thumbsUp: 63, thumbsDown: 2, sourcesQueried: 22, sourcesHealthy: 19 },
   reviews: [
     { id: "r4", rater: "kaia.eth", score: "up", text: "Net of fees, which nothing else bothers to do.", ranIt: true, at: daysAgo(1) },
     { id: "r5", rater: "anon", score: "down", text: "Ranks by 7d APY, would prefer 30d.", ranIt: false, at: daysAgo(4) },
   ],
-  blocks: [
-    {
-      id: "b1",
-      component: "leaderboard",
-      label: "Net APY, 7d trailing",
-      span: 2,
-      data: {
-        unit: "%",
-        accentIndex: 0,
-        rows: [
-          { label: "Yearn v3 — USDC.e", value: 11.42, note: "Arbitrum" },
-          { label: "Beefy — USDC/USDT", value: 9.88, note: "Optimism" },
-          { label: "Aave v3 — USDC", value: 7.16, note: "Arbitrum" },
-          { label: "Yearn v3 — DAI", value: 6.94, note: "Arbitrum" },
-          { label: "Aave v3 — USDT", value: 5.31, note: "Optimism" },
-        ],
-      },
-    },
-    { id: "b2", component: "metric_card", label: "Vaults compared", data: { value: "19", sub: "3 skipped, no live deployment" } },
-    { id: "b3", component: "metric_card", label: "Spread, best to worst", data: { value: "6.11pp", delta: "+0.4pp", dir: "up", sub: "widening" } },
-  ],
 });
+
+/* ================================================================== *
+ * TRIGGER CONDITIONS — what a `when` may name, and why these changed.
+ *
+ * Every seed condition used to be either prose (`"hourlyOutflow > 3 * median"`,
+ * `"abs(fundingA - fundingB) > 0.15"`) or a path the data plane cannot produce
+ * (`healthFactor`, `leverage`, `claimableUsd`, `amountUsd`). Both fail closed, so
+ * nothing was unsafe — and nothing could ever fire. A trigger listed on a card
+ * with no comment reads as armed, so an app that could never act looked exactly
+ * like one that could. `isConditionEvaluable` (kit-side, `agency/condition.ts`)
+ * now separates "cannot be parsed" from "not satisfied", and `app-runtime` labels
+ * the first case; these conditions are written so neither label is needed.
+ *
+ * WHAT IS IN SCOPE, verified by running each app's own fan-out through
+ * `/api/graph` and reading `metricsFromFanOut`'s output rather than guessing:
+ *
+ *   snapshot-level   `sourcesQueried` `sourcesHealthy` `rows` `rowsSuspect`
+ *                    `costUsd` `live` `stale` `ageMs`
+ *   per family       `<prefix>.<scalar>`, where the prefix comes from
+ *                    `familyPrefix()`: lending-cdp → `lending`, dex-amm →
+ *                    `dex_amm` (NOT `dex`), dex-aggregator → `dex`,
+ *                    yield-aggregator → `yield`, perp-futures → `perp`,
+ *                    nft-marketplace → `nft`, bridge/network/generic unchanged.
+ *   stream payload   `block.*`, and it is used by nothing here. It is untrusted
+ *                    module output (§7); the fan-out scalars are ours, read from
+ *                    a source we health-checked, which is what earns them the
+ *                    right to gate an action.
+ *
+ * THREE THINGS THAT DECIDED THE THRESHOLDS, all found by measuring:
+ *
+ *  1. `<family>.<scalar>` binds ONE ROW — `metricsFromFanOut` takes the first
+ *     non-suspect row of that family, not an aggregate. So `lending.
+ *     totalBorrowBalanceUSD` is one market's borrow balance (Aave Arbitrum WETH,
+ *     ~$106M today), not the family's total. Every threshold below was chosen
+ *     against the value that app's own fan-out actually returned.
+ *  2. WHICH row binds can change between snapshots, because it is whichever
+ *     health-checked deployment answered first. Where that instability would
+ *     make a magic number meaningless, the condition compares two paths from the
+ *     same row instead (`perp.longOpenInterestUSD > perp.shortOpenInterestUSD`)
+ *     — that relationship holds whichever venue binds.
+ *  3. `cumulative*` scalars only ever increase. A `>` threshold on one is a
+ *     one-shot latch: it fires once and then stays true forever. That is fine
+ *     for a MONITOR (a milestone alert should fire once, and the signal ledger
+ *     suppresses re-fires) and wrong for an AUTONOMOUS app, which needs to arm
+ *     and re-arm. So money-movers below gate on non-monotonic gauges only.
+ *
+ * Autonomous conditions additionally carry `stale == false`. `enrich.ts`
+ * suggests exactly this: a stale snapshot is the last good read served again
+ * after a throttle or a failure, and it must not be a reason to sign.
+ * ================================================================== */
 
 /* ================================================================== *
  * MONITORING — watches and alerts, cannot spend. 2.5px chrome.
  * ================================================================== */
 
+// Premise re-phrased from a per-account one. `healthFactor` is a property of one
+// user's position and no standardized family exposes it (README "Not in scope";
+// `enrich.ts` header), so the old intent promised a number the data plane cannot
+// produce and the old condition was false on every block forever. Borrow load on
+// the market is the protocol-level fact that stands behind the same worry, and it
+// is really answerable. The `name` is deliberately unchanged — it keys
+// `seed-live.generated.json`, so renaming would drop the app until regeneration.
 const healthFactorWatch = build({
   name: "health-factor-watch",
-  title: "Health factor watch — my lending positions",
-  intent: "Tell me when any of my lending positions drops below 1.4 health factor.",
+  title: "Lending leverage watch — Arbitrum and Optimism",
+  intent:
+    "Tell me when the lending markets I follow on Arbitrum and Optimism are being borrowed against harder than I am comfortable with.",
   category: "risk",
   tags: ["lending", "liquidation", "alerts"],
   tier: "monitor",
   schemas: ["lending-cdp@3.1.0"],
   networks: ["arbitrum-one", "optimism"],
-  sources: [
-    src("Jd8k2Lp", "lending-cdp@3.1.0", "arbitrum-one", true, "aave-v3-arbitrum"),
-    src("Qm4x9Tz", "lending-cdp@3.1.0", "optimism", true, "aave-v3-optimism"),
-    src("Rt9y3Mn", "lending-cdp@3.1.0", "arbitrum-one", true, "radiant-v2"),
-  ],
-  stream: { package: "aave-v3-arbitrum@v0.4.1", module: "map_reserve_updates" },
-  triggers: [{ on: "stream", when: "healthFactor < 1.4", run: "notify" }],
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $106.0M on the bound row (Aave Arbitrum WETH). $120M is ~13% above
+  // it: reachable on a real move, not crossed on a quiet day.
+  triggers: [{ on: "stream", when: "lending.totalBorrowBalanceUSD > 120000000", run: "notify" }],
   actions: { notify: { kind: "notify", params: { channel: "board" }, label: "Alert me" } },
   author: "fabianferno.eth",
   mine: true,
   running: true,
   createdDaysAgo: 11,
   priceUsd: 0.05,
-  stats: { runs: 5120, forks: 62, thumbsUp: 128, thumbsDown: 5, earnedUsd: 256, sourcesQueried: 12, sourcesHealthy: 11, costPerRunUsd: 0.008 },
+  stats: { runs: 5120, forks: 62, thumbsUp: 128, thumbsDown: 5, sourcesQueried: 12, sourcesHealthy: 11, costPerRunUsd: 0.008 },
   reviews: [
-    { id: "r6", rater: "0xdegen.eth", score: "up", text: "Fired 40 seconds after the ETH wick. A poll would have missed it.", ranIt: true, at: daysAgo(5) },
-    { id: "r7", rater: "vega.eth", score: "up", text: "Forked to add Radiant. Fresh wallet, no inherited authority — good.", ranIt: true, at: daysAgo(8) },
-  ],
-  journal: [
-    j(2, "STREAM", "block 291,447,201 — reserve update, 3 positions re-evaluated"),
-    j(11, "QUERY", "lending-cdp@3.1.0 × 3 deployments — 11 of 12 live · $0.008"),
-    j(44, "TRIGGER", "healthFactor 1.52 → above 1.40, no alert"),
-  ],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "risk", text: "ETH/USDC on Aave v3 Arbitrum is 0.12 above the alert threshold." } },
-    { id: "b2", component: "gauge", label: "Aave v3 Arbitrum — health factor", data: { value: 1.52, min: 1, max: 3, threshold: 1.4, unit: "", status: "risk" } },
-    { id: "b3", component: "gauge", label: "Aave v3 Optimism — health factor", data: { value: 2.34, min: 1, max: 3, threshold: 1.4, unit: "", status: "gain" } },
-    { id: "b4", component: "gauge", label: "Radiant v2 — health factor", data: { value: 1.88, min: 1, max: 3, threshold: 1.4, unit: "", status: "gain" } },
-    {
-      id: "b5",
-      component: "data_table",
-      label: "Positions",
-      span: 3,
-      data: {
-        columns: ["Market", "Chain", "Collateral", "Debt", "HF", "Liq. price"],
-        numeric: [false, false, true, true, true, true],
-        rows: [
-          ["Aave v3 ETH/USDC", "Arbitrum", "$84,200", "$46,100", "1.52", "$2,118"],
-          ["Aave v3 wstETH/USDC", "Optimism", "$31,900", "$11,400", "2.34", "$1,404"],
-          ["Radiant v2 ARB/USDT", "Arbitrum", "$12,600", "$5,200", "1.88", "$0.41"],
-        ],
-      },
-    },
+    { id: "r6", rater: "0xdegen.eth", score: "up", text: "A block-level trigger instead of a five-minute poll. For liquidation risk that gap is the whole product.", ranIt: true, at: daysAgo(5) },
+    { id: "r7", rater: "vega.eth", score: "up", text: "A fork starts with no wallet and no inherited authority. I wanted that enforced in code, not promised.", ranIt: true, at: daysAgo(8) },
   ],
 });
 
+// A single swap's size is not something the standardized fan-out returns — it
+// reads protocol aggregates, and `amountUsd` only ever existed on the untrusted
+// stream payload as `block.amountUsd`, which nothing verifies. Cumulative venue
+// volume IS returned, and "flow is picking up on the venues I watch" is the same
+// instinct expressed as a fact this app can actually read.
 const whaleAlertArb = build({
   name: "whale-alert-arb",
-  title: "Whale swaps over $250k — Arbitrum",
-  intent: "Alert me on any single swap over $250,000 on Arbitrum DEXs.",
+  title: "Volume milestones — Arbitrum DEXs",
+  intent:
+    "Tell me when cumulative swap volume on the Arbitrum venues I watch crosses the next big round number. I want to hear that flow is picking up, not go looking for it.",
   category: "flow",
   tags: ["whales", "dex", "alerts"],
   tier: "monitor",
   schemas: ["dex-amm@1.3.2", "dex-aggregator@1.0.2"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
-    src("8YtQmXe", "dex-amm@1.3.2", "arbitrum-one", true, "camelot-v3"),
-    src("Ag1s5Dv", "dex-aggregator@1.0.2", "arbitrum-one", true, "1inch-arbitrum"),
-  ],
-  stream: { package: "uniswap-v3-arbitrum@v0.6.0", module: "map_swaps" },
-  triggers: [{ on: "stream", when: "amountUsd > 250000", run: "notify" }],
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $257.7M on the bound row. $300M is ~16% out and will be crossed.
+  // A cumulative counter latches once true — correct for a milestone alert, and
+  // the reason no autonomous app below gates on a `cumulative*` scalar.
+  triggers: [{ on: "stream", when: "dex_amm.cumulativeVolumeUSD > 300000000", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "0xdegen.eth",
   mine: true,
   running: true,
   createdDaysAgo: 5,
   priceUsd: 0.02,
-  stats: { runs: 3011, forks: 28, thumbsUp: 74, thumbsDown: 6, earnedUsd: 60.22, sourcesQueried: 14, sourcesHealthy: 13, costPerRunUsd: 0.009 },
-  journal: [j(4, "STREAM", "block 291,447,088 — 1 swap over threshold"), j(19, "TRIGGER", "$412,800 WETH → USDC on Uniswap v3, alert sent")],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Latest", span: 3, data: { level: "live", text: "$412,800 WETH → USDC on Uniswap v3, 4 minutes ago." } },
-    { id: "b2", component: "metric_card", label: "Alerts, 24h", data: { value: "23", delta: "+9", dir: "up", sub: "over $250k" } },
-    { id: "b3", component: "metric_card", label: "Largest, 24h", data: { value: "$2.14M", sub: "wstETH → USDC" } },
-    {
-      id: "b4",
-      component: "data_table",
-      label: "Recent whale swaps",
-      span: 3,
-      data: {
-        columns: ["Time", "Pair", "Venue", "Size", "Wallet"],
-        numeric: [false, false, false, true, false],
-        rows: [
-          ["09:37:12", "WETH → USDC", "Uniswap v3", "$412,800", "0x7f3a…9c41"],
-          ["09:21:48", "USDC → ARB", "Camelot v3", "$318,200", "0x1d0e…44b7"],
-          ["08:58:03", "wstETH → USDC", "1inch", "$2,140,000", "0xa2c5…0e19"],
-          ["08:41:29", "USDC → WETH", "Uniswap v3", "$266,400", "0x93bb…7712"],
-        ],
-      },
-    },
-  ],
+  stats: { runs: 3011, forks: 28, thumbsUp: 74, thumbsDown: 6, sourcesQueried: 14, sourcesHealthy: 13, costPerRunUsd: 0.009 },
 });
 
+// Funding rate is not in the standardized perp schema, and `abs(a - b)` is not
+// in the condition grammar either — the old `when` was doubly unparseable. Long
+// and short open interest ARE both returned, and a lopsided book is the condition
+// that makes funding blow out in the first place, so this watches the cause.
 const fundingDivergence = build({
   name: "funding-divergence",
-  title: "Funding rate divergence — perp venues",
-  intent: "Tell me when funding on the same market diverges by more than 15% APR across venues.",
+  title: "Perp book skew — Arbitrum and Optimism",
+  intent:
+    "Tell me when the perp venues I watch get lopsided — long open interest running ahead of short is what drags funding around.",
   category: "risk",
   tags: ["perps", "funding", "arbitrage"],
   tier: "monitor",
   schemas: ["perp-futures@1.3.4"],
   networks: ["arbitrum-one", "optimism"],
-  sources: [
-    src("Pk8w2Qe", "perp-futures@1.3.4", "arbitrum-one", true, "gmx-v2"),
-    src("Lm3r7Uy", "perp-futures@1.3.4", "arbitrum-one", true, "vertex"),
-    src("Op4z8Ha", "perp-futures@1.3.4", "optimism", true, "synthetix-perps-v3"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Two paths from the same row rather than a magic number, on purpose: which
+  // venue binds depends on which deployment answered first (measured Kwenta at
+  // $5.33M long / $5.27M short, but Mux binds at $108M / $99.6M on an
+  // Arbitrum-only read). A threshold calibrated to one of those is meaningless
+  // for the other; "long exceeds short" is true or false for either.
+  triggers: [
+    { on: "stream", when: "perp.longOpenInterestUSD > perp.shortOpenInterestUSD", run: "notify" },
   ],
-  stream: { package: "gmx-v2-arbitrum@v0.3.2", module: "map_funding_updates" },
-  triggers: [{ on: "stream", when: "abs(fundingA - fundingB) > 0.15", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "vega.eth",
   mine: true,
   running: true,
   createdDaysAgo: 14,
   priceUsd: 0.08,
-  stats: { runs: 1420, forks: 19, thumbsUp: 52, thumbsDown: 3, earnedUsd: 113.6, sourcesQueried: 9, sourcesHealthy: 8 },
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Divergence", span: 3, data: { level: "risk", text: "SOL-USD funding is 18.2% on Vertex against 4.4% on Synthetix — 13.8pp apart." } },
-    {
-      id: "b2",
-      component: "comparison_grid",
-      label: "Funding APR by venue",
-      span: 3,
-      data: {
-        columns: ["GMX v2", "Vertex", "Synthetix v3"],
-        rows: [
-          { label: "ETH-USD", cells: ["+11.4%", "+12.9%", "+9.8%"] },
-          { label: "BTC-USD", cells: ["+8.9%", "+9.4%", "+7.1%"] },
-          { label: "SOL-USD", cells: ["+16.0%", "+18.2%", "+4.4%"] },
-          { label: "ARB-USD", cells: ["-3.1%", "-2.4%", "—"] },
-        ],
-      },
-    },
-  ],
+  stats: { runs: 1420, forks: 19, thumbsUp: 52, thumbsDown: 3, sourcesQueried: 9, sourcesHealthy: 8 },
 });
 
+// Feed age is not in any standardized schema, so "older than 20 minutes" was
+// unanswerable — and `now - updatedAt` is arithmetic the grammar does not parse.
+// But the snapshot's own health fields say something adjacent and true: how many
+// deployments answered, and how many rows came back implausible. This app keeps
+// its character (do not trust a stale answer) by watching the thing that is
+// actually measured — the health of its own reads.
 const staleOracleWatch = build({
   name: "stale-oracle-watch",
-  title: "Stale price feed watch — Optimism lending",
-  intent: "Warn me if a lending market on Optimism is pricing off a feed older than 20 minutes.",
+  title: "Read health watch — Optimism lending",
+  intent:
+    "Warn me when the Optimism deployments this reads from start dropping out or returning nonsense. I would rather know the answer is thin than act on it.",
   category: "risk",
   tags: ["oracles", "lending", "optimism"],
   tier: "monitor",
   schemas: ["lending-cdp@3.1.0", "generic@3.0.0"],
   networks: ["optimism"],
-  sources: [
-    src("Qm4x9Tz", "lending-cdp@3.1.0", "optimism", true, "aave-v3-optimism"),
-    src("Gg2v6Bn", "generic@3.0.0", "optimism", true, "chainlink-feeds-op"),
-    src("Hh8j1Cx", "lending-cdp@3.1.0", "optimism", false, "exactly-protocol"),
-  ],
-  stream: { package: "chainlink-optimism@v0.2.4", module: "map_answer_updated" },
-  triggers: [{ on: "stream", when: "now - updatedAt > 1200", run: "notify" }],
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured 3 of 7 healthy and 0 suspect rows, so both clauses read false today
+  // and one more deployment going dark crosses the first. Deliberately NOT
+  // `stale == true`: the enricher marks a read stale whenever it is inside its
+  // 10s throttle, which on a 250ms block time is nearly every tick, so that
+  // condition would fire constantly and mean nothing.
+  triggers: [{ on: "stream", when: "sourcesHealthy < 3 or rowsSuspect > 0", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "kaia.eth",
   mine: true,
   running: true,
   createdDaysAgo: 18,
   stats: { runs: 806, forks: 7, thumbsUp: 24, thumbsDown: 1 },
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "All 14 watched feeds updated inside the last 20 minutes." } },
-    { id: "b2", component: "progress_bar", label: "Oldest feed age", span: 1, data: { value: 11, target: 20, unit: "min", note: "OP/USD" } },
-    { id: "b3", component: "metric_card", label: "Feeds watched", data: { value: "14", sub: "1 deployment skipped, dead" } },
-    { id: "b4", component: "metric_card", label: "Warnings, 7d", data: { value: "2", delta: "-3", dir: "down" } },
-  ],
 });
 
+// An hourly rate and a rolling median are both derived series the fan-out does
+// not return, and `3 * median` is arithmetic the grammar does not parse. Bridge
+// TVL is returned, and a bridge draining is the same alarm read from the level
+// instead of the flow.
 const bridgeOutflowWatch = build({
   name: "bridge-outflow-watch",
-  title: "Bridge outflow spike watch",
-  intent: "Alert me when bridge outflows from a chain spike above three times the hourly median.",
+  title: "Bridge liquidity drain watch",
+  intent:
+    "Alert me when liquidity drains out of the bridges I use across Arbitrum, Optimism and Base. A bridge emptying is the signal I actually care about.",
   category: "risk",
   tags: ["bridge", "anomaly", "alerts"],
   tier: "monitor",
   schemas: ["bridge@1.2.0"],
   networks: ["arbitrum-one", "optimism", "base"],
-  sources: [
-    src("Bg9k4Vn", "bridge@1.2.0", "arbitrum-one", true, "across-v3"),
-    src("Cf2m8Xq", "bridge@1.2.0", "arbitrum-one", true, "stargate-v2"),
-    src("Ii3k7Dz", "bridge@1.2.0", "base", true, "base-native-bridge"),
-  ],
-  stream: { package: "across-v3@v0.5.0", module: "map_deposits" },
-  triggers: [{ on: "stream", when: "hourlyOutflow > 3 * median", run: "notify" }],
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $39.6M locked on the bound row. $30M is a ~24% drawdown — a real
+  // drain rather than noise, and below rather than above because the worry is
+  // liquidity leaving.
+  // Threshold re-measured 2026-07-26: the bound row read $2,335,017, so the
+  // previous `< 30000000` was already TRUE and this monitor would have alerted on
+  // the first block of any watch — inert in the other direction, and a false alert
+  // is worse than a missed one for something whose whole job is to be believed.
+  //
+  // WHY IT DRIFTED, because it will drift again: `bridge.totalValueLockedUSD` is
+  // ONE ROW, not a family total — `metricsFromFanOut` binds the first non-suspect
+  // row, and which deployment that is changes as sources come and go. The same
+  // path read $39.6M earlier in the day and $2.3M now. An absolute threshold over
+  // a varying row is a heuristic, not a measurement, and this family offers no
+  // second scalar to make it row-independent the way `funding-divergence` compares
+  // long against short open interest.
+  //
+  // So: below the currently bound value with real headroom (−36%), which is armed
+  // rather than pre-fired today. If the larger deployment binds again this goes
+  // quiet, and that is the honest limit of protocol-level fan-out for drain
+  // semantics — not something a cleverer constant fixes.
+  triggers: [{ on: "stream", when: "bridge.totalValueLockedUSD < 1500000", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "mara.eth",
   mine: false,
   running: false,
   createdDaysAgo: 22,
   stats: { runs: 402, forks: 11, thumbsUp: 18, thumbsDown: 2 },
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "No chain above 3× median outflow in the last 6 hours." } },
-    {
-      id: "b2",
-      component: "time_series",
-      label: "Hourly outflow — Arbitrum",
-      span: 2,
-      data: { unit: "USD", accent: "live", xFirst: "03:00", xLast: "09:00", points: [1.2, 1.4, 1.1, 2.2, 1.8, 1.3, 1.6] },
-    },
-    { id: "b3", component: "metric_card", label: "Current multiple", data: { value: "1.14×", sub: "of hourly median" } },
-  ],
 });
 
 /* ================================================================== *
  * AUTONOMOUS — holds a wallet, can spend. 5px chrome + policy strip.
  * ================================================================== */
 
+// prd.md §2's worked example, re-premised. The original — "if health factor goes
+// under 1.4, sell enough ETH to bring it back to 1.8" — is the sentence the whole
+// product was designed around, and it is the one thing the data plane cannot
+// answer: health factor is per-account. Borrow load on the market this position
+// sits in is protocol-level, really returned, and stands behind the same worry:
+// when a market is being borrowed against hard, that is when a wick liquidates
+// people. Still an autonomous agent that watches a real number and swaps on it.
 const aaveGuard = build({
   name: "aave-guard",
-  title: "Aave position guard — Arbitrum",
+  title: "Aave borrow-load guard — Arbitrum",
   intent:
-    "Watch my Aave position on Arbitrum. If health factor goes under 1.4, sell enough ETH to bring it back to 1.8. Show me what you're doing.",
+    "Watch how hard the Aave market I am exposed to on Arbitrum is being borrowed against. When it runs hot, swap out of ETH to de-risk. Show me what you're doing.",
   category: "risk",
   tags: ["aave", "liquidation", "autonomous", "arbitrum"],
   tier: "autonomous",
   schemas: ["lending-cdp@3.1.0", "dex-amm@1.3.2"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("Jd8k2Lp", "lending-cdp@3.1.0", "arbitrum-one", true, "aave-v3-arbitrum"),
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
-    src("8YtQmXe", "dex-amm@1.3.2", "arbitrum-one", true, "camelot-v3"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $106.0M borrowed on the bound row (Aave Arbitrum WETH, $201.8M
+  // deposited). $115M is ~8% out: close enough to be a live trigger, far enough
+  // that it is not already true. `stale == false` because this one signs.
+  triggers: [
+    {
+      on: "stream",
+      when: "stale == false and lending.totalBorrowBalanceUSD > 115000000",
+      run: "rebalance",
+    },
   ],
-  stream: { package: "aave-v3-arbitrum@v0.4.1", module: "map_reserve_updates" },
-  triggers: [{ on: "stream", when: "healthFactor < 1.4", run: "rebalance" }],
   actions: {
     rebalance: {
       kind: "swap",
       target: ROUTER_ARB,
-      params: { targetHealthFactor: 1.8, tokenIn: "WETH", tokenOut: "USDC" },
-      label: "Rebalance to 1.8",
+      params: { tokenIn: "WETH", tokenOut: "USDC" },
+      label: "De-risk into USDC",
     },
   },
   policy: {
-    wallet: "0x4c2f9a71b3d05e8c6a1f7b2d9e30c48a5f61d7b2",
     maxSpendUsd: 500,
     maxPerTxUsd: 50,
     allowlist: [ROUTER_ARB, AAVE_POOL_ARB],
@@ -888,80 +900,52 @@ const aaveGuard = build({
   stats: {
     runs: 1204,
     forks: 88,
-    valueTransactedUsd: 3184.5,
-    spentUsd: 142.8,
     thumbsUp: 141,
     thumbsDown: 3,
-    earnedUsd: 60.2,
     sourcesQueried: 12,
     sourcesHealthy: 11,
     costPerRunUsd: 0.014,
   },
   reviews: [
-    { id: "r8", rater: "vega.eth", score: "up", text: "Caught a 1.38 at 04:12 and unwound $48 of it. I was asleep.", ranIt: true, at: daysAgo(1) },
+    { id: "r8", rater: "vega.eth", score: "up", text: "The kill switch sitting one press away is the reason I would fund something like this at all.", ranIt: true, at: daysAgo(1) },
     { id: "r9", rater: "kaia.eth", score: "up", text: "Policy strip is always on screen. I can see the cap without digging.", ranIt: true, at: daysAgo(2) },
     { id: "r10", rater: "anon", score: "down", text: "Would like a confirm step even in autonomous mode.", ranIt: false, at: daysAgo(3) },
   ],
-  journal: [
-    j(1, "STREAM", "block 291,447,214 — reserve update, HF 1.52"),
-    j(6, "QUERY", "lending-cdp@3.1.0 + dex-amm@1.3.2 — 11 of 12 live, 340ms · $0.014"),
-    j(38, "POLICY", "proposed swap $48.20 — allowlisted, under $50 per-tx cap, allowed"),
-    j(38, "ACTION", "swap 0.0184 WETH → 48.20 USDC via Uniswap v3", { spentUsd: 48.2, txHash: "0x9a41f0c7d2b85e13a06f7c9b4d2e1a83f5602c7b91d4e8a30f6b2c5d7e9a10f34" }),
-    j(39, "TRIGGER", "health factor 1.38 → 1.81, target met"),
-    j(212, "POLICY", "proposed swap $61.40 — over $50 per-tx cap, rejected", { ok: false }),
-  ],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "Health factor 1.52, above the 1.40 trigger. Last rebalance 38 minutes ago." } },
-    // 1.52 is above the 1.40 trigger, so this is `gain` — matching both the
-    // banner above it and what the live catalog gauge computes. Colour is
-    // semantic (Rule 2): the same fact cannot be green in one panel and amber
-    // in the next.
-    { id: "b2", component: "gauge", label: "Health factor", data: { value: 1.52, min: 1, max: 3, threshold: 1.4, unit: "", status: "gain" } },
-    {
-      id: "b3",
-      component: "position_card",
-      label: "Aave v3 — Arbitrum",
-      data: {
-        asset: "ETH / USDC",
-        rows: [
-          { k: "Collateral", v: "13.84 WETH · $84,200" },
-          { k: "Debt", v: "46,100 USDC" },
-          { k: "Liquidation price", v: "$2,118", accent: "risk" },
-          { k: "Net APY", v: "-1.84%", accent: "loss" },
-        ],
-      },
-    },
-    { id: "b4", component: "progress_bar", label: "Spent against cap", data: { value: 142.8, target: 500, unit: "USD", note: "$50 per transaction" } },
-    {
-      id: "b5",
-      component: "time_series",
-      label: "Health factor, 24h",
-      span: 3,
-      // The dip to 1.38 is the trigger firing; the recovery to 1.81 is the
-      // rebalance. Current state is healthy, so the series reads `gain`.
-      data: { unit: "", accent: "gain", xFirst: "09:41 yest", xLast: "09:41", points: [1.74, 1.68, 1.61, 1.55, 1.47, 1.38, 1.81, 1.77, 1.69, 1.58, 1.52] },
-    },
-  ],
 });
 
+// The one app whose original premise cannot be re-phrased into itself. Mirroring
+// a named wallet is per-account by definition — there is no protocol-level version
+// of "what did 0x7f3a do", and the old title named an address lifted from this
+// file's own invented whale table while the condition compared `sender` to the
+// literal string "0x7f3a…9c41", ellipsis included. So the premise moves to the
+// nearest thing that is real and keeps the character: follow the flow, size it
+// small, let the per-trade cap be the safety. Not deleted, because an autonomous
+// app that trades on live venue data is exactly the tier the registry exists to
+// show; renamed in title only, since `name` keys the live snapshot.
 const copyTraderArb = build({
   name: "copy-trader-arb",
-  title: "Copy trader — mirror 0x7f3a…9c41",
-  intent: "Mirror this wallet's Arbitrum swaps, maximum $50 per trade.",
+  title: "Liquidity follower — Arbitrum DEX pools",
+  intent:
+    "Follow the Arbitrum pools I care about and take a small position when liquidity is building, at most $50 a trade.",
   category: "trading",
   tags: ["copy-trading", "dex", "autonomous"],
   tier: "autonomous",
   schemas: ["dex-amm@1.3.2", "dex-aggregator@1.0.2"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
-    src("Ag1s5Dv", "dex-aggregator@1.0.2", "arbitrum-one", true, "1inch-arbitrum"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $17,535 locked on the bound row. $25k is ~43% out, which is a real
+  // move for a pool this size and not a rounding error. TVL rather than
+  // `cumulativeVolumeUSD` because this one spends: a cumulative counter latches
+  // true forever once crossed, and an autonomous app has to be able to re-arm.
+  triggers: [
+    {
+      on: "stream",
+      when: "stale == false and dex_amm.totalValueLockedUSD > 25000",
+      run: "mirror",
+    },
   ],
-  stream: { package: "uniswap-v3-arbitrum@v0.6.0", module: "map_swaps" },
-  triggers: [{ on: "stream", when: "sender == 0x7f3a…9c41", run: "mirror" }],
-  actions: { mirror: { kind: "swap", target: ROUTER_ARB, params: { maxUsd: 50, slippageBps: 50 }, label: "Mirror trade" } },
+  actions: { mirror: { kind: "swap", target: ROUTER_ARB, params: { maxUsd: 50, slippageBps: 50 }, label: "Take position" } },
   policy: {
-    wallet: "0x8e13c7d2a604f9b15c8e2a7d0b4f36c19e5a2d80",
     maxSpendUsd: 750,
     maxPerTxUsd: 50,
     allowlist: [ROUTER_ARB],
@@ -972,62 +956,38 @@ const copyTraderArb = build({
   running: true,
   createdDaysAgo: 6,
   priceUsd: 0.1,
-  stats: { runs: 942, forks: 51, valueTransactedUsd: 6420.0, spentUsd: 388.4, thumbsUp: 87, thumbsDown: 11, earnedUsd: 94.2, sourcesQueried: 8, sourcesHealthy: 8, costPerRunUsd: 0.011 },
+  stats: { runs: 942, forks: 51, thumbsUp: 87, thumbsDown: 11, sourcesQueried: 8, sourcesHealthy: 8, costPerRunUsd: 0.011 },
   reviews: [
-    { id: "r11", rater: "fabianferno.eth", score: "up", text: "Mirrors inside two blocks. Slippage guard has never fired badly.", ranIt: true, at: daysAgo(2) },
-    { id: "r12", rater: "anon", score: "down", text: "Copies the exits too late for my taste.", ranIt: true, at: daysAgo(5) },
-  ],
-  journal: [
-    j(3, "STREAM", "block 291,447,190 — target wallet swapped"),
-    j(3, "POLICY", "proposed swap $50.00 — at per-tx cap, allowed"),
-    j(3, "ACTION", "swap 50.00 USDC → 0.0191 WETH via Uniswap v3", { spentUsd: 50, txHash: "0x4b71e0a9c3d5f28671b0e4a7c92d38f0b5e6172a4c8d09f3b1e7a05c2d64f938" }),
-    j(74, "ACTION", "swap 50.00 USDC → 118.4 ARB via 1inch", { spentUsd: 50, txHash: "0xc38a5d71e024b9f6a3c17e08d5b2f491c07a6d38e2b915f4a07c3d61e8b02f57" }),
-    j(160, "POLICY", "proposed swap $50.00 — lifetime cap $750 would be exceeded, rejected", { ok: false }),
-  ],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "live", text: "Mirroring 0x7f3a…9c41. Last mirrored trade 3 minutes ago." } },
-    { id: "b2", component: "metric_card", label: "Trades mirrored, 7d", data: { value: "48", delta: "+11", dir: "up" } },
-    { id: "b3", component: "metric_card", label: "Realised PnL, 7d", data: { value: "+$214.60", delta: "+4.2%", dir: "up" } },
-    { id: "b4", component: "progress_bar", label: "Spent against cap", data: { value: 388.4, target: 750, unit: "USD", note: "$50 per transaction" } },
-    {
-      id: "b5",
-      component: "data_table",
-      label: "Mirrored trades",
-      span: 3,
-      data: {
-        columns: ["Time", "Trade", "Venue", "Size", "PnL"],
-        numeric: [false, false, false, true, true],
-        rows: [
-          ["09:38:04", "USDC → WETH", "Uniswap v3", "$50.00", "+$1.84"],
-          ["08:27:11", "USDC → ARB", "1inch", "$50.00", "-$0.62"],
-          ["06:59:47", "WETH → USDC", "Uniswap v3", "$50.00", "+$3.11"],
-          ["05:12:20", "USDC → GMX", "1inch", "$50.00", "+$0.94"],
-        ],
-      },
-    },
+    { id: "r11", rater: "fabianferno.eth", score: "up", text: "A block-level trigger is the only version of copy trading that makes sense. The per-trade cap is what would let me leave it on.", ranIt: true, at: daysAgo(2) },
+    { id: "r12", rater: "anon", score: "down", text: "Mirroring entries and exits off one rule is too blunt — I want a separate threshold for each.", ranIt: true, at: daysAgo(5) },
   ],
 });
 
+// "Best net APY" is not in the yield schema — the family returns size, revenue
+// and user counts, not a rate. Size and fee revenue are what it does return, and
+// ranking vaults on those is a real strategy rather than a proxy for one.
 const yieldRotator = build({
   name: "yield-rotator",
   title: "Yield rotator — stables, weekly",
-  intent: "Move my stablecoins to whichever vault has the best net APY, at most once a week.",
+  intent:
+    "Once a week, compare the stablecoin vaults on Arbitrum and Optimism by size and fee revenue, and move into the strongest one.",
   category: "yield",
   tags: ["yield", "rotation", "autonomous"],
   tier: "autonomous",
   schemas: ["yield-aggregator@1.3.1", "lending-cdp@3.1.0", "dex-amm@1.3.2"],
   networks: ["arbitrum-one", "optimism"],
-  sources: [
-    src("Yv2c8Rt", "yield-aggregator@1.3.1", "arbitrum-one", true, "yearn-v3-arbitrum"),
-    src("Yw5f1Sd", "yield-aggregator@1.3.1", "optimism", true, "beefy-optimism"),
-    src("Jd8k2Lp", "lending-cdp@3.1.0", "arbitrum-one", true, "aave-v3-arbitrum"),
-    src("Zx3v6Kb", "yield-aggregator@1.3.1", "optimism", false, "sonne-finance"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // `when: null` would also be correct here and is NOT a placeholder — on an
+  // interval trigger it means "every interval, no extra gate", which is a real
+  // configuration. It is replaced anyway because this app signs: `stale == false`
+  // says do not rotate on a snapshot the enricher served from cache after a
+  // throttle or a failed read. The weekly cadence lives in `intervalSec`, where
+  // it belongs, so the condition is free to carry the freshness gate.
+  triggers: [
+    { on: "interval", when: "stale == false", run: "rotate", intervalSec: 604800 },
   ],
-  stream: { package: "erc4626-vaults@v0.2.0", module: "map_vault_events" },
-  triggers: [{ on: "interval", when: null, run: "rotate", intervalSec: 604800 }],
   actions: { rotate: { kind: "supply", target: VAULT_ROUTER, params: { minImprovementBps: 80 }, label: "Rotate" } },
   policy: {
-    wallet: "0x2a71b0c85d3e6f19a47c02b8e5d1f36c94b7e2a0",
     maxSpendUsd: 1200,
     maxPerTxUsd: 400,
     allowlist: [VAULT_ROUTER, ROUTER_OP],
@@ -1038,55 +998,40 @@ const yieldRotator = build({
   running: true,
   createdDaysAgo: 15,
   priceUsd: 0.15,
-  stats: { runs: 288, forks: 34, valueTransactedUsd: 24800, spentUsd: 812.0, thumbsUp: 61, thumbsDown: 4, earnedUsd: 43.2, sourcesQueried: 22, sourcesHealthy: 19 },
-  reviews: [{ id: "r13", rater: "mara.eth", score: "up", text: "Rotated me out of Sonne before the deployment went dark. Health checks earn their keep.", ranIt: true, at: daysAgo(4) }],
-  journal: [
-    j(9, "QUERY", "yield-aggregator@1.3.1 × 2 chains — 19 of 22 live · $0.022"),
-    j(1440, "POLICY", "proposed supply $400.00 — allowlisted, under caps, allowed"),
-    j(1440, "ACTION", "withdraw 400.00 USDC from Aave v3, supply to Yearn v3 USDC.e", { spentUsd: 400, txHash: "0x71c4a08e5b2d93f60a1c8e47b0d25f39a6c130e8b4d72f951a0c6e38b7d24f01" }),
-  ],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "Currently in Yearn v3 USDC.e at 11.42% net. Next evaluation in 6 days." } },
-    { id: "b2", component: "metric_card", label: "Position", data: { value: "$24,800", sub: "Yearn v3 USDC.e, Arbitrum" } },
-    { id: "b3", component: "metric_card", label: "Net APY", data: { value: "11.42%", delta: "+1.54pp", dir: "up", sub: "since last rotation" } },
-    { id: "b4", component: "progress_bar", label: "Spent against cap", data: { value: 812, target: 1200, unit: "USD", note: "$400 per transaction" } },
-    {
-      id: "b5",
-      component: "leaderboard",
-      label: "Candidate vaults, net APY",
-      span: 3,
-      data: {
-        unit: "%",
-        accentIndex: 0,
-        rows: [
-          { label: "Yearn v3 — USDC.e", value: 11.42, note: "current" },
-          { label: "Beefy — USDC/USDT", value: 9.88 },
-          { label: "Aave v3 — USDC", value: 7.16 },
-          { label: "Yearn v3 — DAI", value: 6.94 },
-        ],
-      },
-    },
-  ],
+  stats: { runs: 288, forks: 34, thumbsUp: 61, thumbsDown: 4, sourcesQueried: 22, sourcesHealthy: 19 },
+  reviews: [{ id: "r13", rater: "mara.eth", score: "up", text: "Health-checking each deployment before querying it is the unglamorous part that decides whether the ranking means anything.", ranIt: true, at: daysAgo(4) }],
 });
 
+// `leverage` is my position divided by my collateral — per-account, so the old
+// condition was false on every block. Open interest on the venue is the
+// protocol-level fact, and a book that is heavily one-sided is the market
+// condition that makes a leveraged position dangerous. Same instinct, one level
+// out from the account.
 const perpDeleverage = build({
   name: "perp-deleverage",
   title: "Perp deleverage guard — Arbitrum",
-  intent: "If my perp leverage goes above 8x, close enough of the position to bring it back to 5x.",
+  intent:
+    "When the Arbitrum perp venues I trade get crowded on the long side, trim my exposure. A one-sided book is where the cascades start.",
   category: "risk",
   tags: ["perps", "leverage", "autonomous"],
   tier: "autonomous",
   schemas: ["perp-futures@1.3.4", "dex-amm@1.3.2"],
   networks: ["arbitrum-one"],
-  sources: [
-    src("Pk8w2Qe", "perp-futures@1.3.4", "arbitrum-one", true, "gmx-v2"),
-    src("5zvR82Q", "dex-amm@1.3.2", "arbitrum-one", true, "uniswap-v3-arbitrum"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $108.2M long open interest on the bound row (Mux, Arbitrum), against
+  // $99.6M short. A magic number rather than `long > short` here — unlike
+  // funding-divergence, which only notifies — because `long > short` is already
+  // true and an app that can spend should not arrive pre-fired. $130M is ~20%
+  // out: crowded, not merely uneven.
+  triggers: [
+    {
+      on: "stream",
+      when: "stale == false and perp.longOpenInterestUSD > 130000000",
+      run: "trim",
+    },
   ],
-  stream: { package: "gmx-v2-arbitrum@v0.3.2", module: "map_position_updates" },
-  triggers: [{ on: "stream", when: "leverage > 8", run: "trim" }],
-  actions: { trim: { kind: "withdraw", target: ROUTER_ARB, params: { targetLeverage: 5 }, label: "Trim to 5×" } },
+  actions: { trim: { kind: "withdraw", target: ROUTER_ARB, params: {}, label: "Trim exposure" } },
   policy: {
-    wallet: "0x6d03e2a97c5b14f80a2d6c39b7e05f18c4a29b60",
     maxSpendUsd: 300,
     maxPerTxUsd: 75,
     allowlist: [ROUTER_ARB],
@@ -1098,48 +1043,44 @@ const perpDeleverage = build({
   createdDaysAgo: 10,
   priceUsd: 0.1,
   forkedFrom: "aave-guard@1.0.0",
-  stats: { runs: 164, forks: 12, valueTransactedUsd: 940, spentUsd: 0, thumbsUp: 22, thumbsDown: 2, earnedUsd: 16.4, sourcesQueried: 6, sourcesHealthy: 6 },
-  reviews: [{ id: "r14", rater: "0xdegen.eth", score: "up", text: "Forked from aave-guard and it came across with an empty wallet, as advertised.", ranIt: true, at: daysAgo(6) }],
-  journal: [j(190, "QUERY", "perp-futures@1.3.4 — 6 of 6 live · $0.006"), j(190, "TRIGGER", "leverage 4.2× — under 8×, no action")],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "gain", text: "Leverage 4.2×, well under the 8× trigger. No action taken this week." } },
-    { id: "b2", component: "gauge", label: "Leverage", data: { value: 4.2, min: 1, max: 10, threshold: 8, unit: "×", status: "gain" } },
-    {
-      id: "b3",
-      component: "position_card",
-      label: "GMX v2 — ETH-USD long",
-      data: {
-        asset: "ETH-USD",
-        rows: [
-          { k: "Size", v: "$18,400" },
-          { k: "Collateral", v: "$4,380" },
-          { k: "Entry", v: "$3,118.40" },
-          { k: "Unrealised", v: "+$412.90", accent: "gain" },
-        ],
-      },
-    },
-    { id: "b4", component: "progress_bar", label: "Spent against cap", data: { value: 0, target: 300, unit: "USD", note: "$75 per transaction" } },
-  ],
+  stats: { runs: 164, forks: 12, thumbsUp: 22, thumbsDown: 2, sourcesQueried: 6, sourcesHealthy: 6 },
+  reviews: [{ id: "r14", rater: "0xdegen.eth", score: "up", text: "Aave-guard's shape with a different trigger, and forkedFrom says so on the card. A fork inheriting nothing spendable is the right default.", ranIt: true, at: daysAgo(6) }],
 });
 
+// "My rebates" is a per-account balance and `claimableUsd` never existed in the
+// snapshot. What this app can actually see is how the protocol it farms is doing,
+// so the claim is timed off the protocol recovering rather than off a balance it
+// cannot read.
+//
+// Worth knowing when picking the path: this app declares `network@1.2.0` as well
+// as `generic@3.0.0`, but a live read returns rows for `generic` only (1 of 3
+// sources healthy on Optimism), so `network.*` resolves to nothing and a condition
+// naming it would fail closed forever — the exact trap being removed here. Checked
+// by running the fan-out, not by reading the schema list.
 const gasRebate = build({
   name: "gas-rebate-claimer",
-  title: "Gas rebate claimer — Optimism",
-  intent: "Claim my Optimism protocol rebates whenever they cross $25.",
+  title: "Rebate claimer — Optimism",
+  intent:
+    "Watch the Optimism protocol I farm and fire my claim once its deposits are back above the level where claiming is worth the gas.",
   category: "ops",
   tags: ["claims", "optimism", "autonomous"],
   tier: "autonomous",
   schemas: ["generic@3.0.0", "network@1.2.0"],
   networks: ["optimism"],
-  sources: [
-    src("Gg2v6Bn", "generic@3.0.0", "optimism", true, "op-rewards"),
-    src("Nw1q4Ft", "network@1.2.0", "optimism", true, "optimism-network"),
+  stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
+  // Measured $5,232 locked on the bound row (Mountain Protocol, Optimism).
+  // $7,500 is ~43% out. Not `cumulativeUniqueUsers`, which was the other populated
+  // scalar here: user counts only ever go up, so it would latch true and never
+  // re-arm.
+  triggers: [
+    {
+      on: "stream",
+      when: "stale == false and generic.totalValueLockedUSD > 7500",
+      run: "claim",
+    },
   ],
-  stream: { package: "optimism-rewards@v0.1.3", module: "map_claimable" },
-  triggers: [{ on: "stream", when: "claimableUsd > 25", run: "claim" }],
   actions: { claim: { kind: "claim", target: ROUTER_OP, params: {}, label: "Claim" } },
   policy: {
-    wallet: "0xb04e73a1c8d259f60e3a7b1c05d48f92a6c31e70",
     maxSpendUsd: 100,
     maxPerTxUsd: 10,
     allowlist: [ROUTER_OP],
@@ -1150,18 +1091,7 @@ const gasRebate = build({
   running: true,
   createdDaysAgo: 4,
   priceUsd: 0.02,
-  stats: { runs: 96, forks: 5, valueTransactedUsd: 318.4, spentUsd: 4.2, thumbsUp: 14, thumbsDown: 0, earnedUsd: 1.92, sourcesQueried: 4, sourcesHealthy: 4 },
-  journal: [
-    j(28, "STREAM", "claimable crossed $25.00"),
-    j(28, "POLICY", "proposed claim, gas $1.40 — allowlisted, under caps, allowed"),
-    j(28, "ACTION", "claim 31.80 OP rewards, gas $1.40", { spentUsd: 1.4, txHash: "0xe207c4b81a9d36f05a3c9d71e08b46f2a1c503d97e6b48a2915c0d3e7b6f21a4" }),
-  ],
-  blocks: [
-    { id: "b1", component: "alert_banner", label: "Status", span: 3, data: { level: "live", text: "Watching. $8.40 claimable, trigger is $25." } },
-    { id: "b2", component: "progress_bar", label: "Claimable against trigger", data: { value: 8.4, target: 25, unit: "USD" } },
-    { id: "b3", component: "metric_card", label: "Claimed, lifetime", data: { value: "$318.40", sub: "across 11 claims" } },
-    { id: "b4", component: "metric_card", label: "Gas spent, lifetime", data: { value: "$4.20", sub: "against a $100 cap" } },
-  ],
+  stats: { runs: 96, forks: 5, thumbsUp: 14, thumbsDown: 0, sourcesQueried: 4, sourcesHealthy: 4 },
 });
 
 /* ================================================================== *
@@ -1182,6 +1112,16 @@ const gasRebate = build({
  * the reviews. Those are seeded *social* texture — there is no community yet, and
  * inventing a fan-out is a data claim while inventing a fork count is set
  * dressing. Said out loud in the README rather than blurred.
+ *
+ * WHAT THE OVERLAY NO LONGER HAS TO FIX: it never touched `identity`,
+ * `agency.policy.wallet`, the money-shaped stats or the journals — so for a while
+ * those were the one place a fabricated *claim* could reach the screen even with
+ * the overlay applied, and the "no mocks" line above was not true of them. They
+ * are now null / zero / empty in `build()` itself, which is the right layer: a
+ * value that cannot be measured should be absent at the source rather than
+ * papered over downstream. If an overlay run ever fails for an app, that app
+ * degrades to no name, no token, no wallet and no receipts — which is honest —
+ * instead of to a plausible set.
  * ================================================================== */
 
 import liveSeed from "@/lib/kit/seed-live.generated.json";
@@ -1209,11 +1149,42 @@ const LIVE_SNAPSHOT = liveSeed as unknown as {
 
 /** When the live figures in the registry were measured. Show this in the UI. */
 export const LIVE_SEED_AT: string | null = LIVE_SNAPSHOT.generatedAt ?? null;
-export const LIVE_SEED_COUNT = LIVE_SNAPSHOT.appsLive ?? 0;
 
-function withLiveData(app: MiniApp): MiniApp {
+/**
+ * How many seed apps the snapshot actually measured — counted from the per-app
+ * `live` flags, not read off the header's `appsLive`.
+ *
+ * Those two can disagree: the header is written once by the generator, the flags
+ * are what `withLiveData` and `SEED_DROPPED` consult. Reading the header meant
+ * this number could say 16 while the registry rendered 15, which is the header
+ * overstating coverage — the precise failure this whole pass is about. Counting
+ * the flags makes `LIVE_SEED_COUNT === SEED_APPS.length` true by construction.
+ */
+export const LIVE_SEED_COUNT = Object.values(LIVE_SNAPSHOT.apps).filter(
+  (e) => e?.live && e.ui,
+).length;
+
+/**
+ * Returns the app with measured values folded in, or `null` if the snapshot has
+ * no live entry for it.
+ *
+ * `null` rather than the app unchanged, and that is the whole point. This used
+ * to `return app` on a miss, which meant a single failed resolve during a
+ * `pnpm seed:live` run — a dead deployment, a rate limit, an expired gateway key
+ * — silently put that app back on its fixture body and its invented sources,
+ * with no signal anywhere on screen. The board would show a position card, a
+ * health factor and a trade log that were pure invention, indistinguishable from
+ * the fifteen apps beside it that were real. That is matrix row #1 failing
+ * quietly, which is worse than failing loudly, and it is exactly how
+ * `resetOwnedValues` came to be dead code nobody noticed.
+ *
+ * There is nothing left to fall back TO now (see EMPTY_SEED_BODY), so a miss can
+ * only mean "we have no data for this app". The honest rendering of that is
+ * absence.
+ */
+function withLiveData(app: MiniApp): MiniApp | null {
   const entry = LIVE_SNAPSHOT.apps[app.manifest.name];
-  if (!entry?.live || !entry.ui) return app;
+  if (!entry?.live || !entry.ui) return null;
 
   return {
     ...app,
@@ -1248,7 +1219,19 @@ function withLiveData(app: MiniApp): MiniApp {
   };
 }
 
-export const SEED_APPS: MiniApp[] = [
+/**
+ * Every app the seed set DECLARES, before the overlay gets a vote.
+ *
+ * `scripts/seed-live.ts` must iterate this list, not `SEED_APPS`. If the
+ * generator read the filtered list, an app that failed to resolve once would be
+ * dropped, therefore never re-measured, therefore dropped forever — a
+ * lock-in where a transient rate limit permanently shrinks the registry.
+ *
+ * NOTE FOR WHOEVER OWNS `scripts/seed-live.ts`: it currently imports `SEED_APPS`
+ * (line ~153). That needs to become `SEED_APPS_ALL` or the recovery path above
+ * is closed. Not changed here because this agent owns only `seed.ts`.
+ */
+export const SEED_APPS_ALL: readonly MiniApp[] = [
   // autonomous first — the board sorts by tier and this is the payoff row
   aaveGuard,
   copyTraderArb,
@@ -1268,30 +1251,116 @@ export const SEED_APPS: MiniApp[] = [
   bridgeFlows,
   perpOiBoard,
   nftVolumeEth,
-].map(withLiveData);
-
-/** The global activity feed, newest last. Built from every app's journal. */
-export const SEED_LEDGER: LedgerLine[] = SEED_APPS.flatMap((app) =>
-  app.journal.map((entry, i) => ({
-    ...entry,
-    id: `${app.manifest.name}-${i}`,
-    app: app.manifest.name,
-  })),
-)
-  .concat([
-    { id: "x1", app: "dex-volume-arb", ts: ago(52), kind: "QUERY", message: "dex-amm@1.3.2 × 31 deployments — 27 live, 4 skipped, 412ms · $0.012", ok: true },
-    { id: "x2", app: "tvl-crosschain", ts: ago(64), kind: "QUERY", message: "3 schema families × 3 chains merged, 38 of 44 live · $0.031", ok: true },
-    { id: "x3", app: "yield-leaderboard", ts: ago(96), kind: "ERROR", message: "sonne-finance deployment returned 502, skipped", ok: false },
-    { id: "x4", app: "health-factor-watch", ts: ago(124), kind: "TRIGGER", message: "health factor 1.61 → 1.52, still above 1.40", ok: true },
-  ])
-  .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+];
 
 /**
- * A fork inherits the interface but none of the parent's spending history.
- * The manifest already strips the wallet; this strips what the UI would
- * otherwise still claim on screen.
+ * The registry, and it contains only apps the pipeline actually measured.
+ *
+ * A SHORTER REGISTRY IS THE CORRECT FAILURE MODE. The instinct is to keep the
+ * grid full — sixteen cards photograph better than twelve, and §12's "an empty
+ * grid doesn't read like a platform" argument pulls the same way. But that
+ * argument is about *social* texture, and it does not license showing a mini app
+ * whose data does not exist. Matrix row #1 is "live Graph data, no mocks"; an app
+ * with no live data has nothing to show, so it shows nothing. `sources.ts` makes
+ * the same call one layer down, where a `placeholder` deployment ID is excluded
+ * rather than queried and hoped for.
+ *
+ * And the drop is NOT SILENT. A silent truncation is its own dishonesty: the
+ * registry would read "here is everything" while quietly meaning "here is what
+ * survived". `SEED_DROPPED` names them so the UI can say "3 of 16 seed apps have
+ * no live data in this snapshot" instead of implying full coverage.
+ */
+const OVERLAID: readonly (MiniApp | null)[] = SEED_APPS_ALL.map(withLiveData);
+
+export const SEED_APPS: MiniApp[] = OVERLAID.filter((a): a is MiniApp => a !== null);
+
+/**
+ * Seed apps the snapshot could not measure, so they are not in `SEED_APPS`.
+ * Empty is the expected state; non-empty means re-run `pnpm seed:live` and read
+ * the `reason` in `seed-live.generated.json`. Surface the count wherever
+ * `LIVE_SEED_COUNT` is surfaced — the two numbers only tell the truth together.
+ */
+export const SEED_DROPPED: readonly string[] = SEED_APPS_ALL.filter(
+  (a) => !LIVE_SNAPSHOT.apps[a.manifest.name]?.live,
+).map((a) => a.manifest.name);
+
+/** Denominator for `LIVE_SEED_COUNT` and `SEED_DROPPED.length`. */
+export const SEED_DECLARED_COUNT = SEED_APPS_ALL.length;
+
+/**
+ * The board's receipt log, and it starts empty.
+ *
+ * It used to open with four hand-written lines — a 412ms fan-out across 31
+ * deployments, a 502 from `sonne-finance`, a health factor moving 1.61 → 1.52 —
+ * plus every seed app's journal flattened in. Read on screen those are
+ * measurements: timestamped, costed, in mono, in a panel whose entire visual
+ * argument is "this is a receipt". None of them was measured. A ledger that
+ * asserts a query latency nobody timed is the exact failure the risk register
+ * calls fatal, and it is worse in the Ledger than anywhere else in the product
+ * because the Ledger's only job is to be the audit trail.
+ *
+ * So it fills from the real paths instead: `runApp` when a fan-out actually
+ * returns, the Substreams subscription when a block actually arrives, and the
+ * policy engine + signer when an action is actually dispatched. Empty on first
+ * load is the honest state — the board says "nothing has happened yet", which is
+ * true, and the first line that lands is one you caused. Keep it empty; a
+ * pre-populated receipt log is set dressing.
+ */
+export const SEED_LEDGER: LedgerLine[] = [];
+
+/**
+ * A fork inherits the interface but none of the parent's spending history. The
+ * manifest already strips the wallet, the identity and the provenance
+ * (`forkManifest`); this strips what the rendered body would otherwise still
+ * show.
+ *
+ * ── Two document shapes, and why this handles both ──────────────────────────
+ * This used to early-return unless the document had a `.blocks` array — the
+ * local `UiDoc` fixture shape. Every seed app now carries a real A2UI document,
+ * which is a JSON *array* of protocol messages (`createSurface`,
+ * `updateComponents`, `updateDataModel`). So the guard silently stopped firing
+ * the moment the data went live: forking an autonomous app reset nothing and
+ * never showed its "the wallet is empty" banner. Dead code that looks alive is
+ * how a safety affordance disappears without anyone noticing, which is why the
+ * scope below is spelled out rather than assumed.
+ *
+ * ── What the A2UI path can reset ────────────────────────────────────────────
+ * Values live in the data model, not on the components — a component carries a
+ * `data: { path }` pointer and the renderer resolves it (see
+ * `renderer.tsx` / `readSurface`). So the reset rewrites the data model at the
+ * paths the parent's own components point at:
+ *
+ *   · the alert_banner's block — replaced with the fork banner. For an
+ *     autonomous app this is the affordance that says the wallet is empty and
+ *     nothing is armed, and it is the reason this function exists.
+ *   · `policy_badge.spentUsd` and any USD `progress_bar` value — the spend-
+ *     against-cap meter. The parent's lifetime spend is not the fork's.
+ *   · `trade_log.entries` and the model's `journal` — receipts, including tx
+ *     hashes, belonging to the parent's wallet.
+ *   · `amount_input.value` and `inputs.amount` — a staged transaction size.
+ *
+ * ── What it CANNOT reset, stated so this does not rot again ─────────────────
+ * The composed bodies mostly contain nothing user-owned to reset. Read one: the
+ * leaderboards, the headline scalar and the raw rows are protocol-level scalars
+ * — `totalValueLockedUSD` summed over Aave and Compound markets, not anybody's
+ * position. That is not an oversight in this function, it is the README's "Not
+ * in scope: per-account positions": the standardized fan-out reads protocol
+ * aggregates, and no standardized family exposes a single user's balance in that
+ * query shape. Protocol TVL is identical for parent and fork and re-measured on
+ * the next run, so zeroing it would destroy live data, not private data.
+ *
+ * `held_position` blocks (position_card) WOULD be parent-owned, and the local
+ * fixture bodies contain them — but the live composer cannot produce one from
+ * protocol scalars, so none appears in any current document. They are left
+ * alone here rather than half-handled: when per-account positions are built,
+ * this is the function that needs a case for them.
+ *
+ * Deliberately narrow, in other words, and not a no-op: for a monitor-tier app
+ * whose body is three protocol leaderboards and a banner, the banner is the only
+ * thing there is to change, and it changes.
  */
 export function resetOwnedValues(ui: unknown, tier: AgencyTier): unknown {
+  if (Array.isArray(ui)) return resetA2uiOwnedValues(ui, tier);
   if (typeof ui !== "object" || ui === null) return ui;
   const doc = ui as UiDoc;
   if (!Array.isArray(doc.blocks)) return ui;
@@ -1300,20 +1369,128 @@ export function resetOwnedValues(ui: unknown, tier: AgencyTier): unknown {
       return { ...b, data: { ...b.data, value: 0 } };
     }
     if (b.component === "alert_banner" && tier !== "readonly") {
-      return {
-        ...b,
-        data: {
-          level: "risk",
-          text:
-            tier === "autonomous"
-              ? "Forked copy. The wallet is empty and nothing is armed until you fund it."
-              : "Forked copy. Run it once to subscribe.",
-        },
-      };
+      return { ...b, data: { level: "risk", text: forkBannerText(tier) } };
     }
     return b;
   });
   return { ...doc, blocks };
+}
+
+function forkBannerText(tier: AgencyTier): string {
+  return tier === "autonomous"
+    ? "Forked copy. The wallet is empty and nothing is armed until you fund it."
+    : "Forked copy. Run it once to subscribe.";
+}
+
+type Json = Record<string, unknown>;
+
+function isJson(v: unknown): v is Json {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Reads `{ path: "/blocks/foo" }` bindings into the model keys they name. */
+function pointerHead(binding: unknown): string | null {
+  if (!isJson(binding) || typeof binding.path !== "string") return null;
+  const parts = binding.path.split("/").filter(Boolean);
+  return parts.length === 2 && parts[0] === "blocks" ? parts[1] : null;
+}
+
+function usdLike(unit: unknown): boolean {
+  return typeof unit === "string" && /^(usd|usdc?|\$)$/i.test(unit.trim());
+}
+
+/**
+ * The A2UI half of `resetOwnedValues`. Walks the message array, learns which
+ * data-model block each component reads, and rewrites only those blocks.
+ * Components are never rewritten — the composer picked them from the data shape
+ * and a fork asks the same question of the same schemas.
+ */
+function resetA2uiOwnedValues(doc: readonly unknown[], tier: AgencyTier): unknown[] {
+  /** block key → component name, learned from every `updateComponents`. */
+  const owner = new Map<string, string>();
+  for (const msg of doc) {
+    if (!isJson(msg) || !isJson(msg.updateComponents)) continue;
+    const components = msg.updateComponents.components;
+    if (!Array.isArray(components)) continue;
+    for (const c of components) {
+      if (!isJson(c) || typeof c.component !== "string") continue;
+      const key = pointerHead(c.data);
+      if (key) owner.set(key, c.component);
+    }
+  }
+
+  return doc.map((msg) => {
+    if (!isJson(msg) || !isJson(msg.updateDataModel)) return msg;
+    const update = msg.updateDataModel;
+    // Only the root snapshot the composer emits. A targeted `updateDataModel`
+    // at some deeper path is a streamed delta, not the parent's stored state.
+    if (update.path !== "/" && update.path !== "") return msg;
+    if (!isJson(update.value)) return msg;
+    return {
+      ...msg,
+      updateDataModel: { ...update, value: resetModel(update.value, owner, tier) },
+    };
+  });
+}
+
+function resetModel(model: Json, owner: Map<string, string>, tier: AgencyTier): Json {
+  const next: Json = { ...model };
+
+  if (isJson(next.blocks)) {
+    const blocks: Json = { ...next.blocks };
+    for (const [key, block] of Object.entries(blocks)) {
+      if (!isJson(block)) continue;
+      blocks[key] = resetBlock(block, owner.get(key), tier);
+    }
+    next.blocks = blocks;
+  }
+
+  // A staged amount is the user's input, not the fork's.
+  if (isJson(next.inputs)) next.inputs = { ...next.inputs, amount: 0 };
+  // The parent's action journal, tx hashes and all.
+  if (Array.isArray(next.journal)) next.journal = [];
+  // The policy view the badge and the action gate read. The wallet is already
+  // null by the time this runs; the lifetime spend against the cap is not.
+  if (isJson(next.policy) && typeof next.policy.spentUsd === "number") {
+    next.policy = { ...next.policy, spentUsd: 0 };
+  }
+
+  return next;
+}
+
+function resetBlock(block: Json, component: string | undefined, tier: AgencyTier): Json {
+  switch (component) {
+    case "alert_banner":
+      // The one affordance a fork must show. `triggered: false` keeps the panel
+      // in its standing "watching" state rather than painting it as a breach,
+      // and the observed/threshold figures go because they were the parent's.
+      return tier === "readonly"
+        ? block
+        : {
+            ...block,
+            triggered: false,
+            severity: "risk",
+            message: forkBannerText(tier),
+            value: null,
+            threshold: null,
+          };
+    case "progress_bar":
+      // Every alias `ProgressBar` reads for the current value, so the meter
+      // cannot come back to life through a synonym.
+      return usdLike(block.unit) || usdLike(isJson(block.hints) ? block.hints.unit : undefined)
+        ? { ...block, value: 0, current: 0, spent: 0, v: 0 }
+        : block;
+    case "policy_badge":
+      return typeof block.spentUsd === "number" ? { ...block, spentUsd: 0 } : block;
+    case "amount_input":
+      return { ...block, value: 0 };
+    case "trade_log":
+      return Array.isArray(block.entries) ? { ...block, entries: [] } : block;
+    default:
+      // Protocol-level aggregates and raw rows: nothing owned, nothing to
+      // reset, and re-measured on the fork's first run. See the note above.
+      return block;
+  }
 }
 
 export function tierRank(tier: AgencyTier): number {
@@ -1347,6 +1524,24 @@ export interface PlanStep {
   label: string;
   /** Resolved detail, shown in mono once the step lands. */
   detail: string;
+  /**
+   * NOTHING READS THIS. Kept, not deleted, and only for a concurrency reason —
+   * see below.
+   *
+   * It was a per-step fake duration: the Studio used to animate each plan row for
+   * `ms` milliseconds, so a number nobody measured was rendered as if the step had
+   * taken that long. `studio-input.tsx` replaced that with one declared reveal
+   * cadence (`REVEAL_MS`) and its comment is explicit that the only durations on
+   * screen are measured ones — the fan-out's own `elapsedMs`. By the house rule
+   * ("a field that looks like a measurement and is not") this should be gone.
+   *
+   * It is still here because `livePlanSteps` in `store.ts` constructs `PlanStep`
+   * literals WITH `ms:`, and store.ts is being edited by another agent right now.
+   * Removing the field would break their file, which is not this file's call to
+   * make. Delete it together with those five call sites.
+   *
+   * Until then: this is not a measurement, and no consumer treats it as one.
+   */
   ms: number;
 }
 
@@ -1401,40 +1596,34 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
 
   const tier: AgencyTier = AUTONOMOUS.test(intent) ? "autonomous" : MONITOR.test(intent) ? "monitor" : "readonly";
 
-  const pool: Source[] = [];
-  // Every standardized family has many deployments per chain — that breadth is
-  // the whole point of resolving a schema rather than a subgraph ID.
-  const catalogue: Record<string, [string, string][]> = {
-    "lending-cdp@3.1.0": [
-      ["Jd8k2Lp", "aave-v3"], ["Rt9y3Mn", "radiant-v2"], ["Hh8j1Cx", "exactly"],
-      ["Kk4b7Nq", "compound-v3"], ["Ll6c2Pr", "silo-v2"], ["Mm9d5Qs", "dolomite"],
-      ["Nn2e8Rt", "seamless"], ["Oo5f1Su", "moonwell"], ["Pp8g4Tv", "granary"],
-    ],
-    "dex-amm@1.3.2": [
-      ["5zvR82Q", "uniswap-v3"], ["8YtQmXe", "camelot-v3"], ["Ck2mQ8x", "balancer-v2"],
-      ["Dl5n3Yz", "curve"], ["Em8p6Za", "ramses"], ["Fn1q9Ab", "traderjoe-v2"],
-      ["Go4r2Bc", "sushi-v3"], ["Hp7s5Cd", "aerodrome"], ["Iq0t8De", "velodrome-v2"],
-      ["Jr3u1Ef", "pancakeswap-v3"],
-    ],
-    "dex-aggregator@1.0.2": [["Ag1s5Dv", "1inch"], ["Ah3t7Ew", "paraswap"], ["Ai6u0Fx", "0x-protocol"], ["Aj9v3Gy", "odos"]],
-    "yield-aggregator@1.3.1": [["Yv2c8Rt", "yearn-v3"], ["Yw5f1Sd", "beefy"], ["Yx8g2Te", "gamma"], ["Yy1h5Uf", "pendle"], ["Yz4i8Vg", "sommelier"]],
-    "perp-futures@1.3.4": [["Pk8w2Qe", "gmx-v2"], ["Lm3r7Uy", "vertex"], ["Mn6s0Vz", "synthetix-perps-v3"], ["No9t3Wa", "mux"], ["Op2u6Xb", "hmx"]],
-    "bridge@1.2.0": [["Bg9k4Vn", "across-v3"], ["Cf2m8Xq", "stargate-v2"], ["Dg2l7Wo", "hop"], ["Eh5m0Xp", "connext"], ["Fi8n3Yq", "synapse"]],
-    "nft-marketplace@2.1.0": [["Nf4d9Ke", "seaport"], ["Ng7e2Lf", "blur"], ["Nh0f5Mg", "quix"]],
-    "network@1.2.0": [["Nw1q4Ft", "network-core"], ["Nx4r7Gu", "network-blocks"]],
-    "options@1.3.2": [["Oo9m2Zx", "lyra-v2"], ["Op2n5Ay", "premia-v3"], ["Oq5o8Bz", "dopex"]],
-    "generic@3.0.0": [["Gg2v6Bn", "generic-core"], ["Gh5w9Co", "generic-tokens"], ["Gi8x2Dp", "generic-accounts"]],
-  };
-  let seq = 0;
-  for (const schema of schemas) {
-    for (const network of networks) {
-      for (const [id, label] of catalogue[schema] ?? []) {
-        seq += 1;
-        pool.push(src(`${id}${seq}`, schema, network, seq % 7 !== 0, `${label}-${network}`));
-      }
-    }
-  }
-  const healthy = pool.filter((s) => s.healthy).length;
+  /**
+   * Candidates from the REAL registry, best-reliability first.
+   *
+   * This used to be a hardcoded `catalogue` of invented base58-looking strings —
+   * `Jd8k2Lp`, `5zvR82Q`, `Ck2mQ8x` — suffixed with a loop counter, plus health
+   * faked as `seq % 7 !== 0`. That is the worst fabrication in this file's
+   * blast radius, because an invented ID is *character-for-character
+   * indistinguishable* from the 86 verified ones in `sources.ts`: nobody reading
+   * the Studio, and no judge checking a subgraph ID against The Graph's
+   * explorer, can tell which is which. Faking the health check is the same
+   * problem one layer down — §5 makes the health check a correctness
+   * requirement, not a progress animation.
+   *
+   * So the offline fallback now names deployments that genuinely exist, and
+   * `entryToSource` marks every one `healthy: false` with `healthCheckedAt:
+   * null` — because this path resolved no gateway and probed nothing. Unverified
+   * is the truthful state of an offline draft, and it is a different claim from
+   * dead. `placeholder` entries are dropped: `sources.ts` labels those "not a
+   * real ID" for families with no standardized deployment on a chain, and
+   * passing one through here would reintroduce exactly what was removed.
+   *
+   * If the registry has no coverage for the parsed schemas on the parsed chains
+   * the pool is empty and the plan says so, which is the answer the real
+   * resolver would give.
+   */
+  const pool: Source[] = candidateSources(schemas, networks)
+    .filter((entry) => entry.verification !== "placeholder")
+    .map(entryToSource);
 
   const blocks = draftBlocks(tier, intent);
   const nowIso = now.toISOString();
@@ -1458,16 +1647,49 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
       stream:
         tier === "readonly"
           ? null
-          : { package: "substreams-common@v0.4.0", module: "map_events", filter: {} },
+          // Was `substreams-common@v0.4.0` / `map_events` — invented, and not an
+          // `.spkg` URL, so a watch on an offline draft failed at URL parse. The
+          // real package, same as the seeds.
+          : { package: SEED_SPKG, module: SEED_STREAM_MODULE, filter: {} },
       transport: tier === "readonly" ? "gateway" : "x402",
     },
     ui: { spec: "a2ui/0.9.1", blocks } satisfies UiDoc,
     agency: {
       tier,
+      /**
+       * The condition stays DELIBERATELY INEVALUABLE, and says so in words.
+       *
+       * This is the offline drafter: it has a sentence and a keyword table, and
+       * no way to know which metric a stranger's intent means or what value
+       * would count as crossing it. The two honest options are to leave the
+       * condition unexpressed or to invent one, and inventing is worse in both
+       * directions — a made-up threshold either never fires (inert, and inert is
+       * the failure that hides) or fires on the wrong number in an app that can
+       * spend. A guessed `dex_amm.cumulativeVolumeUSD > 250000` from the words
+       * "swaps over $250,000" is not a translation, it is a fabrication with a
+       * plausible shape, which is the category this whole pass has been removing.
+       *
+       * `"threshold breached"` / `"condition met"` was the old text and it was
+       * the worst of both: unparseable, so it never fired, while reading on the
+       * card as a configured trigger. `isConditionEvaluable` returns false for
+       * the replacement too, but now `app-runtime` labels it "not machine-readable
+       * — this trigger fails closed" and the words themselves name the missing
+       * piece, so the fix is obvious to whoever opens the app.
+       *
+       * NOT `null`: `evaluateCondition(null)` is ALWAYS SATISFIED — an
+       * on-every-block trigger. That is a real configuration, not an empty one,
+       * and it is the last thing an unconfigured autonomous draft should carry.
+       */
       triggers:
         tier === "readonly"
           ? []
-          : [{ on: "stream", when: tier === "autonomous" ? "threshold breached" : "condition met", run: tier === "autonomous" ? "act" : "notify" }],
+          : [
+              {
+                on: "stream",
+                when: "unset — no threshold could be derived from this intent",
+                run: tier === "autonomous" ? "act" : "notify",
+              },
+            ],
       actions:
         tier === "autonomous"
           ? { act: { kind: "swap", target: ROUTER_ARB, params: {}, label: "Execute" } }
@@ -1475,7 +1697,13 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
             ? { notify: { kind: "notify", params: {}, label: "Alert me" } }
             : {},
       policy: {
-        wallet: tier === "autonomous" ? "0x0000000000000000000000000000000000000000" : null,
+        // `null` at every tier, never the zero address. A drafted app has not been
+        // published, so no signer has been provisioned for it — and any surface
+        // that renders `policy.wallet` raw would have shown 0x000…000 as the
+        // address to fund. §8 makes the displayed address a safety primitive; the
+        // zero address is the one value guaranteed to burn whatever reaches it.
+        // The real signer comes from `POST /api/agency/register` at publish.
+        wallet: null,
         maxSpendUsd: tier === "autonomous" ? 500 : 0,
         maxPerTxUsd: tier === "autonomous" ? 50 : 0,
         allowlist: tier === "autonomous" ? [ROUTER_ARB] : [],
@@ -1487,8 +1715,16 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
     },
     identity: { ens: null, agenticId: null, manifestCid: null },
     provenance: {
-      model: "deepseek-chat-v3",
-      compute: "0g-private-computer",
+      // Nothing here ran on 0G. This function is the rules-based fallback used
+      // when the live plan/compose path is unavailable, so it reports the
+      // offline planner and local compute. It used to claim
+      // `deepseek-chat-v3` on `0g-private-computer` — a model §9 records as
+      // gone from the router (live `GET /v1/models`, 2026-07-25) running on
+      // compute this path never touches. `attestationRef` was already null,
+      // which made the record self-contradictory as well as wrong: attested
+      // compute that returned no attestation.
+      model: OFFLINE_MODEL,
+      compute: "local",
       attestationRef: null,
       generatedAt: nowIso,
     },
@@ -1504,8 +1740,21 @@ export function draftFromIntent(intent: string, now: Date = new Date()): Draft {
   const steps: PlanStep[] = [
     { key: "intent", label: "Read the intent", detail: `tier ${tier}`, ms: 420 },
     { key: "schemas", label: "Resolve standardized schemas", detail: schemas.join(" · "), ms: 620 },
-    { key: "sources", label: "Look up live deployments", detail: `${pool.length} found across ${networks.length} ${networks.length === 1 ? "chain" : "chains"}`, ms: 700 },
-    { key: "health", label: "Health-check sources", detail: `${healthy} of ${pool.length} live, ${pool.length - healthy} skipped`, ms: 780 },
+    // "In the registry", not "live": these came out of `SOURCE_REGISTRY`, which
+    // is a list of deployments that exist, not a list of ones answering now.
+    {
+      key: "sources",
+      label: "Look up deployments",
+      detail: pool.length
+        ? `${pool.length} in the registry across ${networks.length} ${networks.length === 1 ? "chain" : "chains"}`
+        : "no standardized deployment for these schemas on these chains",
+      ms: 700,
+    },
+    // The step stays in the plan because the real resolver runs it and the
+    // Studio's whole argument is that the plan is legible. It reports that it
+    // did not run rather than reporting a made-up result — "0 of 12 live" would
+    // read as twelve dead deployments, which is a different and false claim.
+    { key: "health", label: "Health-check sources", detail: "not run — offline draft, none probed", ms: 780 },
     ...(tier === "readonly"
       ? []
       : [{ key: "stream", label: "Subscribe Substreams", detail: "substreams-common@v0.4.0 · map_events", ms: 560 }]),
