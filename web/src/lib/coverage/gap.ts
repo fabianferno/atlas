@@ -18,14 +18,21 @@
  * agent has something to build. Collapsing them to a boolean would throw away
  * the one distinction that decides what happens next.
  *
- * `reasons` exists so the verdict is quotable. "No coverage" with nothing behind
- * it is indistinguishable from a lookup that failed.
+ * `reasons` exists so the verdict is quotable. But a quote is not a proof: when
+ * the substreams.dev lookup itself fails, "no package" is unproven, not false.
+ * A later phase triggers pipeline construction on `verdict === "uncovered"`, so
+ * reporting a failed lookup as "uncovered" would send that phase to rebuild
+ * something that may already be published — the exact mistake this module
+ * exists to prevent. That is why a failed lookup with no subgraph coverage
+ * gets its own verdict, `"unknown"`, instead of collapsing into "uncovered".
+ * When subgraph coverage exists despite the failed lookup, `"subgraph-only"`
+ * is still provably correct and is left alone.
  */
 import type { Network, SchemaFamily } from "@/lib/contracts/manifest";
 import { registryCoverage } from "@/lib/kit/sources";
 import { searchPackages, type RegistryPackage } from "./registry";
 
-export type CoverageVerdict = "covered" | "subgraph-only" | "substreams-only" | "uncovered";
+export type CoverageVerdict = "covered" | "subgraph-only" | "substreams-only" | "uncovered" | "unknown";
 
 export interface CoverageReport {
   /** What was searched for. Echoed so a report is self-describing. */
@@ -37,7 +44,11 @@ export interface CoverageReport {
   substreams: {
     packages: RegistryPackage[];
   };
-  /** True when anything at all indexes this today. */
+  /**
+   * True when anything at all indexes this today. False for `"unknown"` too —
+   * an unproven absence is not a confirmed presence, so it must not read as
+   * coverage.
+   */
   covered: boolean;
   verdict: CoverageVerdict;
   /** What was checked and what came back, in order. */
@@ -51,12 +62,19 @@ export interface AssessOptions {
   networks: readonly Network[];
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  /**
+   * Injectable for tests, mirroring `fetchImpl`. Defaults to the real registry
+   * so callers get live data; tests that only need synthetic (schema, network)
+   * counts should pass a fixture instead of depending on what's really in
+   * `sources.ts` today.
+   */
+  coverage?: () => Record<SchemaFamily, Partial<Record<Network, number>>>;
 }
 
 export async function assessCoverage(options: AssessOptions): Promise<CoverageReport> {
   const reasons: string[] = [];
 
-  const coverage = registryCoverage();
+  const coverage = (options.coverage ?? registryCoverage)();
   const byNetwork: Partial<Record<Network, number>> = {};
   let deployments = 0;
   for (const schema of options.schemas) {
@@ -103,15 +121,24 @@ export async function assessCoverage(options: AssessOptions): Promise<CoverageRe
   const hasSubgraph = deployments > 0;
   const hasPackage = packages.length > 0;
 
-  const verdict: CoverageVerdict = hasSubgraph
-    ? hasPackage
-      ? "covered"
-      : "subgraph-only"
-    : hasPackage
-      ? "substreams-only"
-      : "uncovered";
+  // A failed lookup with no subgraph coverage means absence was never proven —
+  // that is `"unknown"`, not `"uncovered"`. (registryFailed implies packages
+  // stayed empty, so hasPackage is always false on this branch; the check on
+  // hasSubgraph is what decides whether the failure is escapable.) When
+  // subgraph coverage exists despite the failure, that half of the picture is
+  // still provably correct, so `"subgraph-only"` stands unchanged.
+  const verdict: CoverageVerdict =
+    registryFailed && !hasSubgraph
+      ? "unknown"
+      : hasSubgraph
+        ? hasPackage
+          ? "covered"
+          : "subgraph-only"
+        : hasPackage
+          ? "substreams-only"
+          : "uncovered";
 
-  if (verdict === "uncovered" && registryFailed) {
+  if (verdict === "unknown") {
     reasons.push("Treating this as uncovered would be a guess. Re-run the registry lookup first.");
   }
 
@@ -119,6 +146,10 @@ export async function assessCoverage(options: AssessOptions): Promise<CoverageRe
     subject: options.query,
     subgraph: { deployments, byNetwork },
     substreams: { packages },
+    // An unproven absence is not a confirmed presence: "unknown" means we
+    // don't know whether a package exists, so it must not read as covered.
+    // hasSubgraph is always false when verdict is "unknown" (see above), so
+    // this reduces to `false` on that branch without a special case here.
     covered: hasSubgraph || hasPackage,
     verdict,
     reasons,
