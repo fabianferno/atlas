@@ -205,6 +205,19 @@ The name↔token binding is **immutable by design**: `AgenticId._bindEnsName` re
 
 Also: `aave-health-guard` has **no `addr` record** — it predates wallet binding, and `setRecords` skips a null address rather than writing zero.
 
+**The contenthash resolves without us.** The strongest form of this claim is the one that does not involve our server at all, so that is the one that gets checked — read `contenthash` off Sepolia, fetch the CID from ipfs.io, parse what comes back:
+
+```
+1. ENS contenthash   ipfs://bafkreiagp25njrnk42kixxjo4tctw6v2go23dmo6lzwihg7sfcsiv4opxu
+2. ipfs.io fetch     200 OK
+3. manifest          spec=atlas/2 name=atlas-market-guard tier=monitor
+                     schemas lending-cdp@3.1.0, dex-amm-extended@4.0.1 · 9 sources
+```
+
+All six published manifests are pinned and all six read back from a public gateway (`scripts/pin-backfill.ts --verify`). **Backfilling needed no republishing and no transactions**: a CID is the hash of the bytes, so re-uploading the same bytes produces the same CID. Every `contenthash` already written was a correct address that simply had no provider.
+
+One trap that would have silently broken that: Pinata's `pinJSONToIPFS` wraps a document as UnixFS and returns a **dag-pb** CID (`bafybei…`), while local mode addresses the raw block (`bafkrei…`). Same content, different CID — so enabling Pinata would have minted new addresses and orphaned every record already written. `pinFileToIPFS` with `cidVersion: 1` uses raw leaves and reproduces the local CID exactly, and `PinataBackend` now asserts that per pin rather than trusting it: if Pinata ever returns a CID we did not derive, the publish fails instead of writing an unverifiable address into ENS.
+
 **The name and the token verify each other in both directions.** The ENS record asserts the Agentic ID; `MiniAppRegistry` on 0G Chain asserts the name; the token itself stores the name it was minted against. Resolving returns `mutuallyVerified: true` only when all three agree — checked against the chain, never assumed.
 
 **Registering the parent on Sepolia does not work the documented way.** `ETHRegistrarController` is not an authorised controller there, so `register()` reverts while `available()` still returns true. Use `TestnetV1PremigrationRegistrar` (`0xdf60C561Ca35AD3C89D24BbA854654b1c3477078`) — free, one transaction, `data: []` — then note the name comes back **unwrapped**, so `NameWrapper.setSubnodeRecord` reverts with `Unauthorised` until you `setApprovalForAll` + `wrapETH2LD`. Transactions in [`contracts/deployments/ens-sepolia.json`](contracts/deployments/ens-sepolia.json).
@@ -283,7 +296,7 @@ Named explicitly, because a vague scope claim is worse than a small one:
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
 - **`@atlas/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.
 - **Creator earnings.** x402 pays the gateway for data (inbound, working). Paying creators needs our own facilitator and is display-only today.
-- **IPFS pinning.** Manifests get a real CIDv1 but are **not announced to any public network** unless `PINATA_JWT` / `W3S_TOKEN` is set — verified, not assumed: every published CID returns nothing from ipfs.io, dweb.link and cloudflare-ipfs. What makes them readable in production is that the local content store (`web/.atlas/ipfs/`) is uploaded with the deployment, so **a newly published manifest resolves only after the next deploy.** That is a workable demo property and a bad durability story: the `contenthash` is a correct commitment, but the bytes live wherever the build lives. Setting a pinning token is the fix.
+- ~~**IPFS pinning.**~~ **Done** — pinned for real, see below.
 - **Seed social metrics.** All 16 seed apps now run on live data (see below), but their `runs`, `forks` and ratings are still seeded texture — there is no community yet. Inventing a fan-out would be a data claim; inventing a fork count is set dressing. The distinction is deliberate.
 
 ---

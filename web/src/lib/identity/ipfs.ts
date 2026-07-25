@@ -216,20 +216,36 @@ class PinataBackend implements IpfsBackend {
   readonly mode = "pinata" as const;
   constructor(private readonly jwt: string) {}
 
+  /**
+   * `pinFileToIPFS`, NOT `pinJSONToIPFS`.
+   *
+   * The difference is the CID. `pinJSONToIPFS` wraps the document as a UnixFS
+   * file, so even at `cidVersion: 1` it returns a **dag-pb** CID (`bafybei…`).
+   * `local` mode addresses the same bytes as a **raw** block (`bafkrei…`). Same
+   * content, different multicodec, different CID — which would mean the CID a
+   * manifest gets depends on which backend happened to pin it, and switching
+   * `IPFS_MODE` would silently orphan every `contenthash` already written.
+   *
+   * A single-block upload through `pinFileToIPFS` with `cidVersion: 1` uses raw
+   * leaves and reproduces the local CID exactly. Verified against a published
+   * manifest: both paths return
+   * `bafkreiagp25njrnk42kixxjo4tctw6v2go23dmo6lzwihg7sfcsiv4opxu`.
+   *
+   * So the CID stays a function of the bytes, which is the only thing content
+   * addressing is for.
+   */
   async pinJson(value: unknown): Promise<PinResult> {
     const json = canonicalJson(value);
-    const res = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+    const bytes = new TextEncoder().encode(json);
+
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: "application/json" }), "manifest.json");
+    form.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+
+    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.jwt}`,
-      },
-      // pinataContent must be the parsed object; we re-parse the canonical
-      // form so the bytes Pinata hashes match our key ordering.
-      body: JSON.stringify({
-        pinataContent: JSON.parse(json),
-        pinataOptions: { cidVersion: 1 },
-      }),
+      headers: { authorization: `Bearer ${this.jwt}` },
+      body: form,
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) {
@@ -237,13 +253,25 @@ class PinataBackend implements IpfsBackend {
     }
     const body = (await res.json()) as { IpfsHash?: string };
     if (!body.IpfsHash) throw new Error("pinata: response had no IpfsHash");
+
+    // The CID must be the hash of the bytes we just sent. If Pinata ever returns
+    // something else, the manifest is addressed by a name we did not compute and
+    // cannot verify offline — fail loudly rather than write it into an ENS record.
+    const expected = cidV1Raw(bytes);
+    if (body.IpfsHash !== expected) {
+      throw new Error(
+        `pinata returned ${body.IpfsHash} but these bytes hash to ${expected} — ` +
+          "refusing to publish a CID we did not derive.",
+      );
+    }
+
     return {
       cid: body.IpfsHash,
       uri: `ipfs://${body.IpfsHash}`,
       gatewayUrl: gatewayUrl(body.IpfsHash),
       mode: "pinata",
       pinned: true,
-      bytes: new TextEncoder().encode(json).length,
+      bytes: bytes.length,
     };
   }
 
