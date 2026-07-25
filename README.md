@@ -309,4 +309,4 @@ Named explicitly, because a vague scope claim is worse than a small one:
 
 ## Team
 
-_TODO — name · Telegram · X_
+**Fabian Ferno** — solo · [github.com/fabianferno](https://github.com/fabianferno) · [fabianferno.com](https://fabianferno.com) · hello@fabianferno.com · Telegram [@fabianferno](https://t.me/fabianferno) · X [@fabianferno](https://x.com/fabianferno)
