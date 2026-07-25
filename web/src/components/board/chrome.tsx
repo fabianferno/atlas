@@ -38,6 +38,21 @@ export function TierTag({ tier, className }: { tier: AgencyTier; className?: str
   );
 }
 
+/**
+ * LIVE — reserved for something that is genuinely happening right now.
+ *
+ * This mark used to sit on every mini app whose `running` flag was true, which
+ * asserted an open Substreams subscription. Nothing was subscribed: until
+ * `watchBlocks` landed, `POST /api/stream` had no callers anywhere in the
+ * product. So the loudest signal in the design system was backing the one claim
+ * the system could not make.
+ *
+ * The rule now: `--live` and the `.live-dot` blip mean a bounded Substreams run
+ * is open at this moment, or a request is genuinely in flight. For "configured
+ * and would act if a trigger fired", use `ArmedLamp`. §6 Rule 2 — colour is
+ * semantic, never decorative — is what forces the split rather than letting one
+ * mark cover both.
+ */
 export function LiveDot({ label = "live" }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -45,6 +60,58 @@ export function LiveDot({ label = "live" }: { label?: string }) {
       <span className="mono text-[0.6875rem] uppercase tracking-[0.08em]" style={{ color: "var(--live)" }}>
         {label}
       </span>
+    </span>
+  );
+}
+
+const ARMED_TITLE =
+  "Armed — published, not halted, and would act if a trigger fired. Not subscribed: a Substreams run is opened only by a bounded watch, and nothing is streaming right now.";
+
+/**
+ * ARMED — a lamp that is wired but not lit.
+ *
+ * The same moulded dome as the source-health pips in `app-runtime.tsx`, and
+ * pointedly NOT `.live-dot`: no glow, no `blip` animation, `--gain` rather than
+ * `--live`. A glow reads as transmitting, which is the exact claim this mark
+ * must not make.
+ *
+ * `--gain` is "policy passed" in Rule 2's five, and the policy strip already
+ * renders the literal word "armed" in that colour — so this reuses an existing
+ * pairing instead of minting a sixth accent for a fact the system already had a
+ * colour for.
+ *
+ * Armed is still the interesting state at the autonomous tier: per §7 an armed
+ * agent holds standing spending authority whether or not a block is arriving.
+ */
+export function ArmedLamp({
+  label,
+  className,
+  /** Card faces run this small; the top bar matches its neighbours at 0.6875rem. */
+  labelClassName = "text-[0.5625rem]",
+}: {
+  label?: string;
+  className?: string;
+  labelClassName?: string;
+}) {
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5", className)} title={ARMED_TITLE}>
+      <span
+        aria-hidden
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{
+          background: "var(--gain)",
+          boxShadow:
+            "inset 0 -1px 1px rgba(0,0,0,0.30), 0 0 0 1.5px color-mix(in srgb, var(--gain) 20%, transparent)",
+        }}
+      />
+      {label ? (
+        <span
+          className={cn("mono uppercase tracking-[0.08em]", labelClassName)}
+          style={{ color: "var(--gain)" }}
+        >
+          {label}
+        </span>
+      ) : null}
     </span>
   );
 }
