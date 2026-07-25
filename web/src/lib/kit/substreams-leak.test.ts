@@ -68,22 +68,38 @@ function fakeResponses() {
 
 describe("substreams session lifetime", () => {
   itAsync("aborts the call when the consumer stops reading", async () => {
+    // Restore afterward: this suite runs inside the same process as every other
+    // suite registered in all.test.ts, and a token left behind here would leak
+    // into whichever test runs next.
+    const previousToken = process.env.SUBSTREAMS_API_TOKEN;
     process.env.SUBSTREAMS_API_TOKEN ??= "test-token";
-    let captured: AbortSignal | undefined;
 
-    const events = streamEvents({
-      target: TARGET,
-      loadPackage: async () => fakePackage(),
-      streamBlocksImpl: (_transport, _request, opts) => {
-        captured = opts?.signal;
-        return fakeResponses() as never;
-      },
-    });
+    try {
+      let captured: AbortSignal | undefined;
 
-    // Consume exactly one event, then walk away — the maxTicks case.
-    for await (const _event of events) break;
+      const events = streamEvents({
+        target: TARGET,
+        loadPackage: async () => fakePackage(),
+        streamBlocksImpl: (_transport, _request, opts) => {
+          captured = opts?.signal;
+          return fakeResponses() as never;
+        },
+      });
 
-    assert(captured !== undefined, "the call received a signal");
-    assert(captured!.aborted, "the session is aborted once the consumer stops reading");
+      // Consume exactly one event, then walk away — the maxTicks case.
+      //
+      // `break` inside `for await` triggers AsyncIteratorClose, which awaits
+      // `events.return()` before this loop's continuation runs. That is what
+      // drives `streamEvents`'s `finally` block to completion — abort included
+      // — before control ever reaches the assertions below; without that
+      // guarantee, `captured!.aborted` would be racing the generator's cleanup.
+      for await (const _event of events) break;
+
+      assert(captured !== undefined, "the call received a signal");
+      assert(captured!.aborted, "the session is aborted once the consumer stops reading");
+    } finally {
+      if (previousToken === undefined) delete process.env.SUBSTREAMS_API_TOKEN;
+      else process.env.SUBSTREAMS_API_TOKEN = previousToken;
+    }
   });
 });

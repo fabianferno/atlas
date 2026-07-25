@@ -306,11 +306,34 @@ async function main(): Promise<void> {
 // transport pools its HTTP/2 session and there is no public handle to close it,
 // so a successful run would otherwise sit open indefinitely — which is exactly
 // how two completed runs held both FREE-tier slots for four hours.
+//
+// On a TTY, writes to stdout/stderr are synchronous, so exiting the instant
+// `main()` settles is safe — that is the only place this was tested. Piped
+// through `tee`, redirected to a file, or captured by CI, both streams become
+// asynchronous and buffered: `process.exit()` does not wait for that buffer to
+// drain, it just kills the process mid-write. The RESULT and JOURNAL blocks
+// this script exists to produce are exactly what gets cut off. Wait for both
+// streams to drain — if there is nothing pending, this resolves immediately.
+function exitAfterFlush(code: number | string): void {
+  const pending = [process.stdout, process.stderr].filter((s) => s.writableLength > 0);
+  if (pending.length === 0) {
+    process.exit(code);
+    return;
+  }
+  let remaining = pending.length;
+  for (const stream of pending) {
+    stream.once("drain", () => {
+      remaining -= 1;
+      if (remaining === 0) process.exit(code);
+    });
+  }
+}
+
 main()
   .catch((err: unknown) => {
     console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
   })
   .finally(() => {
-    process.exit(process.exitCode ?? 0);
+    exitAfterFlush(process.exitCode ?? 0);
   });

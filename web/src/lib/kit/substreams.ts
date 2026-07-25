@@ -211,7 +211,7 @@ export type StreamBlocksFn = (
   transport: ReturnType<typeof createConnectTransport>,
   request: ReturnType<typeof createRequest>,
   options?: { signal?: AbortSignal },
-) => AsyncIterable<Awaited<ReturnType<typeof streamBlocks>> extends AsyncIterable<infer R> ? R : never>;
+) => ReturnType<typeof streamBlocks>;
 
 export interface StreamTicksOptions {
   target: StreamTarget;
