@@ -23,6 +23,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { Globe } from "@/components/ui/globe";
+import { GLOBE_LEFT, GLOBE_WIDTH } from "@/components/board/board-layout";
 import { cn } from "@/lib/utils";
 
 const DESKTOP_QUERY = "(min-width: 1024px)"; // Tailwind's `lg`
@@ -69,10 +70,14 @@ export function BoardGlobe({ open }: { open: boolean }): React.JSX.Element {
           open ? "-translate-x-[115%] opacity-0" : "translate-x-0 opacity-100",
         )}
       >
-        {/* Negative margin pulls the globe past the left edge so it's cut by the
-            frame — the world continues off-screen rather than sitting in a box.
-            Sized and shifted so its right edge sits up against the wheel. */}
-        {isDesktop ? <Globe className="ml-[2vw] w-[min(58vw,820px)]" /> : null}
+        {/* Placed off `board-layout`, not by hand: the wheel and the open panel
+            are both measured from this globe's right edge, so its position and
+            width are shared constants rather than classes only this file knows. */}
+        {isDesktop ? (
+          <div style={{ marginLeft: GLOBE_LEFT, width: GLOBE_WIDTH }}>
+            <Globe className="w-full" />
+          </div>
+        ) : null}
       </div>
     </div>
   );

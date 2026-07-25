@@ -29,6 +29,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft } from "lucide-react";
 import { AppRuntime } from "@/components/board/app-runtime";
+import { PANEL_WIDTH } from "@/components/board/board-layout";
 import { cn } from "@/lib/utils";
 
 const CLOSE_MS = 320;
@@ -227,7 +228,7 @@ export function AppDrawer({
         aria-modal={isDesktop ? undefined : true}
         aria-label={shownName ?? "Mini app"}
         tabIndex={-1}
-        style={panelStyle}
+        style={{ ...panelStyle, ["--panel-w" as string]: PANEL_WIDTH }}
         className={cn(
           "pointer-events-auto fixed flex flex-col overflow-hidden outline-none",
           "bg-[var(--paper)] shadow-[var(--elev-3)]",
@@ -243,11 +244,11 @@ export function AppDrawer({
           // board's nav and its halt-everything button have to stay clickable
           // the whole time an app is running.
           "sm:inset-x-auto sm:left-4 sm:top-[3.8125rem] sm:bottom-4 sm:h-auto sm:w-[58vw] sm:rounded-2xl sm:border",
-          // Desktop: narrowed to stop short of the wheel. 48vw minus the 1rem
-          // margin puts the panel's right edge a comfortable gap left of where
-          // the deck's grid places the wheel at every width from 1024 up — see
-          // the note on the wheel column in `app-deck.tsx`.
-          "lg:w-[calc(48vw-2rem)]",
+          // Desktop: narrowed to stop short of the wheel. The width comes from
+          // `PANEL_WIDTH`, measured off the same globe edge the deck's gutter
+          // is — so the panel stays clear of the wheel at every width from 1024
+          // up instead of only at the ones a vw guess happened to suit.
+          "lg:w-[var(--panel-w)]",
         )}
       >
         <header className="relative shrink-0 border-b border-hairline shadow-[inset_0_-1px_0_var(--bevel-hi)]">

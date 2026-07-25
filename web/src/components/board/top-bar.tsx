@@ -24,7 +24,7 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
         <Link href="/" className="flex shrink-0 items-center gap-2">
           {/* currentColor, so the mark picks up --ink and follows the skin
               swap without a per-skin asset. */}
-          <BrandMark className="h-[1.375rem] w-[1.375rem] text-[var(--ink)] sm:h-6 sm:w-6" />
+          <BrandMark className="h-7 w-7 text-[var(--ink)] sm:h-8 sm:w-8" />
           <span className="display text-[0.9375rem] leading-none sm:text-[1.0625rem]">
             Atlas
           </span>
