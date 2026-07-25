@@ -97,6 +97,28 @@ Four bugs that only surfaced once real data ran through it, all of which had bee
 
 **x402 — implemented, not yet exercised.** Keyless per-query payment over the gateway (`/api/x402/subgraphs/id/<id>`): the 402 challenge is parsed for real and answered with an EIP-3009 signature at the published ~$0.01/query. But `X402_PRIVATE_KEY` is unset, so no query has actually been paid for this way — the reference run above cost $0.0014, which is 14 × the API-key gateway's $0.0001, not 14 × $0.01. The design is what makes forking work (a forked app pays with its own wallet, no shared API key); the receipt does not exist yet.
 
+**Substreams ✅ — event-driven triggers, verified on Arbitrum.** Polling a subgraph means an autonomous guard is up to five minutes late. For an app that displays, that is a latency preference; for one that spends, it is a correctness bug — which is why this is here and not on the cut list.
+
+A real gRPC subscription (`@substreams/core` over Connect/HTTP-2) against `arb-one.streamingfast.io`, one tick per block, each carrying the cursor the stream resumes from. Verified both directions with `web/scripts/substreams-verify.ts`:
+
+```
+breach:  blocks 487508073 → 487508075 in 1.5s
+         487508074 → healthFactor 1.035 breaches "healthFactor < 1.15"
+         → TRIGGER fired → POLICY OK swap $25 → 0x94cc0aac… → journaled
+control: blocks 487509578 → 487509580, healthy throughout → 0 firings
+```
+
+The control run matters: a harness that can only print ✅ proves nothing.
+
+Four properties the design turns on:
+
+- **A reorg is not an event.** `blockUndoSignal` is journalled and rewinds; it never becomes a trigger signal. The correct response to "that block did not happen" is to stop, not to act.
+- **A replayed block does not trade twice.** Substreams replays from a cursor by design after a disconnect, so ticks are keyed `<block>:<hash>` and the signal ledger dedupes.
+- **The cursor is committed after the action, not before.** At-least-once with an idempotent key beats at-most-once when the effect is a trade.
+- **The metric is re-read server-side, per block.** From the app's own health-checked sources (`web/src/lib/agency/enrich.ts`) — a client that could post `healthFactor` could make an autonomous app trade on demand. Untrusted module output is namespaced under `block` and loses every key collision to our own read.
+
+`GET /api/stream` reports `substreams` or `interval`, and the app's Data plan panel says *"on an interval — no Substreams token, so polling"* when there is no token, rather than implying latency it does not have. Token: a JWT from [thegraph.market](https://thegraph.market) → Dashboard → Create New Key → API TOKEN, as `SUBSTREAMS_API_TOKEN`. The FREE tier allows **2 concurrent streams**, which a second subscribing app will hit — `resource_exhausted` is classified retryable for exactly that reason.
+
 **Subgraph MCP — not wired.** `GRAPH_MCP_URL` points at `https://subgraphs.mcp.thegraph.com/sse`, but nothing in `src/` calls it: schema resolution runs off the 86-entry registry in `sources.ts` plus a live health check. Discovery beyond that registry is a real gap, and the env var on its own is not an integration. (Distinct from *our* MCP server below, which we do serve.)
 
 ---
@@ -208,7 +230,7 @@ Deploying to 0G Galileo needs `--priority-gas-price 2gwei`; the chain enforces a
 
 Named explicitly, because a vague scope claim is worse than a small one:
 
-- **Substreams — a live run.** The client is built, not stubbed: a real gRPC subscription (`@substreams/core` over Connect/HTTP-2), per-block ticks carrying the resume cursor, reorgs refused rather than acted on, replayed blocks deduped by `<block>:<hash>`, and metrics re-read per block from the app's own health-checked sources server-side. `GET /api/stream` reports `substreams` or `interval` so the UI can never claim block-level latency it does not have, and 17 tests cover the seam. **What is not verified: a block off a real endpoint.** That needs a `SUBSTREAMS_API_TOKEN` (a JWT from thegraph.market), and until one has run through `web/scripts/substreams-verify.ts` this stays here rather than under a ✅.
+- **A real trade from a stream trigger.** The Substreams path below is verified end to end, but the signer ran in `stub` mode, so the trade log's tx hash is simulated. Landing a real one needs `AGENCY_WALLET_MODE=session-eoa` and a funded testnet key. The gate decision is real; the signature is not.
 - **Per-account positions.** The standardized fan-out reads protocol-level scalars, so a condition on `lending.totalValueLockedUSD` works and one on `healthFactor` does not — no standardized family exposes a single user's position in that query shape. Conditions naming `healthFactor` evaluate to `false`, which is the safe direction, but it is a real gap: see `web/src/lib/agency/enrich.ts`.
 - **0G Storage.** Encrypted agent memory goes to the configured content store, not to 0G Storage. The token commits to `keccak256(ciphertext)`, which is identical either way, so this is a transport swap.
 - **`@graphminis/kit` on npm.** The kit exists as `web/src/lib/{kit,contracts,agency,identity}` and the Studio imports it rather than reaching around it, but it is not extracted into a published package.

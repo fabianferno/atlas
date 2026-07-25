@@ -113,6 +113,18 @@ describe("substreams config", () => {
     assert(!isRetryableStreamError(new Error("module not found")), "missing module is fatal");
   });
 
+  it("treats the free tier's concurrency cap as retryable, not fatal", () => {
+    // Hit for real: The Graph Market FREE allows 2 concurrent streams, so a
+    // second subscribing app sees this. It clears when a slot frees, and calling
+    // it fatal meant that app never streamed again.
+    assert(
+      isRetryableStreamError(
+        new Error("[resource_exhausted] Concurrent stream limit exceeded (active sessions: 2/2)"),
+      ),
+      "a concurrency cap is a wait, not a failure",
+    );
+  });
+
   it("reports which mode autonomy is actually running in", () => {
     const before = process.env.SUBSTREAMS_API_TOKEN;
     delete process.env.SUBSTREAMS_API_TOKEN;

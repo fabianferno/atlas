@@ -57,8 +57,36 @@ const blocks = intFlag("blocks", 3);
 const behind = intFlag("behind", 20);
 const breachOn = flag("no-breach") !== undefined ? -1 : intFlag("breach-on", 2);
 
-const HEALTHY = 1.9;
-const BREACHING = 1.2;
+/**
+ * Derive the injected metric from the app's OWN trigger condition.
+ *
+ * Hardcoding a "breaching" number is how this harness reported `W2 NOT satisfied`
+ * against a working stream: it injected 1.2 against a demo app whose trigger is
+ * `healthFactor < 1.15`, so the gate correctly declined and the failure looked
+ * like the subscription's fault. Reading the threshold out of the condition means
+ * the harness cannot disagree with the app it is testing.
+ *
+ * Returns the metric path plus a satisfying and a non-satisfying value.
+ */
+function metricFromCondition(when: string | null): {
+  path: string;
+  breaching: number;
+  healthy: number;
+} | null {
+  if (!when) return null;
+  const m = /^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)\s*$/.exec(when);
+  if (!m) return null;
+  const [, path, op, raw] = m;
+  const threshold = Number(raw);
+  if (!Number.isFinite(threshold)) return null;
+  // Step clear of the boundary so `<` and `<=` both behave as intended.
+  const step = Math.max(Math.abs(threshold) * 0.1, 0.05);
+  const below = threshold - step;
+  const above = threshold + step;
+  return op === "<" || op === "<="
+    ? { path, breaching: below, healthy: above }
+    : { path, breaching: above, healthy: below };
+}
 
 async function main(): Promise<void> {
   if (!isStreamLive()) {
@@ -79,12 +107,28 @@ async function main(): Promise<void> {
   console.log(`  package   ${target.spkg}`);
   console.log(`  module    ${target.module}`);
   console.log(`  start     ${behind} blocks behind head`);
-  console.log(
-    `  metric    ${breachOn > 0 ? `INJECTED — tick ${breachOn} reports healthFactor ${BREACHING} (breaching)` : "INJECTED — healthy on every tick, nothing should fire"}`,
-  );
-  console.log("");
 
   const app = await ensureDemoApp("substreams-verify");
+
+  // The condition this app actually declares — not one this script assumes.
+  const streamTrigger = app.agency.triggers.find((t) => t.on === "stream");
+  const metric = metricFromCondition(streamTrigger?.when ?? null);
+  if (!metric) {
+    console.error(
+      `\nCannot derive a metric from the app's stream trigger (${streamTrigger?.when ?? "none"}).\n` +
+        "The harness injects the value the condition compares, so it needs a simple " +
+        "`path <op> number` condition to work from.",
+    );
+    process.exit(2);
+  }
+
+  console.log(
+    `  metric    INJECTED — ${metric.path}, ` +
+      (breachOn > 0
+        ? `${metric.breaching} on tick ${breachOn} (breaches "${streamTrigger?.when}"), ${metric.healthy} otherwise`
+        : `${metric.healthy} throughout — nothing should fire`),
+  );
+  console.log("");
   console.log(`  app       ${app.appId} · tier ${app.agency.tier} · wallet ${app.wallet.address}`);
   console.log(`  trigger   ${app.agency.triggers.map((t) => `${t.on}: ${t.when ?? "(always)"} → ${t.run}`).join("  |  ")}`);
   console.log(`  policy    max $${app.agency.policy.maxPerTxUsd}/tx, $${app.agency.policy.maxSpendUsd} lifetime, ${app.agency.policy.allowlist.length} allowlisted target(s)`);
@@ -93,12 +137,12 @@ async function main(): Promise<void> {
   let seen = 0;
   const enrich = (tick: StreamTick) => {
     seen += 1;
-    const healthFactor = seen === breachOn ? BREACHING : HEALTHY;
+    const value = seen === breachOn ? metric.breaching : metric.healthy;
     console.log(
       `  block ${tick.blockNumber} ${tick.blockId.slice(0, 10)}… ${tick.at.toISOString()} ` +
-        `${tick.final ? "final" : "unfinal"} · healthFactor ${healthFactor} (INJECTED)`,
+        `${tick.final ? "final" : "unfinal"} · ${metric.path} ${value} (INJECTED)`,
     );
-    return { healthFactor };
+    return { [metric.path]: value };
   };
 
   const started = Date.now();

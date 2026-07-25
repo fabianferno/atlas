@@ -849,7 +849,7 @@ Status as of 2026-07-25. ☑ means *verified*, not *built* — every one below w
 | 3 | Open source, clear README **or** SKILL.md | Graph 1 | | **☑** root `README.md` + `SKILL.md`, both naming deployment IDs, addresses and what is *not* built |
 | 4 | AI component that reasons over **or acts on** the data | Graph 2 | | **☑** both — plan and compose run on 0G (`0gm-1.0-35b-a3b`), and the action loop is policy gate → signer → journal |
 | 5 | Names which subgraphs/endpoints/tools were used | Graph 2 | | **☑** 12 deployment IDs listed in the README, all 86 in `sources.ts`; every row carries `_source`/`_label`/`_schema`/`_network` |
-| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **◐** standardized subgraphs live. Substreams client **built and tested** (17 tests, real gRPC subscription, cursor resume, reorg refusal, per-block re-read) but **not yet run against an endpoint** — needs a `SUBSTREAMS_API_TOKEN`. x402 is implemented end to end and **also unexercised**: `X402_PRIVATE_KEY` is unset and the reference run's $0.0014 is 14 × the gateway's $0.0001, so it went over the API-key gateway. Two products verified, two coded |
+| 6 | ≥2 Graph products **or** meaningful standardized-schema use (we do 4) | Graph 3 | | **☑** two products verified live: standardized subgraphs (86 deployment ids, health-checked fan-out) **and Substreams** — real subscription on `arb-one.streamingfast.io`, blocks 487508073→75, trigger fired on the breaching block, policy gate decided, plus a no-breach control run that fired nothing. Still coded-but-unexercised: **x402** (`X402_PRIVATE_KEY` unset; the reference run's $0.0014 is 14 × the *gateway's* $0.0001) and **Subgraph MCP** (env var only, nothing calls it). Two verified clears the ≥2 bar without needing the other two |
 | 7 | Standards leverage **visible in the demo**, not just the README | Graph 3 | | ☐ |
 | 8 | ENS functional, **no hard-coded values** | ENS 1/2 | | **☑** parent registered + wrapped on Sepolia; subnames issued; records read back by an external client |
 | 9 | ENS improves identity/discoverability non-cosmetically | ENS 2 | | **☑** `addr` → the app's wallet, `contenthash` → the manifest CID, ENSIP-25/26 records, mutual verification with the 0G token |
@@ -908,7 +908,7 @@ Each owns a directory, has a definition of done, and shares no mutable state wit
 | # | Workstream | Owns | Depends on | Done when |
 |---|---|---|---|---|
 | W1 | **Data plane** | resolver, health checks, fan-out | source, manifest | Any of 10 schemas, 3 chains, dead deployments skipped, parallel merge |
-| W2 | **Streams** | Substreams packages, subscription, trigger evaluation | source | A block-level event fires a trigger callback |
+| W2 | **Streams** | Substreams packages, subscription, trigger evaluation | source | ✅ **Done.** Block 487508074 on Arbitrum fired `0:stream:derisk`, the gate passed it, the journal recorded it — plus a control run that consumed three healthy blocks and fired nothing. `scripts/substreams-verify.ts` re-runs both |
 | W3 | **Planner** | NL → plan, on 0G Compute, attestation capture | manifest, api | Arbitrary question → valid plan + stored attestation |
 | W4 | **Composer** | plan + data → A2UI doc, form-follows-data rules | catalog, a2ui | Every catalog component reachable from some data shape |
 | W5 | **Renderer** | A2UI React, full catalog, actions wired, mobile | catalog, a2ui | Fixture manifests render; Button server-events dispatch; theme swap works |

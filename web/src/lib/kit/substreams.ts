@@ -80,7 +80,16 @@ export const SUBSTREAMS_ENDPOINTS: Record<Network, string> = {
 export const DEFAULT_SPKG = "https://spkg.io/streamingfast/ethereum-explorer-v0.1.2.spkg";
 export const DEFAULT_MODULE = "map_block_meta";
 
-/** How long to wait for the first tick before calling a subscription dead. */
+/**
+ * How long to wait for the first tick before calling a subscription dead.
+ *
+ * A Substreams connection can accept, send a `session` message, and then deliver
+ * nothing — backprocessing on a cold module, a saturated free-tier queue, or an
+ * endpoint that took the request and stalled. Without a deadline that is
+ * indistinguishable from "no output at all", forever, which is the worst thing to
+ * be debugging at 3am with a deadline. Generous, because a legitimate cold start
+ * on a heavy package really can take tens of seconds.
+ */
 export const FIRST_TICK_TIMEOUT_MS = 45_000;
 
 /**
@@ -203,6 +212,8 @@ export interface StreamTicksOptions {
   /** `+N` stops N blocks after the start — how the verify harness terminates. */
   stopBlockNum?: number | `+${number}`;
   signal?: AbortSignal;
+  /** Override the first-tick deadline. Defaults to `FIRST_TICK_TIMEOUT_MS`. */
+  firstTickTimeoutMs?: number;
   /** Injectable for tests; defaults to `@substreams/core`'s fetch-based loader. */
   loadPackage?: (spkg: string) => Promise<Package>;
 }
@@ -263,6 +274,12 @@ export function isRetryableStreamError(err: unknown): boolean {
     return false;
   }
   return (
+    // A concurrency cap, not a broken request. The Graph Market's FREE tier
+    // allows 2 concurrent streams, so two apps subscribing at once is enough to
+    // hit this — and it clears on its own as soon as a slot frees. Classifying it
+    // fatal meant a second mini app permanently refused to stream.
+    message.includes("resource_exhausted") ||
+    message.includes("concurrent stream limit") ||
     message.includes("unavailable") ||
     message.includes("internal") ||
     message.includes("deadline") ||
@@ -297,6 +314,24 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
   const pkg = await load(target.spkg);
   const registry = createRegistry(pkg);
 
+  // The first-tick deadline is enforced by aborting the CALL, not by racing the
+  // iterator: a Promise.race leaves the stream open and the process alive, which
+  // is how a "timeout" turns into a hang that also leaks a socket.
+  const deadline = new AbortController();
+  const onOuterAbort = () => deadline.abort(options.signal?.reason);
+  if (options.signal) {
+    if (options.signal.aborted) deadline.abort(options.signal.reason);
+    else options.signal.addEventListener("abort", onOuterAbort, { once: true });
+  }
+  const firstTickMs = options.firstTickTimeoutMs ?? FIRST_TICK_TIMEOUT_MS;
+  let sawData = false;
+  let timedOut = false;
+  const firstTickTimer = setTimeout(() => {
+    if (sawData) return;
+    timedOut = true;
+    deadline.abort(new Error("first-tick timeout"));
+  }, firstTickMs);
+
   const transport = createConnectTransport({
     baseUrl: target.endpoint,
     httpVersion: "2",
@@ -316,7 +351,29 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
     stopBlockNum: options.stopBlockNum,
   });
 
-  for await (const response of streamBlocks(transport, request, { signal: options.signal })) {
+  try {
+    yield* consume();
+  } catch (err) {
+    // Translate our own abort into a message that names the cause. Otherwise it
+    // surfaces as a bare "canceled", which `isRetryableStreamError` classifies as
+    // retryable — and retrying a stalled endpoint forever is the failure mode
+    // this deadline exists to prevent.
+    if (timedOut) {
+      throw new Error(
+        `substreams delivered no block within ${Math.round(firstTickMs / 1000)}s ` +
+          `(${target.module} @ ${target.endpoint}). The connection was accepted, so the token is ` +
+          `valid; the module is either backprocessing or the request is queued. ` +
+          `Retry, or start closer to head with a smaller --behind.`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(firstTickTimer);
+    options.signal?.removeEventListener("abort", onOuterAbort);
+  }
+
+  async function* consume(): AsyncGenerator<StreamEvent> {
+  for await (const response of streamBlocks(transport, request, { signal: deadline.signal })) {
     const message = response.message;
 
     if (message.case === "fatalError") {
@@ -344,6 +401,9 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
     const clock = data.clock;
     if (!clock) continue; // a data message with no clock has no identity to dedupe on
 
+    // Data is flowing; the first-tick deadline has done its job.
+    sawData = true;
+
     const decoded = unpackMapOutput(response, registry);
     // An empty output is the normal case for most blocks: the module matched
     // nothing. Still a tick — the caller re-reads position per block and the
@@ -363,6 +423,7 @@ export async function* streamEvents(options: StreamTicksOptions): AsyncGenerator
       final: blockNumber <= Number(data.finalBlockHeight),
       data: payload,
     };
+  }
   }
 }
 
