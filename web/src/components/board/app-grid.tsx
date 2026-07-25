@@ -130,14 +130,10 @@ function Row({ k, v, accent }: { k: string; v: string; accent?: "spend" | "ink" 
 export function TierLegend() {
   return (
     <div className="panel flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-      <Label>Border weight is agency</Label>
+      <Label>Depth is agency</Label>
       {(["readonly", "monitor", "autonomous"] as const).map((tier) => (
         <span key={tier} className="flex items-center gap-1.5">
-          <span
-            className="h-3 w-5 border-hairline bg-[var(--card-b)]"
-            style={{ borderWidth: tier === "autonomous" ? "5px" : tier === "monitor" ? "2.5px" : "1.5px" }}
-            aria-hidden
-          />
+          <span className={panelClass(tier, "h-4 w-7 shrink-0 rounded-[4px]")} aria-hidden />
           <span className="mono text-[0.625rem] uppercase tracking-[0.06em]">{TIER_LABEL[tier]}</span>
           <span className="hidden text-[0.6875rem] text-[var(--muted-ink)] sm:inline">{TIER_BLURB[tier]}</span>
         </span>

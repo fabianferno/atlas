@@ -29,7 +29,7 @@ export default function BoardPage() {
         </div>
       </main>
 
-      <footer className="mt-6 border-t-[2.5px] border-rule px-3 py-3 sm:px-5">
+      <footer className="mt-6 border-t border-hairline px-3 py-3 sm:px-5">
         <p className="mono mx-auto max-w-[1400px] text-[0.625rem] leading-relaxed text-[var(--muted-ink)]">
           data via The Graph — standardized subgraphs, Subgraph MCP, Substreams, x402 · names on
           ENS · inference and Agentic ID on 0G
