@@ -49,7 +49,7 @@ export function Ratings({ appName }: { appName: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (!choice) return;
-          rateApp(appName, choice, text.trim() || (choice === "up" ? "Works." : "Did not work for me."), ranIt, board.wallet ?? "you.atlas-apps.eth");
+          rateApp(appName, choice, text.trim() || (choice === "up" ? "Works." : "Did not work for me."), ranIt, board.wallet ?? "unclaimed");
           setText("");
           setChoice(null);
         }}

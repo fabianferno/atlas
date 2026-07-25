@@ -67,12 +67,35 @@ export function Tag({
   );
 }
 
-/** Streaming indicator. Only ever means "a subscription is open right now". */
+/**
+ * Streaming indicator. Only ever means "a subscription is open right now".
+ *
+ * That docstring was true and the one caller below broke it — `TierTag` rendered
+ * this on every `monitor`-tier chip, so the mark asserted an open subscription
+ * from a tier label alone. Nothing subscribes except `watchBlocks` in `store.ts`,
+ * and only for the seconds a bounded run lasts.
+ *
+ * This is a second, independent `LiveDot` — `chrome.tsx` has the board's. Two
+ * definitions is why the constraint above could rot in one of them without the
+ * other noticing; they should be consolidated into `chrome.tsx`, which is also
+ * where `ArmedLamp` now lives. Left in place for now because the catalog's
+ * `brutal/` primitives are deliberately self-contained (the renderer draws
+ * agent-supplied documents and does not reach into board chrome), so merging them
+ * is a real refactor rather than a rename.
+ */
 export function LiveDot({ className }: { className?: string }) {
   return <span aria-hidden className={cn("live-dot inline-block shrink-0", className)} />;
 }
 
-/** The tier chip used in headers and the demo grid. */
+/**
+ * The tier chip used in headers and the demo grid.
+ *
+ * `monitor` used to carry a `LiveDot`. A tier is configuration, not activity: an
+ * app is `monitor` because of what it is allowed to do, which says nothing about
+ * whether a block is arriving. §6 Rule 2 reserves `--live` for live, so the chip
+ * keeps the live *tone* — monitor is the tier the live accent belongs to — without
+ * the pulsing lamp that claims a stream.
+ */
 export function TierTag({ tier }: { tier: "readonly" | "monitor" | "autonomous" }) {
   if (tier === "autonomous") {
     return (
@@ -82,12 +105,7 @@ export function TierTag({ tier }: { tier: "readonly" | "monitor" | "autonomous" 
     );
   }
   if (tier === "monitor") {
-    return (
-      <Tag tone="live">
-        <LiveDot />
-        monitor
-      </Tag>
-    );
+    return <Tag tone="live">monitor</Tag>;
   }
   return <Tag>readonly</Tag>;
 }

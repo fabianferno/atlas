@@ -1,22 +1,75 @@
 "use client";
 
 /**
- * The top bar. Wordmark, live agent count, global halt, wallet.
+ * The top bar. Wordmark, armed agent count, stream mode, global halt, wallet.
  * Halt is always reachable — it is the one control that must never be more
  * than one press away, on any surface, at any width.
+ *
+ * This used to read `N live` behind a pulsing `--live` lamp, off `liveCount()`.
+ * It was the board's loudest claim and nothing backed it: no code path in the
+ * app had ever called `POST /api/stream`, so no mini app had ever been
+ * subscribed to anything. prd.md §10 stakes the whole Substreams argument on
+ * per-block evaluation beating a 5-minute poll, and a header asserting ten open
+ * subscriptions spends that argument's credibility to decorate a number.
+ *
+ * Two facts now, kept apart — `isArmed` in `store.ts` carries the full
+ * note:
+ *   ARMED   a count of configurations that would act if a trigger fired. True,
+ *           checkable, and the interesting one for the autonomous tier.
+ *   STREAM  read from `GET /api/stream`, never asserted. And read *precisely*:
+ *           `mode: "substreams"` means a token is present, i.e. **capable of**
+ *           per-block evaluation. It does not mean anything is subscribed, and
+ *           the copy below refuses to round that up.
  */
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fmtUsd, liveCount, setHalted, spentToday, useBoard } from "@/lib/store";
-import { LiveDot } from "@/components/board/chrome";
+import { armedCount, fmtUsd, setHalted, spentToday, useBoard } from "@/lib/store";
+import { ArmedLamp } from "@/components/board/chrome";
 import { SkinToggle } from "@/components/board/skin-toggle";
 import { WalletButton } from "@/components/board/wallet-button";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 
+/**
+ * Whether the server *could* evaluate triggers per block, asked of the server
+ * rather than assumed. Same probe and same posture as `useStreamMode()` in
+ * `app-runtime.tsx` — a failed probe is not a claim of either mode, so it stays
+ * null and this bar says nothing at all.
+ *
+ * Duplicated deliberately rather than imported: `app-runtime.tsx` is a heavy
+ * client module owned elsewhere, and one shared hook belongs in a lib, not in a
+ * cross-import between two components. Noted in the report.
+ */
+function useStreamCapability(): { mode: "substreams" | "interval"; reason: string } | null {
+  const [state, setState] = useState<{ mode: "substreams" | "interval"; reason: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/stream")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { mode?: "substreams" | "interval"; reason?: string } | null) => {
+        if (!alive || !body?.mode) return;
+        setState({ mode: body.mode, reason: body.reason ?? "" });
+      })
+      .catch(() => {
+        // Silence is the honest answer when the probe failed.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return state;
+}
+
 export function TopBar({ active }: { active?: "board" | "registry" }) {
   const board = useBoard();
-  const live = liveCount(board);
+  // Computed here rather than through `liveCount()`, which counts the same set
+  // under a name that overstates it. Belongs in the store as `armedCount` —
+  // flagged in the report rather than added, since that file is owned elsewhere.
+  const armed = armedCount(board);
   const spent = spentToday(board);
+  const stream = useStreamCapability();
 
   return (
     <header className="sticky top-0 z-40 border-b border-hairline bg-[var(--paper)] shadow-[var(--elev-1)]">
@@ -48,13 +101,37 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
         </nav>
 
         <div className="order-last flex w-full flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--hairline)] pt-2 sm:order-none sm:ml-auto sm:w-auto sm:flex-nowrap sm:border-0 sm:pt-0">
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             {board.halted ? (
               <span className="mono text-[0.6875rem] uppercase tracking-[0.08em]" style={{ color: "var(--loss)" }}>
                 halted
               </span>
             ) : (
-              <LiveDot label={`${live} live`} />
+              <>
+                <ArmedLamp label={`${armed} armed`} labelClassName="text-[0.6875rem]" />
+                {/*
+                  The qualification, and the point of the whole re-cut: a token
+                  being present is a capability, not a subscription. Hidden below
+                  `md` because the bar is already three rows deep at that width —
+                  what is hidden is a *narrowing* of the armed claim, never an
+                  upgrade of it, so a narrow viewport still overstates nothing.
+                  `title` carries the server's own `reason` verbatim.
+                */}
+                {stream ? (
+                  <span
+                    className="mono hidden whitespace-nowrap text-[0.625rem] text-[var(--muted-ink)] md:inline"
+                    title={
+                      stream.reason
+                        ? `GET /api/stream — ${stream.reason}`
+                        : "read from GET /api/stream"
+                    }
+                  >
+                    {stream.mode === "substreams"
+                      ? "substreams ready · nothing subscribed"
+                      : "no substreams token · interval polling"}
+                  </span>
+                ) : null}
+              </>
             )}
           </div>
 

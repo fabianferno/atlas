@@ -1,7 +1,7 @@
 import type { MiniApp } from "@/lib/seed";
 import { TIER_LABEL } from "@/lib/seed";
-import { fmtNum, fmtUsd } from "@/lib/store";
-import { Fig, LiveDot, panelClass } from "@/components/board/chrome";
+import { fmtNum, fmtUsd, isArmed } from "@/lib/store";
+import { ArmedLamp, Fig, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * A grid gives every card the same generous box, so `AppCardFace` can spend it
  * on stats. The wheel shows five cards at once and asks a narrower question:
  * *which one?* So a resting card says only what you choose between — name, tier,
- * whether it's live — and the centered one unfolds the numbers.
+ * whether it is armed — and the centered one unfolds the numbers.
  *
  * The unfold is driven entirely by `--ow-p`, the 0..1 proximity-to-center the
  * wheel writes on each row every frame. Height and reveal are `calc()` off that
@@ -72,12 +72,30 @@ export function AppWheelCard({
       >
         <AppGlyph manifest={m} />
         <div className="min-w-0 flex-1">
-          {/* The name is the subject: an app is its ENS name, and the human
-              title is what that name currently resolves to. Kept lowercase —
-              display type is uppercase by default, and an ENS name isn't. */}
-          <h3 className="display truncate text-[0.8125rem] normal-case leading-tight">
-            {m.identity.ens ?? `${m.name}.atlas-apps.eth`}
-          </h3>
+          {/*
+            The name is the subject: an app is its ENS name, and the human title
+            is what that name currently resolves to. Kept lowercase — display
+            type is uppercase by default, and an ENS name isn't.
+
+            When there is no ENS name it leads with the manifest slug and says
+            `unpublished` beside it. It used to synthesise
+            `${m.name}.atlas-apps.eth`, and none of those subnames was ever
+            issued — five exist under the parent on Sepolia, no seed app among
+            them. §8 makes the name the thing a human verifies *before funding a
+            wallet*, so a plausible name that resolves nowhere is the one failure
+            mode that section is written to stop. The slug is a real local fact
+            and reads as one; a dotted eth name would not.
+          */}
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <h3 className="display min-w-0 flex-1 truncate text-[0.8125rem] normal-case leading-tight">
+              {m.identity.ens ?? m.name}
+            </h3>
+            {m.identity.ens ? null : (
+              <span className="mono shrink-0 text-[0.5rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+                unpublished
+              </span>
+            )}
+          </div>
           <p className="mono mt-0.5 truncate text-[0.5625rem] text-[var(--muted-ink)]">
             <span className="uppercase tracking-[0.08em]">{TIER_LABEL[tier]}</span>
             {" · "}
@@ -85,9 +103,9 @@ export function AppWheelCard({
           </p>
         </div>
         {/* Says which one the panel is showing, in words, for the rows too far
-            from center for a ring to survive the blur. It sits beside the live
+            from center for a ring to survive the blur. It sits beside the armed
             and halted marks rather than replacing them — an open app is still
-            running, or still stopped, and you want both facts. */}
+            armed, or still stopped, and you want both facts. */}
         {open ? (
           <span
             className="mono shrink-0 text-[0.5625rem] uppercase tracking-[0.08em]"
@@ -103,8 +121,11 @@ export function AppWheelCard({
           >
             halted
           </span>
-        ) : app.running ? (
-          <LiveDot label="" />
+        ) : isArmed(app) ? (
+          // Armed, not live. A resting row has no width for the word, so the
+          // lamp carries it alone and `TierLegend` on the Board is where the
+          // mark is named — see the note in `app-card-face.tsx`.
+          <ArmedLamp />
         ) : null}
       </div>
 

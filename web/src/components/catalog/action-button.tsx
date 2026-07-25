@@ -43,7 +43,23 @@ export function policyBlock(
   if (tier === "readonly") return "read-only app — cannot act";
   if (!policy) return null;
   if (policy.halted) return "halted";
-  if (!policy.wallet) return "no wallet bound";
+  // NO `if (!policy.wallet)` GATE — deliberately, and this is worth explaining
+  // because it looks like a missing check.
+  //
+  // It used to be here, and it was right when a manifest carried a per-app wallet
+  // address. It no longer is: those addresses were invented, nobody held the keys,
+  // and the UI was inviting people to fund them — so `policy.wallet` is now `null`
+  // until a publish binds a real one. The signer is a SERVER fact, read from
+  // `POST /api/agency/register`, and a null here means "the manifest does not name
+  // one", not "none exists".
+  //
+  // Leaving the gate in place turned a correct null into a false negative that
+  // disabled every action in every autonomous app — the entire surface §7 exists
+  // to argue for, dead behind "no wallet bound". Nothing is lost by dropping it:
+  // this function is defence in depth (see the header), and `/api/act` reads the
+  // policy from the server-side registry and refuses on its own. Verified: an
+  // over-cap proposal comes back `allowed: false, reason: exceeds_per_tx_cap`
+  // with no signature attempted.
   if (now > 0 && policy.expiresAt && new Date(policy.expiresAt).getTime() <= now) {
     return "policy expired";
   }

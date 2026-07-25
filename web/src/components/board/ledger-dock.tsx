@@ -16,11 +16,21 @@
  * - It is deliberately NOT modal. No scrim, no focus trap, no scroll lock.
  *   Leaving it open while you work the deck is the point: agents keep spending
  *   whether or not anyone is looking, and this is where that shows up.
+ *
+ * WHAT THIS DOCK NO LONGER CLAIMS. Its header carried a pulsing `--live`
+ * "streaming" lamp whenever the board was not halted, and the collapsed pill
+ * carried a bare `.live-dot`. Neither was backed by anything: `POST /api/stream`
+ * — the only call that opens a Substreams subscription — had no caller in the
+ * product at all, and the ledger lines that appeared to corroborate the lamp were
+ * manufactured client-side by a ticker that invented block numbers, tx hashes and
+ * dollar amounts every few seconds. That ticker is gone, so the ledger is now
+ * empty until something real happens, and the lamp had to go with it. §6 Rule 2:
+ * `--live` means live, and a dock is a place receipts land, not a stream.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { LedgerBody, ledgerLines } from "@/components/board/ledger";
-import { LiveDot, SectionHead } from "@/components/board/chrome";
+import { SectionHead } from "@/components/board/chrome";
 import { useBoard } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -120,7 +130,15 @@ export function LedgerDock() {
               note={`${lineCount} lines`}
               right={
                 <span className="flex items-center gap-3">
-                  {board.halted ? null : <LiveDot label="streaming" />}
+                  {/* Was `<LiveDot label="streaming" />` on `!board.halted`. A halt
+                      flag being false is not a subscription. What is true here is
+                      whether the log is empty, and that a global halt blocks every
+                      action — both facts the board actually holds. */}
+                  {board.halted ? null : lineCount === 0 ? (
+                    <span className="mono text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+                      nothing recorded yet
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     onClick={close}
@@ -152,7 +170,17 @@ export function LedgerDock() {
             aria-hidden
           />
         ) : (
-          <span className="live-dot shrink-0" aria-hidden />
+          /* Was `.live-dot` — a pulsing `--live` lamp on a button, which is Rule 2's
+             "decorative" case exactly. The pill's job is to say how many receipts
+             are waiting; the unseen badge below already does that. */
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{
+              background: "var(--ink)",
+              boxShadow: "inset 0 -1px 1px rgba(0,0,0,0.30)",
+            }}
+            aria-hidden
+          />
         )}
         Ledger
         {unseen > 0 ? (

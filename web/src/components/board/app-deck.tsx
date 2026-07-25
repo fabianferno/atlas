@@ -183,10 +183,15 @@ export function AppDeck() {
                   className="h-full w-full"
                 />
               </div>
+              {/* "still live" used to sit in the second branch. It was about the
+                  wheel staying interactive while the panel is open, but §6's
+                  Rule 2 makes "live" mean one thing — a subscription is open
+                  right now — and no card on this board is subscribed to
+                  anything. The word the sentence actually needed was "open". */}
               <p className="mono mt-2 text-center text-[0.625rem] text-[var(--muted-ink)]">
                 {openName === null
                   ? "scroll or drag to browse · click a card to open"
-                  : "still live — click another card to switch"}
+                  : "still scrollable — click another card to switch"}
               </p>
             </>
           )}
