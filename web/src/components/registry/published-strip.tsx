@@ -17,6 +17,17 @@
  * fetch. See docs/superpowers/specs/2026-07-26-published-strip-live-
  * enumeration-design.md.
  *
+ * `retired`, in the footer, is the count of registry entries whose name does
+ * not end in the current parent. Today that is entries still naming this
+ * project's parent from before the Atlas rebrand — the ENS records were
+ * re-issued under the new parent, but the token↔name binding in
+ * `MiniAppRegistry` is immutable by design, so the old registry entries were
+ * never re-pointed and cannot be. That is *why* today's retired entries exist;
+ * it is not a claim this file can make about every entry the count will ever
+ * include, which is why the rendered sentence only states the count and does
+ * not narrate a cause.
+ *
+
  * ## What it proves (prd.md §5, §8, §14 #8 and #9)
  *
  * That an ENS name here is not a label but an executable, fundable artifact.
@@ -210,7 +221,21 @@ export function PublishedStrip({ className }: { className?: string }) {
           total?: unknown;
           retired?: unknown;
         } | null;
-        if (!parsed || !Array.isArray(parsed.apps) || typeof parsed.parent !== "string") {
+        const appsOk =
+          !!parsed &&
+          Array.isArray(parsed.apps) &&
+          parsed.apps.every((a) => a !== null && typeof a === "object" && typeof (a as { ensName?: unknown }).ensName === "string");
+        // `total`/`retired` missing is not the same fact as zero of either — a
+        // missing figure has no writer, and inventing one narrows the
+        // denominator or suppresses the retired disclosure exactly the way
+        // this route was rewritten to stop doing.
+        if (
+          !parsed ||
+          !appsOk ||
+          typeof parsed.parent !== "string" ||
+          typeof parsed.total !== "number" ||
+          typeof parsed.retired !== "number"
+        ) {
           setCatalog({ phase: "failed", reason: "the registry route returned an unexpected body" });
           return;
         }
@@ -218,8 +243,8 @@ export function PublishedStrip({ className }: { className?: string }) {
           phase: "ready",
           parent: parsed.parent,
           apps: parsed.apps as RegisteredApp[],
-          total: typeof parsed.total === "number" ? parsed.total : parsed.apps.length,
-          retired: typeof parsed.retired === "number" ? parsed.retired : 0,
+          total: parsed.total,
+          retired: parsed.retired,
         });
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -291,7 +316,7 @@ export function PublishedStrip({ className }: { className?: string }) {
     catalog.phase === "loading"
       ? "reading the registry"
       : catalog.phase === "failed"
-        ? "registry did not answer"
+        ? "registry list unusable"
         : names.length === 0
           ? "nothing registered under this parent"
           : pending > 0
@@ -306,7 +331,7 @@ export function PublishedStrip({ className }: { className?: string }) {
         <SectionHead
           title="Published names"
           note={note}
-          right={busy ? <LiveDot label="resolving" /> : undefined}
+          right={busy ? <LiveDot label={catalog.phase === "loading" ? "reading" : "resolving"} /> : undefined}
         />
       </div>
 
@@ -328,7 +353,7 @@ export function PublishedStrip({ className }: { className?: string }) {
       ) : (
         <ul className="px-3 sm:px-4">
           {names.map((name, i) => (
-            <NameRow key={name} label={name} state={states[i]} chain={chain} first={i === 0} />
+            <NameRow key={name} name={name} state={states[i]} chain={chain} first={i === 0} />
           ))}
         </ul>
       )}
@@ -341,9 +366,8 @@ export function PublishedStrip({ className }: { className?: string }) {
         {catalog.phase === "ready" && catalog.retired > 0 ? (
           <>
             {" "}
-            {catalog.retired} of {catalog.total} registry entries name a different parent — they were registered
-            before the rename and the token↔name binding is immutable by design, so they cannot be re-pointed.
-            They are not shown.
+            {catalog.retired} of {catalog.total} registry entries name a parent other than this one and are not
+            shown.
           </>
         ) : null}{" "}
         The CID and the wallet are shown rather than linked: <span className="mono">GET /api/publish</span> reports
@@ -359,26 +383,26 @@ export function PublishedStrip({ className }: { className?: string }) {
 /* -------------------------------------------------------------------------- */
 
 function NameRow({
-  label,
+  name,
   state,
   chain,
   first,
 }: {
-  label: string;
+  name: string;
   state: RowState;
   chain: ChainRef | null;
   first: boolean;
 }) {
-  const href = `/api/resolve/${encodeURIComponent(label)}`;
+  const href = `/api/resolve/${encodeURIComponent(name)}`;
 
   if (state.phase === "loading") {
     return (
       <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5", !first && "border-t border-hairline")}>
-        <span className="mono truncate text-[0.8125rem]" title={label}>
-          {label}
+        <span className="mono truncate text-[0.8125rem]" title={name}>
+          {name}
         </span>
         {/* One lamp for the whole strip, in the head. A row in flight states
-            itself in words rather than adding a fifth blinking dot. */}
+            itself in words rather than adding a dot per row. */}
         <span className="mono text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
           resolving
         </span>
@@ -390,8 +414,8 @@ function NameRow({
     return (
       <li className={cn("py-2.5", !first && "border-t border-hairline")}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <a className="mono truncate text-[0.8125rem] underline decoration-hairline" href={href} title={label}>
-            {label}
+          <a className="mono truncate text-[0.8125rem] underline decoration-hairline" href={href} title={name}>
+            {name}
           </a>
           <Fig accent="loss" className="text-[0.6875rem] uppercase tracking-[0.06em]">
             did not resolve

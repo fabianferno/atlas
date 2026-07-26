@@ -103,7 +103,12 @@ export function registryReaderFromEnv(client?: PublicClient): RegistryReader | n
  */
 export async function listRegisteredApps(reader?: RegistryReader): Promise<RegisteredApp[]> {
   const source = reader ?? registryReaderFromEnv();
-  if (!source) return [];
+  if (!source) {
+    // No address configured is not the same fact as an empty registry — the
+    // former means this call never opened a connection, and rendering it as
+    // the latter is a positive claim about the chain that nothing checked.
+    throw new Error("ZEROG_REGISTRY_ADDRESS is not set, so the registry cannot be enumerated");
+  }
 
   const total = await source.totalApps();
   const out: RegisteredApp[] = [];
@@ -112,10 +117,16 @@ export async function listRegisteredApps(reader?: RegistryReader): Promise<Regis
   while (offset < total) {
     const rows = await source.page(offset, PAGE_SIZE);
     // A node that truncates or refuses a page must end the loop rather than
-    // spin it. Returning what actually arrived is honest; hanging is not.
+    // spin it, so this break still happens. But arriving short of `total` is
+    // not returned as a partial success: a denominator silently narrowed to
+    // "whatever showed up" is the same lie as the empty-registry case above.
     if (rows.length === 0) break;
     for (const row of rows) out.push(normalise(row));
     offset += BigInt(rows.length);
+  }
+
+  if (BigInt(out.length) !== total) {
+    throw new Error(`the registry reported ${total} entries but served only ${out.length}`);
   }
 
   return out;
@@ -139,12 +150,12 @@ function normalise(row: RawAppRecord): RegisteredApp {
 /**
  * The records issued under one parent, plus the denominator.
  *
- * Six of the nine entries on the deployed registry name `graphminis.eth`, the
- * parent this project used before the Atlas rebrand: the ENS records were
- * re-issued under the new parent but the registry entries were never
- * re-registered, and the token→name binding is immutable by design, so they
- * cannot be. They are history. `retired` reports how many were set aside so a
- * caller can say so out loud — dropping them silently would trade one
+ * Some entries on the deployed registry name `graphminis.eth` (three, at time
+ * of writing), the parent this project used before the Atlas rebrand: the ENS
+ * records were re-issued under the new parent but the registry entries were
+ * never re-registered, and the token→name binding is immutable by design, so
+ * they cannot be. They are history. `retired` reports how many were set aside
+ * so a caller can say so out loud — dropping them silently would trade one
  * misleading denominator for another.
  *
  * Matching is on the label boundary (`.` + parent), so `notatlas-apps.eth`

@@ -7,7 +7,7 @@
  * parent-filter logic below is the replacement, so it is tested rather than
  * trusted.
  */
-import { assert, assertEqual, describe, it, itAsync } from "@/lib/kit/testing";
+import { assert, assertEqual, assertRejects, describe, it, itAsync } from "@/lib/kit/testing";
 import {
   listRegisteredApps,
   selectUnderParent,
@@ -72,9 +72,13 @@ describe("listRegisteredApps", () => {
     assertEqual(calls.length, 0, "nothing to ask for");
   });
 
-  itAsync("stops when a page comes back short rather than looping forever", async () => {
+  itAsync("rejects, without hanging, when a page comes back short", async () => {
     // A node that truncates a response must not spin this into an infinite
-    // loop: `totalApps` says 10, the page returns 2 and then nothing.
+    // loop: `totalApps` says 10, the page returns 2 and then nothing. The loop
+    // still terminates on the empty page — that part is still honest — but a
+    // result short of `total` is a failure now, not a quietly narrowed
+    // success: the route's denominator must never be smaller than what the
+    // registry itself reported.
     let served = 0;
     const reader: RegistryReader = {
       totalApps: async () => 10n,
@@ -83,9 +87,24 @@ describe("listRegisteredApps", () => {
         return served === 1 ? [raw("a.atlas-apps.eth", 1n), raw("b.atlas-apps.eth", 2n)] : [];
       },
     };
-    const apps = await listRegisteredApps(reader);
-    assertEqual(apps.length, 2, "what the node actually served");
-    assertEqual(served, 2, "one more call, then it gives up");
+    await assertRejects(() => listRegisteredApps(reader), "short page is a failure, not a partial success");
+    assertEqual(served, 2, "one more call, then it gives up — it did not hang");
+  });
+
+  itAsync("throws rather than reading as empty when no registry address is configured", async () => {
+    // `registryReaderFromEnv()` returns null with no `ZEROG_REGISTRY_ADDRESS`.
+    // Before this fix that fell through to `[]` — an empty registry is a
+    // claim about the chain, and this path never opened a connection to make
+    // one. Save/restore so this test does not depend on, or disturb, whatever
+    // the process happens to have configured.
+    const saved = process.env.ZEROG_REGISTRY_ADDRESS;
+    delete process.env.ZEROG_REGISTRY_ADDRESS;
+    try {
+      await assertRejects(() => listRegisteredApps(), "no address configured must be a failure, not []");
+    } finally {
+      if (saved === undefined) delete process.env.ZEROG_REGISTRY_ADDRESS;
+      else process.env.ZEROG_REGISTRY_ADDRESS = saved;
+    }
   });
 
   itAsync("normalises bigints and the zero forkedFrom", async () => {
