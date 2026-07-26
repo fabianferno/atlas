@@ -26,5 +26,6 @@ import "@/lib/kit/substreams-leak.test";
 import "../ratings.test";
 import "../coverage/registry.test";
 import "../coverage/gap.test";
+import "../app-view.test";
 
 void report();
