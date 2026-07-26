@@ -464,12 +464,20 @@ import { describe, it, assert } from "@/lib/kit/testing";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import { SEED_APPS } from "@/lib/seed";
 
-/** Every component name present in a composed document, in order. */
+/*
+ * Every component name present in a composed document, in order.
+ *
+ * READ THE MESSAGE NAME CAREFULLY. Components live on `updateComponents`, not on
+ * `createSurface` — `createSurface` carries the surface id and theme and has no
+ * `components` field at all. An earlier version of this helper read
+ * `createSurface.components`, always returned `[]`, and so made every "emits no
+ * X" assertion below pass without testing anything.
+ */
 function componentsOf(doc: unknown): string[] {
   const names: string[] = [];
   for (const msg of Array.isArray(doc) ? doc : []) {
-    const m = msg as { createSurface?: { components?: { component?: string }[] } };
-    for (const c of m.createSurface?.components ?? []) {
+    const m = msg as { updateComponents?: { components?: { component?: string }[] } };
+    for (const c of m.updateComponents?.components ?? []) {
       if (typeof c.component === "string") names.push(c.component);
     }
   }
