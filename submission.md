@@ -310,47 +310,26 @@ Querying the gateway is as easy as it gets — an API key and a GraphQL POST —
 **Additional feedback for the Sponsor**
 
 ```
-Standardized Subgraphs need a machine-readable index, and it needs a health
-signal. Assembling 96 entries by hand (family, version, network, protocol,
-deployment id) was the most fragile artifact in our repo, and ~28% of those
-deployments are dead at any given moment with nothing in Explorer telling you
-which. We had to build health-checking with a 2s timeout and a 90s TTL before
-the product could be honest about what answered. This is the single highest-
-leverage thing you could ship for AI tooling: every agent that wants cross-
-protocol reach is currently rebuilding this same file.
-
-The schema is standardized; the field set is not. nft-marketplace@2.1.0
-denominates in ETH — cumulativeTradeVolumeUSD does not exist on Marketplace, and
-asking for it is a hard error that returns zero rows for the entire family. We
-found four such deviations the hard way, each costing a debugging cycle where
-the symptom (empty result) pointed nowhere near the cause. Publishing "fields
-actually present, per family, per version" would remove that whole class of bug.
-
-Standardization guarantees shape, not sanity. SushiSwap on Arbitrum reports a
-TVL of 7.2e22; Camelot V2 reports 4.1e17. 14 of 74 rows tripped our plausibility
-check on a routine two-family fan-out, and the default sort put the worst one at
-the top of the leaderboard. We now flag anything over $1T as _suspect, rank it
-last and never drop it — but every consumer is independently inventing this
-heuristic. A convention, or a quality flag in the index, would be worth a lot.
-
-The Substreams free tier's 2 concurrent streams is below the demo threshold. A
-second subscribing app hits resource_exhausted immediately, which means an app
-that subscribes cannot be demonstrated alongside a verification script during a
-hackathon. We render the refusal honestly instead of faking success, but 3-4
-concurrent streams would have let us demo the thing we built.
-
-x402 is well documented and pleasant to implement — the 402 challenge plus one
-EIP-3009 signature is a small, clean protocol. What's missing is a testnet
-facilitator. We implemented the entire path and could not exercise it, because
-exercising it means spending real USDC on Base mainnet. A testnet mode would
-convert a lot of "implemented" into "verified" across a hackathon.
-
-Subgraph MCP is the gap we couldn't close, and it's a shape mismatch rather than
-a quality problem. We point GRAPH_MCP_URL at subgraphs.mcp.thegraph.com/sse and
-never call it, because resolving a *schema* and resolving a *subgraph* are
-different questions and the MCP answers the second. A schema-level tool
-(list_standard_schemas -> deployments per network, with health) would have made
-our entire sources.ts unnecessary, which is the best possible outcome for us.
+The highest-leverage thing you could ship is a machine-readable index of
+standardized deployments with a health signal on it. Assembling 96 entries by
+hand (family, version, network, protocol, deployment id) was the most fragile
+artifact in our repo, ~28% of those deployments are dead at any moment with
+nothing in Explorer telling you which, and every agent wanting cross-protocol
+reach is rebuilding that same file. Two things would go in it: which fields
+actually exist per family per version, because the schema is standardized but
+the field set is not (nft-marketplace@2.1.0 denominates in ETH, so asking for
+cumulativeTradeVolumeUSD is a hard error that zeroes the whole family — we hit
+four such deviations, each presenting as an empty result pointing nowhere near
+its cause), and some notion of plausibility, because SushiSwap on Arbitrum
+reports a TVL of 7.2e22 and 14 of 74 rows tripped our $1T sanity check on a
+routine two-family fan-out. Two smaller asks: the Substreams free tier's 2
+concurrent streams is below the demo threshold, so an app that subscribes
+can't be shown working next to a verification script; and x402 was genuinely
+pleasant to implement by hand, but with no testnet facilitator we built the
+whole path and could never exercise it without spending real USDC on Base
+mainnet. Finally, Subgraph MCP resolves subgraphs where we needed to resolve
+schemas — a list_standard_schemas tool would have made our entire sources.ts
+unnecessary, which is the best possible outcome for us.
 ```
 
 ---
@@ -409,36 +388,27 @@ The OpenAI-compatible router makes inference nearly free to adopt — that part 
 **Additional feedback for the Sponsor**
 
 ```
-Make `verified` routing the loud default in the docs. The router's Standard trust
-mode spans unverified community channels, which means verify_tee can come back
-with no attestation at all — and a team would happily ship believing they had TEE
-inference. We pin `verified` explicitly. For a prize whose qualification is
-literally "proof of 0G Compute", this is the single most important sentence in
-your documentation, and right now it is easy to miss entirely.
-
-Put --priority-gas-price 2gwei in the Galileo quickstart. The chain enforces a
-2 gwei floor and rejects forge's default estimate outright, with an error that
-does not point at the fix. Every Foundry team hits this in their first ten
-minutes, and it reads like a broken RPC rather than a policy.
-
-The ERC-7857 reference verifier ships stubs, and that is a hazard rather than a
-gap. verifyPreimage returns true for any blob and the TEE check is a // TODO.
-Someone will deploy that, demo it, and believe the proof means something — the
-current shape reads as a reference implementation. Either make the stubs revert
-by default with a clear message, or ship them under a Mock… name.
-
-Pin a canonical ERC-7857 interface and publish test vectors. We implemented the
-V2 eip-7857-draft interface your docs link to, including AES-256-GCM with
-dataHash = keccak256(ciphertext), receiver binding, stale-metadata rejection and
-single-use 48-byte nonces — but we had to decide several of those semantics
-ourselves. A conformance suite would let teams *prove* they implement 7857
-instead of asserting it, and would separate real implementations from
-shaped-alike ones at judging time, which is presumably what you want.
-
-The Private Computer / Compute naming split costs time under pressure.
-pc.0g.ai, router-api.0g.ai, "0G Compute" and "Private Computer" took longer to
-disambiguate than they should have. One page mapping product name -> endpoint ->
-what attestation you get would fix it.
+Make `verified` routing the loud default in the docs: Standard trust mode spans
+unverified community channels, so verify_tee can return no attestation at all,
+and a team would happily ship believing it had TEE inference. For a prize whose
+qualification is literally "proof of 0G Compute", that is the single most
+important sentence in your documentation and it is currently easy to miss — we
+pin `verified` explicitly. Two other things cost us real time. Foundry deploys
+to Galileo need --priority-gas-price 2gwei because the chain enforces a 2 gwei
+floor and rejects forge's default estimate with an error that doesn't point at
+the fix; every Foundry team hits this in their first ten minutes and reads it as
+a broken RPC. And the ERC-7857 reference verifier ships stubs — verifyPreimage
+returns true for any blob, the TEE check is a // TODO — which is a hazard rather
+than a gap, because it reads as a reference implementation and someone will
+deploy it and believe the proof means something; either revert by default with a
+clear message or rename them Mock…. Relatedly, pin a canonical 7857 interface
+with test vectors: we implemented the V2 draft your docs link to (AES-256-GCM,
+dataHash = keccak256(ciphertext), receiver binding, stale-metadata rejection,
+single-use nonces) but had to decide several semantics ourselves, and a
+conformance suite would separate real implementations from shaped-alike ones at
+judging time. Minor: one page mapping pc.0g.ai / router-api.0g.ai / "0G Compute"
+/ "Private Computer" to endpoints and what attestation each gives you would save
+everyone the disambiguation.
 ```
 
 ---
@@ -490,47 +460,29 @@ Mainnet-shaped ENS is clean and the record model is exactly right for agent iden
 **Additional feedback for the Sponsor**
 
 ```
-Sepolia registration does not work the documented way, and it fails silently.
-ETHRegistrarController is not an authorised controller on Sepolia, so register()
-reverts while available() still returns true — the two most obvious calls
-disagree and nothing tells you why. The path that works is
-TestnetV1PremigrationRegistrar (0xdf60C561Ca35AD3C89D24BbA854654b1c3477078),
-free, one transaction, data: []. This cost us more time than anything else in
-the build. One paragraph in the testnet docs would fix it permanently for
-everyone.
-
+Sepolia registration does not work the documented way and it fails silently,
+which cost us more time than anything else in the build. ETHRegistrarController
+is not an authorised controller there, so register() reverts while available()
+still returns true — the two most obvious calls disagree and nothing says why.
+The path that works is TestnetV1PremigrationRegistrar
+(0xdf60C561Ca35AD3C89D24BbA854654b1c3477078), free, one transaction, data: [].
 The name then comes back unwrapped, so NameWrapper.setSubnodeRecord reverts
-Unauthorised until you setApprovalForAll + wrapETH2LD. Anyone following the
-subname-issuance guide on Sepolia hits this immediately after the previous
-problem, so the two compound into a day.
-
-viem's getEnsResolver returns a non-resolver on Sepolia. For one of our names it
-answers 0x422484c2…, where every addr / text / contenthash call reverts, while
-the registry's own resolver(node) answers 0xE99638b4…, which holds the records.
-We ask the registry first and keep UniversalResolver second for wildcard/CCIP
-names. This deserves either a viem fix or a documented caveat, because the
-failure mode looks exactly like "your records were never written" — we nearly
-re-published a name over it.
-
-ENSIP-25 should fix the agentId encoding. The spec says registry-defined
-*string* and does not settle decimal vs hex; every published example (the
-ENSIP's own 167, the ENS blog's 42) is decimal, so decimal is the de-facto
-convention. Say so normatively — otherwise two implementations write different
-record keys for the same token and neither of them is wrong, which defeats the
-point of a standard key.
-
-ENSIP-26's agent-context has no recommended body format. That is defensible for
-a draft, but it means every agent consuming the record writes a bespoke parser.
-We used YAML. Even a non-normative "here is a shape that works" example would
-make these records machine-readable across projects, which is the entire reason
-to put agent capability in a text record rather than in a README.
-
-Document reading and writing as separately gated. Our own bug — read paths
-degraded to mock without a *write* key, so the public deployment resolved
-nothing while every dev machine worked perfectly — was our fault, but it is a
-shape that will repeat. One line in the integration guide ("you need only an RPC
-to read; you need a signer only to write") would prevent a whole class of
-works-on-my-machine ENS integrations from shipping broken.
+Unauthorised until you setApprovalForAll + wrapETH2LD, and anyone following the
+subname guide hits that immediately after the first problem, so the two compound
+into a day. One paragraph in the testnet docs fixes both permanently. A third
+trap: viem's getEnsResolver returns a non-resolver on Sepolia — for one of our
+names it answers 0x422484c2…, where every addr/text/contenthash call reverts,
+while the registry's own resolver(node) answers 0xE99638b4…, which holds the
+records. That deserves a viem fix or a documented caveat, because it looks
+exactly like "your records were never written" and we nearly re-published a name
+over it. On the specs themselves, both drafts are close but under-specified in
+one spot each: ENSIP-25 leaves agentId as a registry-defined string without
+settling decimal vs hex (every published example is decimal — say so, or two
+implementations write different keys for the same token and neither is wrong),
+and ENSIP-26's agent-context has no recommended body format, so every consumer
+writes a bespoke parser (we used YAML; even a non-normative example would make
+these records machine-readable across projects, which is the whole point of
+putting capability in a text record).
 ```
 
 ---
