@@ -13,7 +13,18 @@
  * "did this thing spend today?" a glance rather than a question (Rule 2).
  */
 
-import { Panel, Fig, Label, Empty, Tag, fmtTime, fmtUsd, shortAddr } from "@/components/brutal";
+import {
+  Panel,
+  Fig,
+  Label,
+  Empty,
+  Tag,
+  ScrollList,
+  VISIBLE_ROWS,
+  fmtTime,
+  fmtUsd,
+  shortAddr,
+} from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import { bool, dict, num, pickStr, rowsOf, str, type CatProps } from "./_shared";
 import type { JournalEntry } from "@/lib/contracts/policy";
@@ -62,7 +73,9 @@ export function TradeLog({ data, label, index }: CatProps) {
       meta={
         <>
           <Fig size="xs" className="text-[var(--muted-ink)]">
-            {entries.length} events
+            {entries.length > VISIBLE_ROWS
+              ? `${VISIBLE_ROWS} of ${entries.length} events · scroll`
+              : `${entries.length} events`}
           </Fig>
           {spentTotal > 0 ? (
             <Tag tone="spend">{fmtUsd(spentTotal, false)} spent</Tag>
@@ -77,53 +90,58 @@ export function TradeLog({ data, label, index }: CatProps) {
           <Empty what="journal empty — nothing has run yet" />
         </div>
       ) : (
-        <ol className="flex flex-col">
-          {entries.map((e, i) => {
-            const spend = (e.spentUsd ?? 0) > 0;
-            return (
-              <li
-                key={`${e.ts}-${i}`}
-                className={cn(
-                  "grid grid-cols-[4.5rem_4.25rem_1fr_auto] items-baseline gap-x-2 px-3 py-1 text-[0.75rem]",
-                  "border-b border-hairline last:border-b-0",
-                  spend && "border-l-[3px] border-l-spend",
-                )}
-              >
-                <Fig size="xs" className="text-[var(--muted-ink)]">
-                  {e.ts ? fmtTime(e.ts) : "--:--:--"}
-                </Fig>
-                <Fig
-                  size="xs"
-                  className={cn("font-semibold tracking-[0.04em]", KIND_TONE[e.kind])}
+        // The journal only grows, and the receipt foot below it must stay
+        // reachable — the whole point of the panel is the total.
+        <ScrollList count={entries.length} est={26}>
+          <ol className="flex flex-col">
+            {entries.map((e, i) => {
+              const spend = (e.spentUsd ?? 0) > 0;
+              return (
+                <li
+                  key={`${e.ts}-${i}`}
+                  data-row
+                  className={cn(
+                    "grid grid-cols-[4.5rem_4.25rem_1fr_auto] items-baseline gap-x-2 px-3 py-1 text-[0.75rem]",
+                    "border-b border-hairline last:border-b-0",
+                    spend && "border-l-[3px] border-l-spend",
+                  )}
                 >
-                  {e.kind}
-                </Fig>
-                <span className="mono min-w-0 break-words text-[0.75rem] leading-snug">
-                  {e.message}
-                  {e.txHash ? (
-                    <span className="ml-1.5 text-[var(--muted-ink)]" title={e.txHash}>
-                      {shortAddr(e.txHash, 8, 6)}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="flex items-baseline gap-1.5 justify-self-end">
-                  {spend ? (
-                    <Fig size="xs" tone="spend" className="font-semibold">
-                      −{fmtUsd(e.spentUsd ?? 0, false)}
-                    </Fig>
-                  ) : null}
-                  <span
-                    aria-label={e.ok ? "ok" : "failed"}
-                    className={cn(
-                      "inline-block h-2 w-2 rounded-full border border-hairline",
-                      e.ok ? "bg-gain" : "bg-loss",
-                    )}
-                  />
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+                  <Fig size="xs" className="text-[var(--muted-ink)]">
+                    {e.ts ? fmtTime(e.ts) : "--:--:--"}
+                  </Fig>
+                  <Fig
+                    size="xs"
+                    className={cn("font-semibold tracking-[0.04em]", KIND_TONE[e.kind])}
+                  >
+                    {e.kind}
+                  </Fig>
+                  <span className="mono min-w-0 break-words text-[0.75rem] leading-snug">
+                    {e.message}
+                    {e.txHash ? (
+                      <span className="ml-1.5 text-[var(--muted-ink)]" title={e.txHash}>
+                        {shortAddr(e.txHash, 8, 6)}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="flex items-baseline gap-1.5 justify-self-end">
+                    {spend ? (
+                      <Fig size="xs" tone="spend" className="font-semibold">
+                        −{fmtUsd(e.spentUsd ?? 0, false)}
+                      </Fig>
+                    ) : null}
+                    <span
+                      aria-label={e.ok ? "ok" : "failed"}
+                      className={cn(
+                        "inline-block h-2 w-2 rounded-full border border-hairline",
+                        e.ok ? "bg-gain" : "bg-loss",
+                      )}
+                    />
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </ScrollList>
       )}
 
       {/* Receipt foot. Dashed rule reads as a tear-off. */}

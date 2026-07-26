@@ -23,7 +23,15 @@
  * identity, and no identity may reach a numeric formatter.
  */
 
-import { Panel, Empty, Fig, ScrollX, fmtValue, shortAddr } from "@/components/brutal";
+import {
+  Panel,
+  Empty,
+  Fig,
+  ScrollList,
+  VISIBLE_ROWS,
+  fmtValue,
+  shortAddr,
+} from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import {
   cellText,
@@ -115,11 +123,15 @@ export function DataTable({ data, label, index }: CatProps) {
       flush
       meta={
         <Fig size="xs" className="text-[var(--muted-ink)]">
-          {num(d.rowCount, rows.length)} rows
+          {/* Say the viewport is partial, or a scrolled table reads as a table
+              that lost rows. */}
+          {rows.length > VISIBLE_ROWS
+            ? `${VISIBLE_ROWS} of ${num(d.rowCount, rows.length)} rows · scroll`
+            : `${num(d.rowCount, rows.length)} rows`}
         </Fig>
       }
     >
-      <ScrollX minWidth={Math.max(320, aligned.length * 110)}>
+      <ScrollList count={rows.length} minWidth={Math.max(320, aligned.length * 110)} est={30}>
         <table className="cells w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-hairline">
@@ -127,7 +139,12 @@ export function DataTable({ data, label, index }: CatProps) {
                 <th
                   key={`${c.key}-${i}`}
                   className={cn(
-                    "whitespace-nowrap px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)]",
+                    // Pinned: scrolling 400 rows past a lost header is reading
+                    // numbers without knowing what they are.
+                    // The heavy rule is an inset shadow, not the <tr> border: a
+                    // collapsed-table border does not travel with a sticky cell
+                    // and vanishes on the first scroll.
+                    "sticky top-0 z-10 whitespace-nowrap bg-[var(--card-b)] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)] shadow-[inset_0_-1px_0_var(--hairline)]",
                     c.align === "right" && "text-right",
                   )}
                 >
@@ -138,7 +155,7 @@ export function DataTable({ data, label, index }: CatProps) {
           </thead>
           <tbody>
             {rows.map((r, ri) => (
-              <tr key={ri}>
+              <tr key={ri} data-row>
                 {aligned.map((c, ci) => {
                   const v = r[ci];
                   // Identity beats arithmetic. `hex` is tested FIRST and `isNum`
@@ -184,7 +201,7 @@ export function DataTable({ data, label, index }: CatProps) {
             ))}
           </tbody>
         </table>
-      </ScrollX>
+      </ScrollList>
     </Panel>
   );
 }

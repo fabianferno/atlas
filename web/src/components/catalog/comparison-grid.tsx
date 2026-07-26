@@ -17,7 +17,7 @@
  * entity is exactly the rainbow Rule 3 forbids.
  */
 
-import { Panel, Empty, Fig, ScrollX, Tag, fmtValue, shortAddr } from "@/components/brutal";
+import { Panel, Empty, Fig, ScrollList, Tag, fmtValue, shortAddr, rowsMeta } from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import {
   cellText,
@@ -81,16 +81,35 @@ export function ComparisonGrid({ data, label, index }: CatProps) {
   }
 
   return (
-    <Panel title={title} index={index} flush>
-      <ScrollX minWidth={Math.max(360, 140 + entities.length * 110)}>
+    <Panel
+      title={title}
+      index={index}
+      flush
+      meta={
+        <Fig size="xs" className="text-[var(--muted-ink)]">
+          {rowsMeta(rows.length, undefined, "metrics")}
+        </Fig>
+      }
+    >
+      <ScrollList
+        count={rows.length}
+        est={34}
+        minWidth={Math.max(360, 140 + entities.length * 110)}
+      >
         <table className="cells w-full border-collapse text-left">
           <thead>
-            <tr className="border-b border-hairline">
-              <th className="px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)]">
+            {/* Pinned: the entity names are what the numbers below mean. The
+                rule is an inset shadow — a collapsed-table border does not
+                travel with a sticky cell. */}
+            <tr>
+              <th className="sticky top-0 z-10 bg-[var(--card-b)] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)] shadow-[inset_0_-1px_0_var(--hairline)]">
                 metric
               </th>
               {entities.map((e, i) => (
-                <th key={`${e.name}-${i}`} className="px-3 py-2 align-bottom">
+                <th
+                  key={`${e.name}-${i}`}
+                  className="sticky top-0 z-10 bg-[var(--card-b)] px-3 py-2 align-bottom shadow-[inset_0_-1px_0_var(--hairline)]"
+                >
                   <div className="display text-[0.75rem] leading-tight">{e.name}</div>
                   {e.meta ? (
                     <Tag className="mt-1 border-hairline text-[var(--muted-ink)]">{e.meta}</Tag>
@@ -108,7 +127,7 @@ export function ComparisonGrid({ data, label, index }: CatProps) {
                   ? nums.indexOf(r.higherIsBetter ? Math.max(...finite) : Math.min(...finite))
                   : -1;
               return (
-                <tr key={`${r.metric}-${ri}`}>
+                <tr key={`${r.metric}-${ri}`} data-row>
                   <th
                     scope="row"
                     className="px-3 py-2 text-[0.75rem] font-medium text-[var(--muted-ink)]"
@@ -150,7 +169,7 @@ export function ComparisonGrid({ data, label, index }: CatProps) {
             })}
           </tbody>
         </table>
-      </ScrollX>
+      </ScrollList>
       <div className="border-t border-hairline px-3 py-1.5 text-[0.625rem] text-[var(--muted-ink)]">
         {str(d.note, "Boxed cell = best on that metric.")}
       </div>

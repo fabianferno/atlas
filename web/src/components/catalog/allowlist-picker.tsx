@@ -20,7 +20,17 @@
  */
 
 import { useEffect, useState } from "react";
-import { Panel, Label, Fig, Empty, Tag, useRuntime, shortAddr } from "@/components/brutal";
+import {
+  Panel,
+  Label,
+  Fig,
+  Empty,
+  Tag,
+  ScrollList,
+  VISIBLE_ROWS,
+  useRuntime,
+  shortAddr,
+} from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import { bindValue, dict, list, pickStr, type CatProps } from "./_shared";
 
@@ -60,7 +70,9 @@ export function AllowlistPicker({ data, label, onAction, index }: CatProps) {
       title={label ?? pickStr(d, ["label", "title"], "Target")}
       meta={
         <Fig size="xs" className="text-[var(--muted-ink)]">
-          {permitted.length} allowed
+          {permitted.length > VISIBLE_ROWS
+            ? `${VISIBLE_ROWS} of ${permitted.length} allowed · scroll`
+            : `${permitted.length} allowed`}
         </Fig>
       }
       flush
@@ -70,44 +82,46 @@ export function AllowlistPicker({ data, label, onAction, index }: CatProps) {
           <Empty what="no allowlisted targets — the app cannot act" />
         </div>
       ) : (
-        <ul role="radiogroup" aria-label="allowlisted targets" className="flex flex-col">
-          {permitted.map((o) => {
-            const on = o.address === selected;
-            return (
-              <li key={o.address} className="border-b border-hairline last:border-b-0">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setSelected(o.address)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 px-3 py-2 text-left",
-                    on && "bg-ink/[0.05]",
-                  )}
-                >
-                  <span
-                    aria-hidden
+        <ScrollList count={permitted.length} est={44}>
+          <ul role="radiogroup" aria-label="allowlisted targets" className="flex flex-col">
+            {permitted.map((o) => {
+              const on = o.address === selected;
+              return (
+                <li key={o.address} data-row className="border-b border-hairline last:border-b-0">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setSelected(o.address)}
                     className={cn(
-                      "h-3 w-3 shrink-0 rounded-full border border-hairline",
-                      on && "bg-live",
+                      "flex w-full items-center gap-2.5 px-3 py-2 text-left",
+                      on && "bg-ink/[0.05]",
                     )}
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={cn("truncate text-[0.8125rem]", on && "font-semibold")}>
-                      {o.label || "unlabelled target"}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "h-3 w-3 shrink-0 rounded-full border border-hairline",
+                        on && "bg-live",
+                      )}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className={cn("truncate text-[0.8125rem]", on && "font-semibold")}>
+                        {o.label || "unlabelled target"}
+                      </span>
+                      <Fig size="xs" className="text-[var(--muted-ink)]" title={o.address}>
+                        {shortAddr(o.address, 10, 6)}
+                      </Fig>
                     </span>
-                    <Fig size="xs" className="text-[var(--muted-ink)]" title={o.address}>
-                      {shortAddr(o.address, 10, 6)}
-                    </Fig>
-                  </span>
-                  {o.network ? (
-                    <Tag className="border-hairline text-[var(--muted-ink)]">{o.network}</Tag>
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    {o.network ? (
+                      <Tag className="border-hairline text-[var(--muted-ink)]">{o.network}</Tag>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </ScrollList>
       )}
 
       <div className="border-t border-hairline px-3 py-1.5">

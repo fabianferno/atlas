@@ -12,7 +12,16 @@
  * one accented entry. The rank number does more work than colour would.
  */
 
-import { Panel, Empty, Fig, Delta, Address, fmtValue } from "@/components/brutal";
+import {
+  Panel,
+  Empty,
+  Fig,
+  Delta,
+  Address,
+  ScrollList,
+  fmtValue,
+  rowsMeta,
+} from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import { accentIndex, dict, num, pickNum, pickStr, rowsOf, unitOf, type CatProps } from "./_shared";
 
@@ -57,56 +66,68 @@ export function Leaderboard({ data, label, index }: CatProps) {
   const ai = accentIndex(rows, rows.map((r) => r.value), d.accent);
 
   return (
-    <Panel title={title} index={index} flush>
-      <ol className="flex flex-col">
-        {rows.map((r, i) => (
-          <li
-            key={`${r.label}-${i}`}
-            className="relative grid grid-cols-[1.75rem_1fr_auto] items-center gap-2 border-b border-hairline px-3 py-2 last:border-b-0"
-          >
-            {/* Rank bar sits behind the row — position carries magnitude. */}
-            <span
-              aria-hidden
-              className={cn(
-                "pointer-events-none absolute inset-y-0 left-0",
-                i === ai ? "bg-live/10" : "bg-ink/[0.05]",
-              )}
-              style={{ width: `${Math.max(2, (Math.abs(r.value) / max) * 100)}%` }}
-            />
-            <Fig
-              size="sm"
-              className={cn("relative", i === ai ? "text-live" : "text-[var(--muted-ink)]")}
+    <Panel
+      title={title}
+      index={index}
+      flush
+      meta={
+        <Fig size="xs" className="text-[var(--muted-ink)]">
+          {rowsMeta(rows.length, undefined, "ranked entries")}
+        </Fig>
+      }
+    >
+      <ScrollList count={rows.length} est={38}>
+        <ol className="flex flex-col">
+          {rows.map((r, i) => (
+            <li
+              key={`${r.label}-${i}`}
+              data-row
+              className="relative grid grid-cols-[1.75rem_1fr_auto] items-center gap-2 border-b border-hairline px-3 py-2 last:border-b-0"
             >
-              {String(i + 1).padStart(2, "0")}
-            </Fig>
-            <span className="relative flex min-w-0 flex-col">
+              {/* Rank bar sits behind the row — position carries magnitude. */}
               <span
-                className={cn("truncate text-[0.8125rem]", i === ai && "font-semibold")}
-                title={r.label}
+                aria-hidden
+                className={cn(
+                  "pointer-events-none absolute inset-y-0 left-0",
+                  i === ai ? "bg-live/10" : "bg-ink/[0.05]",
+                )}
+                style={{ width: `${Math.max(2, (Math.abs(r.value) / max) * 100)}%` }}
+              />
+              <Fig
+                size="sm"
+                className={cn("relative", i === ai ? "text-live" : "text-[var(--muted-ink)]")}
               >
-                {r.label}
-              </span>
-              {r.address ? (
-                <Address value={r.address} size="xs" />
-              ) : r.sublabel ? (
-                <span className="truncate text-[0.6875rem] text-[var(--muted-ink)]">
-                  {r.sublabel}
-                </span>
-              ) : null}
-            </span>
-            <span className="relative flex items-baseline gap-2">
-              <Fig size="sm" tone={i === ai ? "live" : "neutral"}>
-                {r.hasValue ? fmtValue(r.value, unit) : "—"}
+                {String(i + 1).padStart(2, "0")}
               </Fig>
-              {Number.isFinite(r.deltaPct) ? (
-                <Delta pct={r.deltaPct} size="xs" />
-              ) : Number.isFinite(r.deltaAbs) ? (
-                <Delta pct={r.deltaAbs} abs={fmtValue(r.deltaAbs, unit)} size="xs" />
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ol>
+              <span className="relative flex min-w-0 flex-col">
+                <span
+                  className={cn("truncate text-[0.8125rem]", i === ai && "font-semibold")}
+                  title={r.label}
+                >
+                  {r.label}
+                </span>
+                {r.address ? (
+                  <Address value={r.address} size="xs" />
+                ) : r.sublabel ? (
+                  <span className="truncate text-[0.6875rem] text-[var(--muted-ink)]">
+                    {r.sublabel}
+                  </span>
+                ) : null}
+              </span>
+              <span className="relative flex items-baseline gap-2">
+                <Fig size="sm" tone={i === ai ? "live" : "neutral"}>
+                  {r.hasValue ? fmtValue(r.value, unit) : "—"}
+                </Fig>
+                {Number.isFinite(r.deltaPct) ? (
+                  <Delta pct={r.deltaPct} size="xs" />
+                ) : Number.isFinite(r.deltaAbs) ? (
+                  <Delta pct={r.deltaAbs} abs={fmtValue(r.deltaAbs, unit)} size="xs" />
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </ScrollList>
     </Panel>
   );
 }

@@ -27,6 +27,7 @@ import {
   Address,
   Tag,
   Hair,
+  ScrollList,
   fmtUsd,
   fmtNum,
   fmtValue,
@@ -198,16 +199,24 @@ export function PositionCard({ data, label, index }: CatProps) {
         {others.length > 0 ? (
           <>
             <Hair />
-            <ul className="flex flex-col gap-1">
-              {others.map((p, i) => (
-                <li key={`${p.label}-${i}`} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[0.75rem]">{p.label}</span>
-                  <Fig size="xs" className="text-[var(--muted-ink)]">
-                    {Number.isFinite(p.size) ? fmtValue(p.size, hints.unit) : "—"}
-                  </Fig>
-                </li>
-              ))}
-            </ul>
+            {/* The other positions are a list of unknown length under a card of
+                fixed height; bound it or the card stops being a card. */}
+            <ScrollList count={others.length} est={20}>
+              <ul className="flex flex-col gap-1">
+                {others.map((p, i) => (
+                  <li
+                    key={`${p.label}-${i}`}
+                    data-row
+                    className="flex items-baseline justify-between gap-3"
+                  >
+                    <span className="truncate text-[0.75rem]">{p.label}</span>
+                    <Fig size="xs" className="text-[var(--muted-ink)]">
+                      {Number.isFinite(p.size) ? fmtValue(p.size, hints.unit) : "—"}
+                    </Fig>
+                  </li>
+                ))}
+              </ul>
+            </ScrollList>
           </>
         ) : null}
 

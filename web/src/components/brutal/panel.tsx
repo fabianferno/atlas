@@ -11,6 +11,7 @@
  * when the whole panel is a target you can press.
  */
 
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { AgencyTier } from "@/lib/contracts/manifest";
 import { useRuntime, tierPanelClass } from "./tier";
@@ -118,7 +119,10 @@ export function Hair({ className }: { className?: string }) {
   return <div className={cn("h-px w-full bg-hairline", className)} />;
 }
 
-/** Charts scroll inside their own box. The page body never scrolls sideways. */
+/**
+ * Charts scroll inside their own box. The page body never scrolls sideways.
+ * A box that also needs to bound its HEIGHT wants `ScrollList` instead.
+ */
 export function ScrollX({
   minWidth = 420,
   className,
@@ -133,6 +137,108 @@ export function ScrollX({
       <div style={{ minWidth }}>{children}</div>
     </div>
   );
+}
+
+/** SSR renders nothing that needs measuring; only the client does the layout pass. */
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** How many rows a list-shaped panel shows before it starts scrolling. */
+export const VISIBLE_ROWS = 10;
+
+/**
+ * A list panel with a bounded viewport.
+ *
+ * The composer controls how many panels an app has; it does not control how many
+ * ROWS a panel gets — that is whatever the subgraph returned. A 400-row
+ * leaderboard makes the app a mile long and every panel under it unreachable, so
+ * a list longer than `visible` scrolls inside its own box instead of growing the
+ * page. Nothing is dropped: every row stays scrollable-to, and the panel's meta
+ * says the viewport is partial.
+ *
+ * The cutoff is MEASURED, not estimated: rows here are variable height (a
+ * leaderboard row grows when it carries an address, a journal line wraps), so
+ * the box takes the exact offset of row `visible + 1` and cuts there. Callers
+ * mark their row elements with `data-row` — including `<tr>`s, which is why this
+ * also owns the horizontal axis: a table needs ONE scrollport for both axes or
+ * its sticky head has nothing to stick to.
+ *
+ * `est` is the pre-measurement guess, used only for the first paint so a long
+ * list never flashes at full height before clamping.
+ */
+export function ScrollList({
+  count,
+  visible = VISIBLE_ROWS,
+  est = 32,
+  minWidth,
+  className,
+  children,
+}: {
+  /** Row count, so the component knows whether to bound anything at all. */
+  count: number;
+  visible?: number;
+  /** Approximate row height in px, for the first paint only. */
+  est?: number;
+  /** Set for tables/charts that also need to scroll sideways. */
+  minWidth?: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const over = count > visible;
+  const [measured, setMeasured] = useState<number | null>(null);
+
+  useIsoLayoutEffect(() => {
+    if (!over) {
+      setMeasured(null);
+      return;
+    }
+    const el = box.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rows = el.querySelectorAll<HTMLElement>("[data-row]");
+      const cut = rows[visible];
+      if (!cut) return;
+      // Scroll-content coordinates: adding scrollTop back keeps this stable no
+      // matter where the box is currently scrolled, so re-measures converge.
+      const h = Math.round(
+        cut.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop,
+      );
+      if (h > 0) setMeasured((prev) => (prev !== null && Math.abs(prev - h) <= 1 ? prev : h));
+    };
+
+    measure();
+    // A scrollbar appearing can re-wrap a row, and the panel itself resizes with
+    // the grid. Watch the box and the rows that define the cutoff.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    for (const r of Array.from(el.querySelectorAll<HTMLElement>("[data-row]")).slice(0, visible + 1)) {
+      ro.observe(r);
+    }
+    return () => ro.disconnect();
+  }, [over, visible, count]);
+
+  const maxHeight = over ? (measured ?? (visible + 1) * est) : undefined;
+
+  return (
+    <div
+      ref={box}
+      className={cn(
+        "w-full",
+        over ? "overflow-y-auto" : "overflow-y-hidden",
+        minWidth === undefined ? null : "overflow-x-auto",
+        className,
+      )}
+      style={maxHeight === undefined ? undefined : { maxHeight }}
+    >
+      {minWidth === undefined ? children : <div style={{ minWidth }}>{children}</div>}
+    </div>
+  );
+}
+
+/** The line a bounded list puts in its panel meta, so a cut never reads as a loss. */
+export function rowsMeta(count: number, visible = VISIBLE_ROWS, noun = "rows"): string {
+  return count > visible ? `${visible} of ${count} ${noun} · scroll` : `${count} ${noun}`;
 }
 
 /**

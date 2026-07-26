@@ -13,7 +13,7 @@
  * cell that carries `--live`.
  */
 
-import { Panel, Empty, Fig, ScrollX, Label, fmtValue } from "@/components/brutal";
+import { Panel, Empty, Fig, ScrollList, Label, fmtValue, rowsMeta } from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import { dict, list, num, pickStr, str, unitOf, type CatProps } from "./_shared";
 
@@ -61,16 +61,28 @@ export function Heatmap({ data, label, index }: CatProps) {
   const span = max - min || 1;
 
   return (
-    <Panel title={title} index={index} flush>
-      <ScrollX minWidth={Math.max(340, 110 + colKeys.length * 74)}>
+    <Panel
+      title={title}
+      index={index}
+      flush
+      meta={
+        <Fig size="xs" className="text-[var(--muted-ink)]">
+          {rowsMeta(rowKeys.length)}
+        </Fig>
+      }
+    >
+      <ScrollList count={rowKeys.length} est={42} minWidth={Math.max(340, 110 + colKeys.length * 74)}>
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b border-hairline">
-              <th className="px-3 py-2" />
+            {/* Pinned so a scrolled matrix keeps its column names. The rule is an
+                inset shadow: a collapsed-table border does not travel with a
+                sticky cell. */}
+            <tr>
+              <th className="sticky top-0 z-10 bg-[var(--card-b)] px-3 py-2 shadow-[inset_0_-1px_0_var(--hairline)]" />
               {colKeys.map((c) => (
                 <th
                   key={c}
-                  className="px-2 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)]"
+                  className="sticky top-0 z-10 bg-[var(--card-b)] px-2 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-[var(--muted-ink)] shadow-[inset_0_-1px_0_var(--hairline)]"
                 >
                   {c}
                 </th>
@@ -79,7 +91,7 @@ export function Heatmap({ data, label, index }: CatProps) {
           </thead>
           <tbody>
             {rowKeys.map((r, ri) => (
-              <tr key={r}>
+              <tr key={r} data-row>
                 <th
                   scope="row"
                   className="whitespace-nowrap px-3 py-1 text-left text-[0.75rem] font-medium"
@@ -122,7 +134,7 @@ export function Heatmap({ data, label, index }: CatProps) {
             ))}
           </tbody>
         </table>
-      </ScrollX>
+      </ScrollList>
       <div className="flex items-center gap-2 border-t border-hairline px-3 py-1.5">
         <Label>low</Label>
         <span className="flex h-2.5 flex-1 border border-hairline">

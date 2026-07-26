@@ -14,7 +14,7 @@
  */
 
 import type { CatalogComponentProps } from "@/lib/contracts/catalog";
-import { Panel, Fig, Empty, fmtValue } from "@/components/brutal";
+import { Panel, Fig, Empty, ScrollList, fmtValue, rowsMeta } from "@/components/brutal";
 import { cn } from "@/lib/utils";
 import { accentIndex, dict, num, pickStr, rowsOf, unitOf } from "./_shared";
 
@@ -53,31 +53,43 @@ export function BarChart({ data, label, index }: CatalogComponentProps & { index
   const ai = accentIndex(items, items.map((it) => it.value), d.accent);
 
   return (
-    <Panel title={title} index={index} flush>
-      <ul className="flex flex-col">
-        {items.map((it, i) => (
-          <li
-            key={`${it.label}-${i}`}
-            className="grid grid-cols-[minmax(5rem,9rem)_1fr_auto] items-center gap-2 border-b border-hairline px-3 py-1.5 last:border-b-0"
-          >
-            <span className="truncate text-[0.75rem]" title={it.label}>
-              {it.label}
-            </span>
-            <span className="flex h-4 min-w-0 items-center">
-              <span
-                className={cn(
-                  "h-3 border border-rule",
-                  i === ai ? "bar--accent" : i < 3 ? "bar" : "bar--60",
-                )}
-                style={{ width: `${Math.max(1.5, (Math.abs(it.value) / max) * 100)}%` }}
-              />
-            </span>
-            <Fig size="sm" className="tabular-nums">
-              {fmtValue(it.value, unit)}
-            </Fig>
-          </li>
-        ))}
-      </ul>
+    <Panel
+      title={title}
+      index={index}
+      flush
+      meta={
+        <Fig size="xs" className="text-[var(--muted-ink)]">
+          {rowsMeta(items.length, undefined, "bars")}
+        </Fig>
+      }
+    >
+      <ScrollList count={items.length} est={30}>
+        <ul className="flex flex-col">
+          {items.map((it, i) => (
+            <li
+              key={`${it.label}-${i}`}
+              data-row
+              className="grid grid-cols-[minmax(5rem,9rem)_1fr_auto] items-center gap-2 border-b border-hairline px-3 py-1.5 last:border-b-0"
+            >
+              <span className="truncate text-[0.75rem]" title={it.label}>
+                {it.label}
+              </span>
+              <span className="flex h-4 min-w-0 items-center">
+                <span
+                  className={cn(
+                    "h-3 border border-rule",
+                    i === ai ? "bar--accent" : i < 3 ? "bar" : "bar--60",
+                  )}
+                  style={{ width: `${Math.max(1.5, (Math.abs(it.value) / max) * 100)}%` }}
+                />
+              </span>
+              <Fig size="sm" className="tabular-nums">
+                {fmtValue(it.value, unit)}
+              </Fig>
+            </li>
+          ))}
+        </ul>
+      </ScrollList>
     </Panel>
   );
 }
