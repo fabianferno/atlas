@@ -49,24 +49,17 @@
  * so the panel states what will happen before it and takes a second, deliberate
  * confirm — see its header for why.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TIER_BLURB, SEED_EPOCH } from "@/lib/seed";
 import { HOST_PROVIDED } from "@/lib/app-view";
 import { isConditionEvaluable } from "@/lib/agency/condition";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
-import type { Manifest } from "@/lib/contracts/manifest";
 // Type-only, so nothing from the signing stack reaches the client bundle. The
 // point of importing it rather than restating the shape is that if the server's
 // report grows a constraint, this file stops compiling instead of quietly
 // rendering six of seven.
-import type {
-  EnforcementReport,
-  EnforcementSite,
-  PlanDivergence,
-  RegistryScope,
-  WalletKind,
-} from "@/lib/agency/wallet";
+import type { EnforcementSite } from "@/lib/agency/wallet";
 import {
   dispatchAction,
   fmtDate,
@@ -85,8 +78,10 @@ import {
 import { AppBody } from "@/components/board/app-body";
 import { AppPublishPanel } from "@/components/board/publish-panel";
 import { TradeLog } from "@/components/board/ledger";
-import { ArmedLamp, Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
+import { ArmedLamp, KV, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
 import { SponsorMark, type Sponsor } from "@/components/brand/sponsor-mark";
+import { useSigner, useStreamMode, useZeroGExplorer, type SignerFacts } from "@/components/board/app-facts";
+import { Receipt, runReceipt, watchReceipt } from "@/components/board/app-receipts";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
 // One rule for "this family has nothing live behind it", shared with the
@@ -95,174 +90,6 @@ import { Ratings } from "@/components/registry/ratings";
 // drifts is always towards claiming more. See `lib/schema-coverage.ts`.
 import { NO_LIVE_SOURCE, familiesWithNoLiveSource } from "@/lib/schema-coverage";
 import { cn } from "@/lib/utils";
-
-/**
- * Whether trigger evaluation is event-driven right now, asked of the server
- * rather than assumed. Polling and per-block subscription look identical from
- * the outside, and the difference is the whole Substreams argument — so the UI
- * states which one it is and never rounds up. Null while unknown.
- */
-function useStreamMode(): { mode: "substreams" | "interval"; reason: string } | null {
-  const [state, setState] = useState<{ mode: "substreams" | "interval"; reason: string } | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void fetch("/api/stream")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: { mode?: "substreams" | "interval"; reason?: string } | null) => {
-        if (!alive || !body?.mode) return;
-        setState({ mode: body.mode, reason: body.reason ?? "" });
-      })
-      .catch(() => {
-        // A failed probe is not a claim of either mode. Stay silent.
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return state;
-}
-
-/**
- * What the server will sign with, and what enforces each limit.
- *
- * WHY THIS IS A FETCH AND NOT `manifest.agency.policy.wallet`. This page used to
- * print the manifest's claimed wallet as the address to fund. For the seed apps
- * that claim was a hand-written 40-hex string — nobody holds the key, so anyone
- * who funded it destroyed the money. The manifest is a client-side document and
- * cannot be an authority on a server-held key; only the server can be. So the
- * address on screen is the one that comes back from `/api/agency/register`,
- * which provisions if needed and reports either way, and `policy.wallet` is
- * treated as a claim to be checked rather than a value to be rendered.
- *
- * Same discipline as `useStreamMode` above: null while unknown, null on failure,
- * and the caller renders nothing rather than a guess. An unreachable server is
- * not evidence about an address.
- *
- * IT CARRIES TWO MORE BLOCKS NOW, AND BOTH WERE ARRIVING AND BEING DISCARDED.
- * The response has always been read as `Partial<SignerFacts>`, so a field this
- * type did not name was parsed and dropped on the floor:
- *
- *   `divergence` — the exact list of fields where the manifest this page is
- *   rendering and the manifest the server is RUNNING disagree. The registry is
- *   first-write-wins, so a re-register keeps the policy and the metric half of
- *   the data plan it was first given. That is the correct security rule and it
- *   has a cost: this server once held `aave-v3-arbitrum@v0.4.1` — a Substreams
- *   package that had not existed in the repo for several commits — while this
- *   page rendered the current one out of local state, and `Watch 3 blocks`
- *   failed with `Failed to parse URL from aave-v3-arbitrum@v0.4.1` with nothing
- *   anywhere saying the two sides disagreed. The server now answers with the
- *   disagreement. A non-empty `ignored` means *your copy is not what runs*, and
- *   this file's own header forbids letting a failure look like a quiet success.
- *
- *   `registry` — where the registration lives. It is an in-memory Map on one
- *   server process, so it does not survive a redeploy or a second serverless
- *   instance. See the disclosure line under the enforcement block for why that
- *   is on this page at all.
- *
- * Both are typed from `lib/agency/wallet.ts` rather than restated here, for the
- * same reason `EnforcementReport` is: if the server's answer grows a field, this
- * file should stop compiling rather than quietly render an older shape.
- */
-interface SignerFacts {
-  wallet: {
-    address: string;
-    kind: WalletKind;
-    chainId: number;
-    chainName: string;
-    sessionKeyAddress: string;
-    onchainEnforced: boolean;
-    permissionId?: string;
-    /** Optional: an older server does not send it, and unknown must not render
-     *  as either answer. See the banner below. */
-    keyScope?: "per-app" | "shared" | "ephemeral";
-  };
-  enforcement: EnforcementReport;
-  /*
-   * Optional, and not because the route is unreliable — it returns both on every
-   * branch, including the 422. Optional because the alternative is to synthesise
-   * `{ diverged: false, ignored: [] }` when a response arrives without them, and
-   * that is a *reading* — it says the server agrees with this page, which is the
-   * one thing an absent field cannot tell you. Missing means unknown, and unknown
-   * renders as nothing.
-   */
-  divergence?: PlanDivergence;
-  registry?: RegistryScope;
-}
-
-function useSigner(manifest: Manifest | null): SignerFacts | null {
-  const [state, setState] = useState<SignerFacts | null>(null);
-  // The app currently on screen, and the app we have already asked about. The
-  // manifest OBJECT changes identity every time `runApp` re-composes the body,
-  // and re-registering on each recompose would be pointless work against a
-  // first-write-wins route — so the request is keyed on the app's name, and the
-  // response is dropped if a different app arrived while it was in flight.
-  const wanted = useRef<string | null>(null);
-  const asked = useRef<string | null>(null);
-
-  useEffect(() => {
-    const appId = manifest?.name ?? null;
-    wanted.current = appId;
-    if (!manifest || !appId || asked.current === appId) return;
-    asked.current = appId;
-
-    void fetch("/api/agency/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ manifest }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: (Partial<SignerFacts> & { ok?: boolean }) | null) => {
-        if (wanted.current !== appId) return;
-        // A 422 (provisionWallet refusing mainnet, or an incompletely scoped
-        // session) arrives as ok:false with no wallet. That is a correct
-        // failure and it is NOT an address — stay silent.
-        if (!body?.ok || !body.wallet || !body.enforcement) return;
-        // `divergence` and `registry` ride along verbatim. They used to be
-        // dropped here — this callback only ever lifted `wallet` and
-        // `enforcement` out of the body — which is how a server running a
-        // different manifest than the one on screen stayed invisible while the
-        // sentence naming the difference sat unread in the response.
-        setState({
-          wallet: body.wallet,
-          enforcement: body.enforcement,
-          divergence: body.divergence,
-          registry: body.registry,
-        });
-      })
-      .catch(() => {
-        // Let the next mount try again. A dropped request is not a fact.
-        if (asked.current === appId) asked.current = null;
-      });
-  }, [manifest]);
-
-  return state;
-}
-
-/**
- * The 0G explorer base URL and the deployed contract addresses, asked of
- * `/api/publish`. Used only to turn a real Agentic ID into a link — an app with
- * no minted token gets no link and no href, because a token page for a token
- * that was never minted is a 404 dressed as provenance.
- */
-function useZeroGExplorer(): string | null {
-  const [base, setBase] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void fetch("/api/publish")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: { zeroG?: { explorer?: string | null } } | null) => {
-        if (!alive || !body?.zeroG?.explorer) return;
-        setBase(body.zeroG.explorer.replace(/\/+$/, ""));
-      })
-      .catch(() => {
-        // No explorer base means the token id renders as plain text. Correct.
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return base;
-}
 
 export function AppRuntime({ name }: { name: string }) {
   const board = useBoard();
@@ -1032,63 +859,6 @@ export function AppRuntime({ name }: { name: string }) {
   );
 }
 
-function KV({
-  k,
-  v,
-  mono,
-  accent,
-  href,
-  mark,
-}: {
-  k: string;
-  /*
-   * A node, not just a string. It was `string`, and that is why the Schemas row
-   * above was a `join(" · ")` — the only rendering the type allowed. A row whose
-   * value contains one part that is measured and one part that is a declaration
-   * with nothing behind it cannot be coloured as a single fact, and flattening it
-   * to one grey string is what let a dead family read like a live source. Callers
-   * that pass a plain string are unaffected.
-   */
-  v: React.ReactNode;
-  mono?: boolean;
-  accent?: "live" | "gain" | "loss" | "risk" | "spend";
-  /** Only pass this when the destination is known to exist. */
-  href?: string | null;
-  /**
-   * Whose infrastructure this row is about, marked beside the term rather than
-   * the value. The value column is right-aligned and truncates, so a logo in it
-   * would be the first thing cut; the term never truncates.
-   *
-   * Only pass it when the row holds a value, never when it reads "not minted"
-   * or "none" — a sponsor mark against an absence is the failure described in
-   * the header of `sponsor-mark.tsx`.
-   */
-  mark?: Sponsor;
-}) {
-  const fig = (
-    <Fig className={cn("text-[0.6875rem]", mono && "block truncate")} accent={accent}>
-      {v}
-    </Fig>
-  );
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-[var(--hairline)] py-1.5 first:border-t-0">
-      <dt className="mono flex shrink-0 items-center gap-1.5 text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
-        {mark ? <SponsorMark of={mark} size={12} /> : null}
-        {k}
-      </dt>
-      <dd className="min-w-0 text-right">
-        {href ? (
-          <a href={href} target="_blank" rel="noreferrer" className="underline decoration-dotted">
-            {fig}
-          </a>
-        ) : (
-          fig
-        )}
-      </dd>
-    </div>
-  );
-}
-
 /**
  * One constraint, and who enforces it. `onchain` is the strong claim and gets
  * the strong colour; `server` is coloured as a risk because it IS one — prd.md
@@ -1107,85 +877,3 @@ function EnforcementRow({ k, site }: { k: string; site: EnforcementSite }) {
   );
 }
 
-/** A one-line result of a round trip that actually happened. */
-function Receipt({ tone, text }: { tone: "live" | "risk" | "loss" | "wait"; text: string }) {
-  return (
-    <p
-      className="mono text-[0.6875rem] leading-snug"
-      style={{ color: tone === "wait" ? "var(--muted-ink)" : `var(--${tone})` }}
-    >
-      {text}
-    </p>
-  );
-}
-
-/**
- * What a run actually returned.
- *
- * `live: false` is the case this exists for. `lib/kit/gateway.ts` puts it
- * bluntly — a demo that can't tell you whether it is live is worse than one that
- * is not — so a fixture answer is labelled as a fixture answer in the same line
- * that reports the row count, not in a footnote somewhere else. And `ok: false`
- * never renders as a run: no rows, no cost, no elapsed time, just the error the
- * server gave.
- */
-function runReceipt(out: RunOutcome): { tone: "live" | "risk" | "loss"; text: string } {
-  if (!out.ok) {
-    return { tone: "loss", text: `run failed — ${out.error ?? "no reason given"} · nothing was re-queried` };
-  }
-  const facts =
-    `${out.rows} row${out.rows === 1 ? "" : "s"} · ${out.sourcesHealthy} of ${out.sourcesQueried} deployments answered` +
-    ` · $${out.costUsd.toFixed(4)} attributed · ${out.elapsedMs}ms`;
-  return out.live
-    ? { tone: "live", text: `live — ${facts}` }
-    : {
-        tone: "risk",
-        text: `FIXTURES — ${facts}. The gateway is not keyed, so no deployment was queried and these numbers describe bundled data.`,
-      };
-}
-
-/**
- * What a bounded Substreams run actually returned.
- *
- * Three failures, three different sentences, because they mean three different
- * things and collapsing them into "nothing happened" is the lie:
- *
- *   unavailable — no SUBSTREAMS_API_TOKEN. The capability is unconfigured and
- *                 nothing was ever attempted. A 409, not a fault.
- *   ok: false   — the subscription was attempted and the endpoint answered. At
- *                 the time of writing that answer is
- *                 `[resource_exhausted] Concurrent stream limit exceeded
- *                 (active sessions: 2/2)` — an account-wide free-tier cap
- *                 saturated by sessions outside this process. That is real,
- *                 informative, and must read as a real failure of a real call.
- *                 A seed app whose `data.stream.package` is a name rather than
- *                 an `.spkg` URL fails here too, at URL parse; the reason is
- *                 shown verbatim rather than smoothed into "stream error".
- *   ok: true    — blocks were consumed. Reported as a bounded run, never as a
- *                 standing subscription: `/api/stream` consumes N blocks and
- *                 returns, and the header of that route explains why an
- *                 unbounded one would be a lie in serverless.
- */
-function watchReceipt(out: WatchOutcome): { tone: "live" | "risk" | "loss"; text: string } {
-  if (out.unavailable) {
-    return {
-      tone: "risk",
-      text: `Substreams is not configured — ${out.error ?? "no token"}. No subscription was opened and no block was evaluated; triggers fall back to interval polling.`,
-    };
-  }
-  if (!out.ok) {
-    // "no blocks consumed", then the server's reason verbatim. The store already
-    // prefixes the route's own "Subscription failed" onto the detail, so adding a
-    // second "failed" of our own just buries the part that identifies the cause.
-    return {
-      tone: "loss",
-      text: `no blocks consumed — ${out.error ?? "no reason given"}`,
-    };
-  }
-  return {
-    tone: "live",
-    text:
-      `${out.blocks} block${out.blocks === 1 ? "" : "s"} consumed via ${out.mode} · ` +
-      `${out.fired} trigger${out.fired === 1 ? "" : "s"} fired. Bounded run — it has returned and is no longer subscribed.`,
-  };
-}

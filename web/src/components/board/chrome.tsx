@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import type { AgencyTier } from "@/lib/contracts/manifest";
 import { TIER_BLURB, TIER_LABEL } from "@/lib/seed";
 import { cn } from "@/lib/utils";
+import { SponsorMark, type Sponsor } from "@/components/brand/sponsor-mark";
 
 /** readonly 1.5px · monitor 2.5px · autonomous 5px. The signature. */
 export function panelClass(tier: AgencyTier, extra?: string): string {
@@ -124,7 +125,13 @@ export function SectionHead({
   // where this head is the page's leading heading rather than a section's.
   as: Heading = "h2",
 }: {
-  title: string;
+  /**
+   * A node, not a string, so a head that names a protocol can carry that
+   * protocol's mark inside the sentence — "Explore mini apps on ⬤ The Graph" —
+   * rather than parking a logo in the `right` slot where it reads as chrome.
+   * Callers passing a plain string are unaffected.
+   */
+  title: ReactNode;
   note?: string;
   right?: ReactNode;
   as?: "h1" | "h2";
@@ -176,4 +183,61 @@ export function Fig({
 
 export function HairRule() {
   return <div className="h-px w-full" style={{ background: "var(--hairline)" }} />;
+}
+
+export function KV({
+  k,
+  v,
+  mono,
+  accent,
+  href,
+  mark,
+}: {
+  k: string;
+  /*
+   * A node, not just a string. It was `string`, and that is why the Schemas row
+   * above was a `join(" · ")` — the only rendering the type allowed. A row whose
+   * value contains one part that is measured and one part that is a declaration
+   * with nothing behind it cannot be coloured as a single fact, and flattening it
+   * to one grey string is what let a dead family read like a live source. Callers
+   * that pass a plain string are unaffected.
+   */
+  v: React.ReactNode;
+  mono?: boolean;
+  accent?: "live" | "gain" | "loss" | "risk" | "spend";
+  /** Only pass this when the destination is known to exist. */
+  href?: string | null;
+  /**
+   * Whose infrastructure this row is about, marked beside the term rather than
+   * the value. The value column is right-aligned and truncates, so a logo in it
+   * would be the first thing cut; the term never truncates.
+   *
+   * Only pass it when the row holds a value, never when it reads "not minted"
+   * or "none" — a sponsor mark against an absence is the failure described in
+   * the header of `sponsor-mark.tsx`.
+   */
+  mark?: Sponsor;
+}) {
+  const fig = (
+    <Fig className={cn("text-[0.6875rem]", mono && "block truncate")} accent={accent}>
+      {v}
+    </Fig>
+  );
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-t border-[var(--hairline)] py-1.5 first:border-t-0">
+      <dt className="mono flex shrink-0 items-center gap-1.5 text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+        {mark ? <SponsorMark of={mark} size={12} /> : null}
+        {k}
+      </dt>
+      <dd className="min-w-0 text-right">
+        {href ? (
+          <a href={href} target="_blank" rel="noreferrer" className="underline decoration-dotted">
+            {fig}
+          </a>
+        ) : (
+          fig
+        )}
+      </dd>
+    </div>
+  );
 }
