@@ -29,6 +29,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft } from "lucide-react";
 import { AppRuntime } from "@/components/board/app-runtime";
+import { McpButton } from "@/components/board/mcp-button";
+import { ShareButton } from "@/components/board/share-button";
 import { PANEL_WIDTH } from "@/components/board/board-layout";
 import { cn } from "@/lib/utils";
 
@@ -267,17 +269,24 @@ export function AppDrawer({
             <p className="mono truncate text-[0.6875rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
               {shownName ?? "Mini app"}
             </p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="btn press grid h-8 w-8 shrink-0 place-items-center p-0"
-            >
-              {/* Points the way out: down for the sheet, back to the left edge
-                  for the panel. */}
-              <ChevronDown className="h-4 w-4 sm:hidden" aria-hidden />
-              <ChevronLeft className="hidden h-4 w-4 sm:block" aria-hidden />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Two ways to take this app with you: the URL a person opens,
+                  and the endpoint an agent connects to. Both sit beside close
+                  because they are window chrome, not app content. */}
+              <McpButton name={shownName} />
+              <ShareButton name={shownName} />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="btn press grid h-8 w-8 shrink-0 place-items-center p-0"
+              >
+                {/* Points the way out: down for the sheet, back to the left edge
+                    for the panel. */}
+                <ChevronDown className="h-4 w-4 sm:hidden" aria-hidden />
+                <ChevronLeft className="hidden h-4 w-4 sm:block" aria-hidden />
+              </button>
+            </div>
           </div>
         </header>
 
