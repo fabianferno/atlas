@@ -200,11 +200,11 @@ export function BoardGlobe({
 }: {
   open: boolean;
   /**
-   * px from the top of the page to put the globe's equator on — the wheel's
-   * center row, measured by the deck. The sphere's rim and the card arc then
-   * bulge from the same line, which is the only way the two read as one curve.
-   * Null before the deck has measured (and when it has no wheel to measure), and
-   * the globe falls back to the middle of the viewport.
+   * px from the top of the DECK SECTION to put the globe's equator on — the
+   * wheel's center row, measured by the deck. The sphere's rim and the card arc
+   * then bulge from the same line, which is the only way the two read as one
+   * curve. Null before the deck has measured (and when it has no wheel to
+   * measure), and the globe falls back to the middle of the viewport.
    */
   centerY: number | null;
 }): React.JSX.Element {
@@ -217,20 +217,22 @@ export function BoardGlobe({
   const [webgl, setWebgl] = useState(true);
 
   return (
-    // Full-bleed and full-HEIGHT: fixed to the viewport so the globe gets the
-    // whole 100vh to live in, not just the short card section — otherwise it's
-    // cropped top and bottom by a box smaller than itself. `w-screen` + the
-    // centering translate put its left edge on the viewport's left edge despite
-    // the Board's padded, max-width container; `-z-10` keeps it behind all the
-    // content (which paints over the paper), and it's clipped so the overhang
-    // leaves the screen instead of adding a scrollbar.
     <div
       aria-hidden
-      className="pointer-events-none fixed left-1/2 top-0 -z-10 hidden h-screen w-screen -translate-x-1/2 items-center overflow-hidden lg:flex"
-      // The layer centers the globe on the viewport; this lifts it to the deck's
-      // center row instead. Safe alongside the `-translate-x-1/2` above, which
-      // Tailwind v4 writes to the `translate` property — a different property
-      // that composes with this one rather than overwriting it.
+      // ABSOLUTE, not fixed. Fixed gave the globe a full 100vh to live in, but
+      // it also pinned it to the viewport while `centerY` — measured by the deck
+      // — was a page coordinate, so the alignment this whole prop exists for was
+      // only ever correct at scroll 0. Absolute inside the deck section puts
+      // both in the same coordinate space, and has the effect the landing wants
+      // anyway: the globe belongs to the hero and leaves with it rather than
+      // following the reader down through the copy. `h-screen` is kept so the
+      // sphere still gets a tall box and is not cropped by the shorter card
+      // section; the section clips the overhang with `overflow-x-clip`.
+      className="pointer-events-none absolute left-1/2 top-0 -z-10 hidden h-screen w-screen -translate-x-1/2 items-center overflow-hidden lg:flex"
+      // Centers the globe in its own h-screen box, then lifts it to the deck's
+      // center row. Safe alongside the `-translate-x-1/2` above, which Tailwind
+      // v4 writes to the `translate` property — a different property that
+      // composes with this one rather than overwriting it.
       style={centerY === null ? undefined : { transform: `translateY(calc(${centerY}px - 50vh))` }}
     >
       <div

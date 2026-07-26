@@ -99,12 +99,20 @@ export function AppDeck() {
   // rather than viewport ones, because the globe is fixed and this is measured
   // whenever the layout changes, not on every scroll.
   const wheelRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const [wheelCenterY, setWheelCenterY] = useState<number | null>(null);
   const measureWheel = useCallback(() => {
     const el = wheelRef.current;
-    if (!el) return;
+    const section = sectionRef.current;
+    if (!el || !section) return;
+    // Relative to the SECTION, not the page. The globe layer used to be fixed to
+    // the viewport while this number was a page coordinate — two coordinate
+    // systems that only agree at scrollY 0, so the equator drifted off the card
+    // arc the moment anyone scrolled. It was invisible while there was nowhere
+    // to scroll to. Both are now in the section's box and agree everywhere.
     const r = el.getBoundingClientRect();
-    setWheelCenterY(r.top + window.scrollY + r.height / 2);
+    const s = section.getBoundingClientRect();
+    setWheelCenterY(r.top - s.top + r.height / 2);
   }, []);
   useEffect(() => {
     measureWheel();
@@ -141,7 +149,7 @@ export function AppDeck() {
   );
 
   return (
-    <section className="relative">
+    <section ref={sectionRef} className="relative overflow-x-clip">
       {/*
         The Board is a split: a full-bleed globe holds the left (painted behind,
         anchored to the viewport edge), the mini-app wheel beside it. The grid's
