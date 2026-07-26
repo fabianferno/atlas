@@ -66,7 +66,15 @@
    "name": "durable-market-guard.atlas-apps.eth",
    "node": "0x6b61071809b055a6dac080f3dbceaa44bc9bce827a497eff5e81ce37c8ec2f5a",
    "tx": "0x753dc9f60284ebd8845e17ba5ffc2bfcfb45e2e8b776a8299e1ec673aa5b97c7",
-   "note": "NOT re-published, and therefore still one-sided. Its manifest fetches, so it was outside the 2026-07-26 re-publish, which covered only the three names whose bytes were lost. But its Agentic ID (token 8) is registered as durable-market-guard.graphminis.eth, so registryAssertsName and tokenAssertsName are both false and mutuallyVerified reads false. Confirmed by GET /api/resolve/durable-market-guard. Consequence: it does not appear on the Registry page's Published names strip, which enumerates MiniAppRegistry under the current parent. That is correct — it is not registered under this parent — but it is a name in the same condition the three re-published names were in, and re-publishing it would close it the same way."
+   "republished": {
+    "on": "2026-07-26",
+    "tokenId": 18,
+    "manifestCid": "bafkreibzpd2vz74m5mfanvojlwpxbwa375cr3qulausap5mn7amuoqsote",
+    "ensTx": "0xcc78a0c7b147d10b866a4b8f5bd7c4b947a47e4a74db3ca57d045d903b406f26",
+    "mintTx": "0xbc50ccc57d7e262f841aee6076891fa25f2b373b3f1ce77a205d4de2b8c93850",
+    "registryTx": "0x8e74012315b2887fa0d8a0a97a8110182acf742480e550d53b0eaf4d5320d8ea",
+    "note": "Different reason from the other three: its manifest never stopped fetching. What was broken was the binding — its old token (8) is registered as durable-market-guard.graphminis.eth, so registryAssertsName and tokenAssertsName were both false and it was absent from the enumerated strip. Re-published last, after NEXT_PUBLIC_APP_URL was set to the deployed origin, so it is the only name whose records named the live origin from the moment they were written: its publish reported 'No warnings: every path ran live'. Old token 8 joins 5, 6 and 7 as orphaned."
+   }
   },
   {
    "name": "atlas-market-guard.atlas-apps.eth",
@@ -96,7 +104,7 @@
    "name": "task3-verify-app.atlas-apps.eth",
    "node": null,
    "tx": null,
-   "note": "JUNK, recorded rather than hidden. Agentic ID token 16. Published 2026-07-26 by a verification run while implementing the Published names strip \u2014 an agent needed a name to check the page against and published a real one. It is fully valid state under this parent, so the strip enumerates it and it appears on the Registry page beside the real apps. Nothing is wrong with the record; what is wrong is that a throwaway name now exists onchain and cannot be unpublished, because the token\u2192name binding is immutable. Left here so the next reader knows what it is rather than assuming it is a demo app."
+   "note": "JUNK, AND HALF-LANDED. Agentic ID token 16, minted 2026-07-26 by a verification run while implementing the Published names strip \u2014 an agent needed a name to check the page against and published a real one. It is the INVERSE of aave-guard-fork: the MiniAppRegistry entry and the token exist, but the ENS subname was never issued, so GET /api/resolve/task3-verify-app returns 404 and scripts/ens-reorigin.ts reports 'does not resolve \u2014 never issued, or the resolver is unset'. Consequence: the Published names strip enumerates the registry, so this name IS listed, and its row renders as 'did not resolve' in --loss. That is the strip being honest, not a bug in it \u2014 but it means the Registry page carries one permanently failing row until either the subname is issued or the registry entry is somehow retired. The token\u2192name binding is immutable, so the entry cannot be removed."
   }
  ],
  "verifiedSubname": {
@@ -123,8 +131,22 @@
  },
  "orphanedTokens": {
   "note": "Agentic ID tokens that are still minted and still owned, but which no live ENS name asserts any more. Tokens 5, 6 and 7 were bound to aave-health-guard, wallet-bound-guard and attested-market-guard under the OLD parent (*.graphminis.eth). When those three names were re-published on 2026-07-26 they had to take new tokens, because MiniAppRegistry.register reverts TokenAlreadyBound and AgenticId._bindEnsName reverts EnsNameAlreadyBound \u2014 a binding you can silently move is not a binding. So the old tokens are not revoked and not reused; they simply no longer correspond to anything resolvable. Their MiniAppRegistry entries are three of the six that GET /api/registry/published reports as `retired`.",
-  "tokenIds": [5, 6, 7],
-  "supersededBy": { "5": 17, "6": 15, "7": 14 }
+  "tokenIds": [5, 6, 7, 8],
+  "supersededBy": { "5": 17, "6": 15, "7": 14, "8": 18 }
+ },
+ "origin": {
+  "note": "Every name under this parent was issued while the app ran on http://localhost:3000, so `url`, `agent-endpoint[web]`, `agent-endpoint[mcp]` and the `run:` block inside `agent-context` all named a machine nobody else can reach. An ENS name that resolves to localhost is a claim, not a demo. Rewritten 2026-07-26 by scripts/ens-reorigin.ts, which substitutes the origin in the CURRENT records and writes those back — `addr`, `contenthash` and `agent-registration` are untouched byte for byte, so no token was re-minted and no CID changed. 7 rewritten, 1 skipped (atlas-market-guard was already correct), 0 failed. task3-verify-app was skipped because it does not resolve.",
+  "value": "https://atlas-mini-apps.vercel.app",
+  "rewriteTxs": {
+   "rebalance-arbitrum-dex": "0xfb8ec3bca34ce42831907f034bb96548598a31313328f774926c9fa3298110d1",
+   "lineage-fallback-probe": "0x431efd660fbe120e5b47597ae97c2c5fb8bfb3b3625afcd7bb7ef3e7b1af0f48",
+   "attested-market-guard": "0x3f06b3ac1d3cba2cd6eb1c183621710f079ac7573986e160dd414259db1b9199",
+   "wallet-bound-guard": "0xb6cf5420270df79277c257e1c5ec4585de8f658d8dcfc88978e52bda695b35f5",
+   "aave-health-guard": "0x7bc71aa579bd82303df4bad2436580547db723a949a6379b8904789137027d52",
+   "durable-market-guard": "0x5ac8d99b49626abd1341fe419e4f0dfd744d66f05e0b8cc06f0d41632eb5d935",
+   "aave-guard-fork": "0x4d663be635d022e3047f866522da09e9618624a41aaf7e777fe8497eca3e1c6e"
+  },
+  "outstanding": "The records now name https://atlas-mini-apps.vercel.app, but as of this writing that deployment is running OLDER code: GET /api/registry/published returns the app shell rather than JSON, so the enumeration route the Registry page depends on does not exist there. The names point somewhere real that cannot yet serve them. Redeploy, and set NEXT_PUBLIC_APP_URL in the Vercel project environment, before treating any of these records as demo-ready."
  },
  "registryGap": {
   "note": "Names whose ENS records and Agentic ID are live but which MiniAppRegistry does not assert under this parent, so mutuallyVerified reads false and the Published names strip does not show them. Checked 2026-07-26 by reading get(nameKey) off 0G Galileo and by GET /api/resolve/<label>. aave-guard-fork: registerFork reverted ParentUnknown and the revert was swallowed — cause and fix in its note above; left as-is because it is the evidence. durable-market-guard: never re-published, so its token still names the old parent; its manifest fetches, which is why it was outside the re-publish that covered the three names whose bytes were lost.",
