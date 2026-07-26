@@ -51,24 +51,15 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TIER_BLURB, SEED_EPOCH } from "@/lib/seed";
+import { SEED_EPOCH } from "@/lib/seed";
 import { HOST_PROVIDED } from "@/lib/app-view";
-import { isConditionEvaluable } from "@/lib/agency/condition";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
-// Type-only, so nothing from the signing stack reaches the client bundle. The
-// point of importing it rather than restating the shape is that if the server's
-// report grows a constraint, this file stops compiling instead of quietly
-// rendering six of seven.
-import type { EnforcementSite } from "@/lib/agency/wallet";
 import {
   dispatchAction,
   fmtDate,
-  fmtNum,
-  fmtUsd,
   haltRemote,
   isArmed,
   runApp,
-  shortHash,
   watchBlocks,
   useApp,
   useBoard,
@@ -77,19 +68,23 @@ import {
 } from "@/lib/store";
 import { AppBody } from "@/components/board/app-body";
 import { AppPublishPanel } from "@/components/board/publish-panel";
+import { AppPolicyStrip } from "@/components/board/app-policy-strip";
 import { TradeLog } from "@/components/board/ledger";
-import { ArmedLamp, KV, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
-import { SponsorMark, type Sponsor } from "@/components/brand/sponsor-mark";
-import { useSigner, useStreamMode, useZeroGExplorer, type SignerFacts } from "@/components/board/app-facts";
+import { ArmedLamp, LiveDot, TierTag, panelClass } from "@/components/board/chrome";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
+import { useSigner, useStreamMode, useZeroGExplorer } from "@/components/board/app-facts";
 import { Receipt, runReceipt, watchReceipt } from "@/components/board/app-receipts";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
+import { DataPlanPanel } from "@/components/board/panels/data-plan";
+import { PermissionsPanel } from "@/components/board/panels/permissions";
+import { ProvenancePanel } from "@/components/board/panels/provenance";
+import { UsagePanel } from "@/components/board/panels/usage";
 // One rule for "this family has nothing live behind it", shared with the
 // registry's schema select — the control prd.md §14 #7 cites — rather than
 // re-derived here. A second copy of that test would drift, and the direction it
 // drifts is always towards claiming more. See `lib/schema-coverage.ts`.
-import { NO_LIVE_SOURCE, familiesWithNoLiveSource } from "@/lib/schema-coverage";
-import { cn } from "@/lib/utils";
+import { familiesWithNoLiveSource } from "@/lib/schema-coverage";
 
 export function AppRuntime({ name }: { name: string }) {
   const board = useBoard();
@@ -173,18 +168,6 @@ export function AppRuntime({ name }: { name: string }) {
   // Read-only apps have no triggers to evaluate, so they get no control.
   const watchable = autonomous || tier === "monitor";
 
-  /**
-   * The manifest asserted a wallet and the server named a different one. Only
-   * `/api/publish` is supposed to write that field, so a mismatch means the
-   * document on screen is stale or was written by hand — and it is precisely the
-   * case where funding the address in the manifest loses the money. Say which is
-   * which rather than silently preferring one.
-   */
-  const walletClaimConflict =
-    signer && policy.wallet && policy.wallet.toLowerCase() !== signer.wallet.address.toLowerCase()
-      ? policy.wallet
-      : null;
-
   async function onRun() {
     setRunning(true);
     // Clear the previous receipt first: leaving the last run's row numbers on
@@ -217,64 +200,7 @@ export function AppRuntime({ name }: { name: string }) {
     // how much room *this* element actually has.
     <main className="@container mx-auto w-full max-w-[1400px] flex-1 px-3 pt-4 pb-24 sm:px-5 sm:pt-6">
       <div className={panelClass(tier)}>
-        {autonomous ? (
-          <div className="policy-strip">
-            <span title="Enforced at the signer, not suggested to the model.">policy</span>
-            {/* The signer, from the server. Nothing here falls back to
-                `policy.wallet` — a manifest cannot know a server-held key, and
-                an address that is only a claim is worse than no address at all.
-                Silent until the round trip answers. */}
-            {signer ? (
-              <>
-                <span className="fig normal-case" title={`${signer.wallet.address} — signs on ${signer.wallet.chainName}`}>
-                  {shortHash(signer.wallet.address, 8, 6)}
-                </span>
-                <span className="opacity-50">·</span>
-                <span
-                  style={{ color: signer.enforcement.verifiedOnchain ? "var(--gain)" : "var(--risk)" }}
-                  title={
-                    signer.enforcement.verifiedOnchain
-                      ? "isSessionEnabled() returned true — the account itself rejects an out-of-scope call"
-                      : "Every limit below is enforced by this server. A rejection means our server chose not to sign."
-                  }
-                >
-                  {signer.enforcement.verifiedOnchain ? "onchain-enforced" : "server-enforced"}
-                </span>
-                <span className="opacity-50">·</span>
-              </>
-            ) : null}
-            <span>cap {fmtUsd(policy.maxSpendUsd)}</span>
-            <span className="opacity-50">·</span>
-            <span>per tx {fmtUsd(policy.maxPerTxUsd)}</span>
-            <span className="opacity-50">·</span>
-            <span>{policy.allowlist.length} allowlisted</span>
-            <span className="opacity-50">·</span>
-            <span>expires {policy.expiresAt ? fmtDate(policy.expiresAt) : "never"}</span>
-            <span className="ml-auto flex items-center gap-2">
-              {/* Through `isArmed`, not `!policy.halted`. Those diverge: a fork
-                  arrives with `running: false`, so the strip read "armed" on an app
-                  that was not, while the header lamp a few lines down correctly
-                  showed nothing. One file cannot answer the same question two ways. */}
-              {policy.halted ? (
-                <span style={{ color: "var(--loss)" }}>halted</span>
-              ) : isArmed(app) ? (
-                <span style={{ color: "var(--gain)" }}>armed</span>
-              ) : (
-                <span style={{ color: "var(--muted-ink)" }}>not armed</span>
-              )}
-              <button
-                type="button"
-                onClick={() => void haltRemote(m, !policy.halted)}
-                className={cn(
-                  "btn press px-2.5 py-0.5 text-[0.625rem] uppercase tracking-[0.08em]",
-                  !policy.halted && "btn--danger",
-                )}
-              >
-                {policy.halted ? "Release" : "Kill switch"}
-              </button>
-            </span>
-          </div>
-        ) : null}
+        {autonomous ? <AppPolicyStrip app={app} signer={signer} /> : null}
 
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline p-3 shadow-[inset_0_-1px_0_var(--bevel-hi)] sm:p-4">
           <div className="min-w-0">
@@ -421,339 +347,10 @@ export function AppRuntime({ name }: { name: string }) {
               answering in words. */}
           <AppPublishPanel app={app} />
 
-          <section className="panel p-3">
-            {/* Health is a reading with a timestamp, not a property. These
-                counts came from the last fan-out, which may be days old — a
-                subgraph that died this morning still shows live until Run
-                re-probes it. Dating the count is the difference between a
-                measurement and a claim. */}
-            {/* Every row under this head is about The Graph — the schemas are
-                its standardized families, the sources are deployment ids on its
-                network, and the stream is a Substreams package. One mark on the
-                head says that once, instead of once per row. */}
-            <SectionHead
-              title="Data plan"
-              note={`${app.stats.sourcesHealthy} of ${app.stats.sourcesQueried} deployments live · probed ${fmtDate(app.lastRunAt)}`}
-              right={<SponsorMark of="graph" size={14} />}
-            />
-            {/*
-              THE SERVER MAY NOT BE RUNNING THIS MANIFEST, and until now nothing
-              said so. `/api/agency/register` is first-write-wins for the policy
-              and for the metric half of the data plan — correct, since a
-              re-registration that could replace `sources` could change the number
-              a trigger compares and so raise what an app spends — but the
-              consequence is that the rows directly below this line can describe a
-              plan the server discarded. That is exactly how `aave-guard` came to
-              stream `aave-v3-arbitrum@v0.4.1`, a package removed from the repo
-              commits earlier: the page rendered the current one, the server held
-              the old one, and the only symptom was a 502 from `Watch 3 blocks`.
-
-              Rendered from `divergence.ignored`, not `divergence.diverged` — a
-              REFRESHED field is now in agreement and there is nothing to warn
-              about; only a refused one means the reader is looking at something
-              that is not what runs. `--loss` and the same placement idiom as
-              `walletClaimConflict` below, which is the same shape of problem: the
-              manifest says one thing, the server does another, and the server wins.
-
-              `summary` verbatim. It names its own fields and its own reason, and
-              paraphrasing a server's account of what it refused is how a UI ends
-              up describing a policy refusal as a data refresh.
-
-              KNOWN GAP, stated rather than papered over: `useSigner` only fires
-              for the autonomous tier — a read-only app has no wallet to ask about
-              — so a monitor or read-only app with a stale server registration
-              gets no banner here. The server would still answer with the
-              divergence; nothing asks it. Closing that means registering every
-              tier, which provisions signers for apps that will never sign, so it
-              is a deliberate hole and not an oversight. The tier that can SPEND on
-              a stale plan is the one covered.
-            */}
-            {signer?.divergence && signer.divergence.ignored.length > 0 ? (
-              <p className="mt-2 text-[0.6875rem] leading-snug text-loss">
-                {signer.divergence.summary}
-              </p>
-            ) : null}
-
-            <dl className="cells mt-2">
-              {/*
-                DECLARED, NOT RESOLVED. This row was `m.data.schemas.join(" · ")`
-                — a bare list, which reads as "these are my data sources". It is
-                not: `data.schemas` is what the app ASKED for and `data.sources`,
-                three rows down, is what the health check ANSWERED. For
-                `dex-aggregator@1.0.2` and `network@1.2.0` the answer is nothing at
-                all — prd.md §13 checked 86 deployment ids and found neither family
-                deployed on any network — so the Sources list below correctly said
-                "dead, skipped" while the line above it presented the family
-                unqualified. Two panels, one contradiction, and §13's rule is that
-                the qualification goes where the claim is.
-
-                The declaration itself stays and must: it is the honest record of
-                the request, the resolver's explicit placeholder is what makes the
-                skip visible, and the registry derives its filter label from these
-                same declarations.
-              */}
-              <KV
-                k="Schemas"
-                v={
-                  <span className="inline-flex flex-wrap justify-end gap-x-1.5">
-                    {m.data.schemas.map((f, i) => (
-                      <span key={f}>
-                        {i > 0 ? <span className="text-[var(--muted-ink)]">· </span> : null}
-                        {f}
-                        {noLiveSource.has(f) ? (
-                          <span className="text-loss"> — {NO_LIVE_SOURCE}</span>
-                        ) : null}
-                      </span>
-                    ))}
-                  </span>
-                }
-              />
-              <KV k="Networks" v={m.data.networks.join(" · ")} />
-              {/* The manifest DECLARES a transport; it does not prove one was
-                  used. `X402_PRIVATE_KEY` is unset in this build (prd.md §14 row
-                  6 — x402 is coded and unexercised), and the measured cost of a
-                  run comes back at the gateway's blended plan rate rather than
-                  x402's $0.01 a query, which is how you can tell. So this row
-                  says "declared" and stops there. It used to read "the app's own
-                  wallet pays per query", which describes a payment that has never
-                  happened. */}
-              <KV
-                k="Transport"
-                v={
-                  m.data.transport === "x402"
-                    ? "x402 declared — no x402 key in this build, so queries went over the gateway plan"
-                    : m.data.transport
-                }
-                accent={m.data.transport === "x402" ? "risk" : undefined}
-              />
-              <KV
-                k="Stream"
-                v={m.data.stream ? `${m.data.stream.package} · ${m.data.stream.module}` : "none — evaluated on open"}
-              />
-              {/* Latency is the point of Substreams, so name the mechanism, not
-                  the aspiration — and not in the present tense either.
-                  `GET /api/stream` reporting `substreams` means a token is
-                  configured and per-block evaluation is POSSIBLE. It does not
-                  mean anything is subscribed: the only thing that opens a
-                  subscription is the bounded Watch above, and it closes again
-                  when it returns. Hence `--gain` (configured, same idiom as the
-                  armed lamp) rather than `--live`, which §6 Rule 2 now reserves
-                  for a run that is actually open. */}
-              <KV
-                k="Evaluated"
-                v={
-                  stream === null
-                    ? "checking…"
-                    : stream.mode === "substreams"
-                      ? "per block while a watch is open — token configured, nothing subscribed between runs"
-                      : "on an interval — no Substreams token, so polling"
-                }
-                accent={stream?.mode === "substreams" ? "gain" : stream ? "risk" : undefined}
-              />
-              {/* Attributed, not settled. `costOf()` in `lib/kit/gateway.ts`
-                  assigns a blended $0.0001 per gateway query because gateway
-                  usage is billed out of a plan, not per call — so this is what a
-                  run cost by attribution, and no invoice anywhere carries it. */}
-              <KV k="Cost per run" v={`$${app.stats.costPerRunUsd.toFixed(4)} attributed`} />
-            </dl>
-
-            <div className="mt-3 border-t border-[var(--hairline)] pt-2">
-              <Label>Sources</Label>
-              <ul className="mt-1.5 space-y-1">
-                {m.data.sources.map((s) => (
-                  <li key={s.subgraphId} className="flex items-baseline gap-2">
-                    <span
-                      className="mt-[3px] h-2 w-2 shrink-0 rounded-full shadow-[inset_0_-1px_1px_rgba(0,0,0,0.25)]"
-                      style={{ background: s.healthy ? "var(--gain)" : "var(--loss)" }}
-                      aria-hidden
-                    />
-                    <span className="mono min-w-0 flex-1 truncate text-[0.6875rem]">{s.label ?? s.subgraphId}</span>
-                    <span className="mono shrink-0 text-[0.625rem] text-[var(--muted-ink)]">{s.schema}</span>
-                    <span
-                      className="mono shrink-0 text-[0.5625rem] uppercase"
-                      style={{ color: s.healthy ? "var(--gain)" : "var(--loss)" }}
-                    >
-                      {s.healthy ? "live" : "dead, skipped"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
+          <DataPlanPanel app={app} signer={signer} stream={stream} noLiveSource={noLiveSource} />
 
           {autonomous ? (
-            <section className="panel panel--autonomous p-3">
-              <SectionHead title="What it is allowed to do" note={TIER_BLURB[tier]} />
-              <dl className="cells mt-2">
-                {/* The signer, or nothing. `policy.wallet` is not a fallback
-                    here and must never become one: it is a client-side claim
-                    about a server-held key, and the address a reader funds has
-                    to be the address that signs. */}
-                {signer ? (
-                  <KV k="Signer" v={signer.wallet.address} mono />
-                ) : (
-                  <KV k="Signer" v="asking the server…" />
-                )}
-                {signer ? (
-                  <KV k="Signs on" v={`${signer.wallet.chainName} · ${signer.wallet.kind}`} />
-                ) : null}
-                <KV k="Lifetime cap" v={fmtUsd(policy.maxSpendUsd)} />
-                <KV k="Per transaction" v={fmtUsd(policy.maxPerTxUsd)} />
-                {/* Real, and the only figure in this panel that is a
-                    measurement: `dispatchAction` folds the server's own
-                    `totalSpentUsd(appId)` — the same number the lifetime cap is
-                    metered against — into `stats.spentUsd`. */}
-                <KV k="Spent" v={fmtUsd(app.stats.spentUsd)} accent={app.stats.spentUsd > 0 ? "spend" : undefined} />
-                <KV k="Expires" v={policy.expiresAt ? fmtDate(policy.expiresAt) : "never"} />
-                <KV k="Requires confirm" v={policy.requireConfirm ? "yes" : "no — trigger signs directly"} />
-              </dl>
-
-              {/* WHICH KEY SIGNS — reported, not asserted.
-                  This used to be one unconditional paragraph reading "This key
-                  is shared", which was true when it was written and would have
-                  quietly become a lie the moment isolation landed. The server
-                  now answers per app (`keyScope`, from `sessionKeyScope()` in
-                  `lib/agency/wallet.ts`) and this renders that answer. §8's case
-                  for the ENS name as a safety primitive is that you verify a
-                  funded address before funding it, so "is this address this
-                  app's alone" is the one question this block exists to answer —
-                  and an absent field means unknown, which renders as nothing
-                  rather than as either answer. */}
-              {signer?.wallet.keyScope === "shared" ? (
-                <p className="mt-2 text-[0.6875rem] leading-snug" style={{ color: "var(--risk)" }}>
-                  This key is shared. One process-wide session key signs for every mini app here, so
-                  funding this address funds all of them and revoking it revokes all of them. Set
-                  AGENT_SESSION_MASTER_SEED to give each app its own.
-                </p>
-              ) : null}
-              {signer?.wallet.keyScope === "ephemeral" ? (
-                <p className="mt-2 text-[0.6875rem] leading-snug" style={{ color: "var(--risk)" }}>
-                  This key is this app&rsquo;s alone, and it is ephemeral — generated in memory with
-                  no seed configured, so a restart replaces it and nothing funded here survives. Set
-                  AGENT_SESSION_MASTER_SEED to make it durable.
-                </p>
-              ) : null}
-              {signer?.wallet.keyScope === "per-app" ? (
-                <p className="mono mt-2 text-[0.625rem] leading-snug text-[var(--muted-ink)]">
-                  This address is this app&rsquo;s alone — derived per app from the server&rsquo;s
-                  master seed, so funding it funds only {app.manifest.name}. The seed still holds
-                  every app&rsquo;s key: this is isolation between apps, not custody.
-                </p>
-              ) : null}
-
-              {walletClaimConflict ? (
-                <p className="mono mt-2 text-[0.625rem] leading-snug" style={{ color: "var(--loss)" }}>
-                  This manifest claims {shortHash(walletClaimConflict, 10, 6)} as its wallet. The
-                  server signs with the address above. Fund the address above.
-                </p>
-              ) : null}
-
-              {/* PROBLEM 2's home. prd.md §7 is explicit that enforcement is not
-                  uniform and that the UI reports it per constraint — and that
-                  `onchainEnforced` is the return value of an `isSessionEnabled()`
-                  call against the live validator, not a constant, precisely so
-                  this cannot overstate by accident. It was being computed on
-                  every `/api/act` and thrown away. */}
-              {signer ? (
-                <div className="mt-3 border-t border-[var(--hairline)] pt-2">
-                  <Label>
-                    Enforced by — chain or this server
-                    {signer.enforcement.verifiedOnchain
-                      ? " · verified by isSessionEnabled()"
-                      : " · nothing verified onchain"}
-                  </Label>
-                  <dl className="cells mt-1.5">
-                    <EnforcementRow k="Allowlist" site={signer.enforcement.allowlist} />
-                    <EnforcementRow k="Expiry" site={signer.enforcement.expiry} />
-                    <EnforcementRow k="Per-tx cap" site={signer.enforcement.perTxCap} />
-                    <EnforcementRow k="Lifetime cap" site={signer.enforcement.lifetimeCap} />
-                    <EnforcementRow k="Requires confirm" site={signer.enforcement.confirmation} />
-                    <EnforcementRow k="Kill switch" site={signer.enforcement.killSwitch} />
-                  </dl>
-                  {/* The server's own words, not a paraphrase. These notes are
-                      where the mode's real limits live — including "a compromised
-                      backend could exceed these limits", which is the sentence a
-                      judge should hear from the product rather than from us. */}
-                  <ul className="mt-2 space-y-1">
-                    {signer.enforcement.notes.map((note, i) => (
-                      <li key={i} className="text-[0.6875rem] leading-snug text-[var(--muted-ink)]">
-                        {note}
-                      </li>
-                    ))}
-                  </ul>
-                  {/*
-                    WHERE THAT ENFORCEMENT LIVES — one line, and deliberately one.
-                    Every limit listed above is held in an in-memory Map on
-                    `globalThis` in a single server process (`registryScope()` in
-                    `lib/agency/wallet.ts`). On the deployed build a register call
-                    and the `/api/act` or `/api/stream` call after it can land on
-                    different serverless instances, and the second has never seen
-                    this app. It belongs on this page because this panel is the
-                    product's strongest safety claim and a reader is entitled to
-                    know it is not durable; it stays to one mono line because the
-                    per-constraint block above is the more important disclosure and
-                    a paragraph here would outweigh it.
-
-                    The recovery clause is not aspirational: `dispatchAction` and
-                    `watchBlocks` in `store.ts` both re-POST the manifest on a 404
-                    and retry once. Nothing here claims the state survives — it
-                    does not, and `durable: false` on the wire says so.
-                  */}
-                  {signer.registry ? (
-                    <p className="mono mt-2 text-[0.625rem] leading-snug text-[var(--muted-ink)]">
-                      held in one server process · instance {signer.registry.instanceId} ·{" "}
-                      {fmtNum(signer.registry.registeredApps)} app(s) — not durable: a redeploy or a
-                      second serverless instance loses this registration, and the board re-posts the
-                      manifest and retries once when that happens
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="mt-2">
-                <Label>Allowlist — anything not here is rejected</Label>
-                <ul className="mono mt-1 space-y-0.5 text-[0.625rem]">
-                  {policy.allowlist.map((a) => (
-                    <li key={a} className="truncate">
-                      {a}
-                    </li>
-                  ))}
-                  {policy.allowlist.length === 0 ? <li>empty — no actions, no exceptions</li> : null}
-                </ul>
-              </div>
-              <div className="mt-3 border-t border-[var(--hairline)] pt-2">
-                <Label>Triggers</Label>
-                {/* A trigger whose condition the evaluator cannot parse fails
-                    closed — correct, and silently inert. `draftFromIntent` emits
-                    prose like "threshold breached" when it cannot derive a real
-                    comparison from a sentence, so a drafted autonomous app listed a
-                    trigger here that could never fire, and a listed trigger reads
-                    as armed. `isConditionEvaluable` is the same grammar the
-                    evaluator uses (`lib/agency/condition.ts`), not a second copy,
-                    so this line cannot disagree with what happens on a block. */}
-                <ul className="mono mt-1 space-y-0.5 text-[0.6875rem]">
-                  {m.agency.triggers.map((t, i) => {
-                    const inert = !isConditionEvaluable(t.when);
-                    return (
-                      <li key={i}>
-                        on {t.on}
-                        {t.when ? ` when ${t.when}` : ""} → {t.run}
-                        {inert ? (
-                          <span className="block" style={{ color: "var(--risk)" }}>
-                            condition is not machine-readable — this trigger fails closed and
-                            cannot fire until it is rewritten as a comparison
-                          </span>
-                        ) : t.when === null || t.when.trim() === "" ? (
-                          <span className="block text-[var(--muted-ink)]">
-                            no condition — fires on every signal
-                          </span>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                  {m.agency.triggers.length === 0 ? <li>none</li> : null}
-                </ul>
-              </div>
-            </section>
+            <PermissionsPanel app={app} signer={signer} />
           ) : null}
 
           <Ratings appName={m.name} />
@@ -762,118 +359,14 @@ export function AppRuntime({ name }: { name: string }) {
         <aside className="min-w-0 space-y-4">
           {autonomous || tier === "monitor" ? <TradeLog appName={m.name} /> : null}
 
-          <section className="panel p-3">
-            <SectionHead title="Provenance" />
-            <dl className="cells mt-2">
-              <KV k="Author" v={m.author ?? "unclaimed"} mono />
-              <KV k="Model" v={m.provenance.model} mono />
-              {/* `compute` is one of three: `0g-private-computer`, `openai`,
-                  `local`. Only the first ran on 0G, and only it gets the mark —
-                  the other two are the honest record that this manifest was
-                  planned somewhere else. */}
-              <KV
-                k="Compute"
-                v={m.provenance.compute}
-                mono
-                mark={m.provenance.compute === "0g-private-computer" ? "zerog" : undefined}
-              />
-              <KV k="Attestation" v={m.provenance.attestationRef ?? "none"} mono />
-              {/* `manifestCid` and `agenticId` are null on every bundled app,
-                  and null is what reaches these strings — "not pinned" and "not
-                  minted" are the truth for an app that was never published
-                  through `/api/publish`. Nothing here manufactures a CID or a
-                  token id to fill the row. */}
-              <KV k="Manifest" v={m.identity.manifestCid ?? "not pinned"} mono />
-              {/* A minted token gets a link to the 0G explorer, so the claim is
-                  checkable without trusting this page. The base URL and the
-                  contract both come from `/api/publish` and the manifest — never
-                  hardcoded — and no link is rendered without both, because a
-                  token page for a token that was never minted is a 404 dressed
-                  up as provenance. */}
-              <KV
-                k="Agentic ID"
-                v={
-                  m.identity.agenticId
-                    ? `#${m.identity.agenticId.tokenId} on 0G Chain`
-                    : "not minted"
-                }
-                href={
-                  m.identity.agenticId && explorerBase
-                    ? `${explorerBase}/token/${m.identity.agenticId.contract}?a=${m.identity.agenticId.tokenId}`
-                    : null
-                }
-                mono
-                /* Same rule as the link: no token, no mark. "not minted" with a
-                   0G logo beside it reads as a 0G registration. */
-                mark={m.identity.agenticId ? "zerog" : undefined}
-              />
-              <KV k="Forked from" v={m.forkedFrom ?? "original"} mono />
-              <KV k="Version" v={m.appVersion} mono />
-            </dl>
-          </section>
+          <ProvenancePanel m={m} explorerBase={explorerBase} />
 
-          <section className="panel p-3">
-            <SectionHead title="Usage" />
-            <dl className="cells mt-2">
-              <KV k="Runs" v={fmtNum(app.stats.runs)} />
-              <KV k="Forks" v={fmtNum(app.stats.forks)} />
-              {/* `valueTransactedUsd` is GONE from this panel, deliberately.
-                  Nothing in the system writes it any more: the client-side
-                  ticker that used to set it — from invented swap amounts, equal
-                  to `spentUsd`, which made one guess look like two independent
-                  measurements — has been deleted, and no server route reports
-                  notional volume separately from spend-against-cap. A row that
-                  can only ever read $0.00 is not an empty state, it is a claim
-                  that nothing has moved, and for an app that really did sign a
-                  transaction that would be false. Spend-against-cap is real and
-                  is reported once, in "What it is allowed to do", where the cap
-                  it is metered against also lives. prd.md §12 wants total value
-                  transacted on registry cards; measuring it is unbuilt work, not
-                  a formatting problem. */}
-              {/* Not earnings. There is no x402 facilitator and no payment path
-                  in this build — prd.md §12 specifies the outbound leg and the
-                  README lists it under "Not in scope" as display-only. So this
-                  row states the price the creator SET, and says plainly that
-                  nothing has ever been collected against it. `stats.earnedUsd`
-                  is not rendered at all; it has no writer. */}
-              <KV
-                k="Creator price"
-                v={
-                  m.pricing?.x402.enabled
-                    ? `${fmtUsd(m.pricing.x402.priceUsd)} per run — configured, never charged`
-                    : "free"
-                }
-              />
-            </dl>
-            <p className="mt-2 text-[0.6875rem] leading-snug text-[var(--muted-ink)]">
-              Runs and forks on the bundled apps are seeded texture — there is no community here
-              yet, and a run you press is counted on top of that seed. No payment rail exists, so
-              no creator has been paid.
-            </p>
-          </section>
+          <UsagePanel app={app} />
         </aside>
       </div>
 
       {forking ? <ForkDialog app={app} onClose={() => setForking(false)} /> : null}
     </main>
-  );
-}
-
-/**
- * One constraint, and who enforces it. `onchain` is the strong claim and gets
- * the strong colour; `server` is coloured as a risk because it IS one — prd.md
- * §7: with server-side enforcement, "the policy stopped it" means our server
- * chose not to sign, and a compromised backend is unbounded. Rounding the two
- * to the same neutral grey is exactly the blurring §7 forbids.
- */
-function EnforcementRow({ k, site }: { k: string; site: EnforcementSite }) {
-  const onchain = site === "onchain";
-  return (
-    <KV
-      k={k}
-      v={onchain ? "chain — enforced by the account" : "server — this process decides"}
-      accent={onchain ? "gain" : "risk"}
-    />
   );
 }
 
