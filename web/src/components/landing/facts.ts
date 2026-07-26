@@ -56,8 +56,10 @@ export const SEED = {
 /* ── pinned: measured runs, not live readings ──────────────────────────── */
 
 /**
- * The reference fan-out quoted in README.md and submission.md. A recorded run,
- * not a reading — the page says so. The ~28% dead rate is why sources are
+ * A representative call to the fan-out (`/api/graph`) across the seeded
+ * schema families and networks. Manually recorded, not scripted — there is no
+ * `scripts/*.ts` that produced this run, README.md:81 and submission.md:40
+ * only quote it — measured 2026-07-25. The ~28% dead rate is why sources are
  * health-checked at generation time and frozen into the manifest.
  */
 export const REFERENCE_RUN = {
@@ -71,8 +73,9 @@ export const REFERENCE_RUN = {
 
 /**
  * Both directions of `web/scripts/substreams-verify.ts` against
- * arb-one.streamingfast.io. The control run is here on purpose: a harness that
- * can only report a firing proves nothing about the one that should not fire.
+ * arb-one.streamingfast.io, measured 2026-07-25. The control run is here on
+ * purpose: a harness that can only report a firing proves nothing about the
+ * one that should not fire.
  */
 export const SUBSTREAMS = {
   endpoint: "arb-one.streamingfast.io",
@@ -94,9 +97,10 @@ export const SUBSTREAMS = {
 } as const;
 
 /**
- * `scripts/substreams-verify.ts --real`. An `approve`, and described as one —
- * granting the router an allowance is genuinely the first step of a swap and is
- * not a swap, and `approve` is its own Action.kind for that reason.
+ * `scripts/substreams-verify.ts --real`, measured 2026-07-25. An `approve`,
+ * and described as one — granting the router an allowance is genuinely the
+ * first step of a swap and is not a swap, and `approve` is its own
+ * Action.kind for that reason.
  */
 const TX_HASH =
   "0x5a44e9d5d79446afd042928a76d405459242688f479d7257e23143d6190c9d78";
@@ -104,7 +108,6 @@ const TX_HASH =
 export const ONCHAIN = {
   arbitrumBlock: 487540654,
   kind: "approve",
-  amountUsd: 25,
   txHash: TX_HASH,
   basescanUrl: `https://sepolia.basescan.org/tx/${TX_HASH}`,
   baseBlock: 44604106,
@@ -126,6 +129,12 @@ export const ENS_RECORDS: readonly string[] = [
   "url · description · avatar",
 ];
 
+/**
+ * `scripts/publish-under-parent.ts`, measured 2026-07-25 (README.md:208): plan
+ * → resolve → fan-out → compose, then pin, issue, mint and register. That run
+ * planned on 0G Compute with attestation `0g://6f3651f2…` and minted token 10,
+ * bound to `atlas-market-guard.atlas-apps.eth`.
+ */
 export const ZEROG = {
   tokenId: 10,
   chainId: 16602,
