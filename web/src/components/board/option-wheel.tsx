@@ -41,6 +41,12 @@ export interface OptionWheelProps {
   onChange?: (index: number, key: string) => void;
   /** Fires on a click that was NOT a drag. */
   onItemClick?: (index: number, key: string) => void;
+  /**
+   * Fired when the wheel takes or releases scroll capture. The Board uses it to
+   * swap its hint line, so a reader who has engaged the wheel is told how to get
+   * the page back.
+   */
+  onEngagedChange?: (engaged: boolean) => void;
   /** Which way the wheel curves away from the viewer. Default 'left'. */
   side?: Side;
   /** How far the curve pushes rows sideways. Default 0.6 (subtle for cards). */
@@ -93,6 +99,7 @@ export default function OptionWheel({
   defaultSelected = 0,
   onChange,
   onItemClick,
+  onEngagedChange,
   side = "left",
   curve = 0.6,
   tilt = 3,
@@ -112,6 +119,36 @@ export default function OptionWheel({
   // --- refs -----------------------------------------------------------------
   const rootRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  /**
+   * SCROLL CAPTURE IS OPT-IN.
+   *
+   * This component used to `preventDefault()` every wheel event over its box,
+   * unconditionally. That is correct for a wheel that owns the screen and wrong
+   * for one sitting in the hero of a scrolling page: with the cursor anywhere on
+   * the deck — most of the hero — the page could not scroll at all, and nothing
+   * below the fold was reachable.
+   *
+   * The usual fix is "yield once you hit the end". There is no end: the Board
+   * mounts this with `loop`. So capture is gated on engagement instead, which
+   * the root already had the machinery for — it is `tabIndex={0} role="listbox"`,
+   * so focus is real state rather than something invented here.
+   *
+   * Engage: pointerdown on the root, or focus.
+   * Release: blur out of the root, Escape, or pointerdown anywhere else.
+   *
+   * A ref alongside the state because the `wheel` listener is attached once, in
+   * an effect that must not re-run and re-register on every engagement.
+   */
+  const [engaged, setEngaged] = useState(false);
+  const engagedRef = useRef(false);
+  const onEngagedChangeRef = useRef<OptionWheelProps["onEngagedChange"]>(onEngagedChange);
+  const setEngagedBoth = useCallback((next: boolean) => {
+    if (engagedRef.current === next) return;
+    engagedRef.current = next;
+    setEngaged(next);
+    onEngagedChangeRef.current?.(next);
+  }, []);
 
   const posRef = useRef<number>(defaultSelected); // current (animated) position
   const targetRef = useRef<number>(defaultSelected); // where we're easing to
@@ -174,6 +211,7 @@ export default function OptionWheel({
     };
     onChangeRef.current = onChange;
     onItemClickRef.current = onItemClick;
+    onEngagedChangeRef.current = onEngagedChange;
   });
 
   // --- audio (optional tick) ------------------------------------------------
@@ -386,6 +424,9 @@ export default function OptionWheel({
     if (!root) return;
 
     const onWheel = (e: WheelEvent) => {
+      // Disengaged: this event belongs to the page. Returning without
+      // preventing default is what lets the landing below the hero exist.
+      if (!engagedRef.current) return;
       e.preventDefault();
       const cfg = cfgRef.current;
       const step = clamp(e.deltaY / cfg.rowH, -1, 1);
@@ -405,15 +446,29 @@ export default function OptionWheel({
     };
   }, [applyTarget]);
 
+  // Releases capture when the reader's attention goes elsewhere. Only mounted
+  // while engaged, so a disengaged wheel costs no document listener.
+  useEffect(() => {
+    if (!engaged) return;
+    const onDocDown = (e: PointerEvent) => {
+      const root = rootRef.current;
+      if (root && e.target instanceof Node && root.contains(e.target)) return;
+      setEngagedBoth(false);
+    };
+    document.addEventListener("pointerdown", onDocDown);
+    return () => document.removeEventListener("pointerdown", onDocDown);
+  }, [engaged, setEngagedBoth]);
+
   // --- pointer dragging -----------------------------------------------------
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
+      setEngagedBoth(true);
       if (!draggable) return;
       dragRef.current = { y: e.clientY, start: targetRef.current, id: e.pointerId };
       dragMovedRef.current = false;
       setIsDragging(true);
     },
-    [draggable]
+    [draggable, setEngagedBoth]
   );
 
   const handlePointerMove = useCallback(
@@ -469,6 +524,11 @@ export default function OptionWheel({
   // --- keyboard -------------------------------------------------------------
   const handleKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "Escape") {
+        setEngagedBoth(false);
+        rootRef.current?.blur();
+        return;
+      }
       let delta = 0;
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") delta = -1;
       else if (e.key === "ArrowDown" || e.key === "ArrowRight") delta = 1;
@@ -476,7 +536,7 @@ export default function OptionWheel({
       e.preventDefault();
       applyTarget(Math.round(targetRef.current) + delta, true);
     },
-    [applyTarget]
+    [applyTarget, setEngagedBoth]
   );
 
   // --- re-apply when layout-affecting config changes; cleanup on unmount ----
@@ -513,13 +573,28 @@ export default function OptionWheel({
       role="listbox"
       aria-label="Mini app wheel"
       tabIndex={0}
-      className={`relative h-full w-full select-none overflow-hidden outline-none [touch-action:none] ${className}`}
+      // `pan-y`, not `none`. `touch-action` governs touch and pen input only —
+      // it has no effect on a mouse, and `wheel` events are not subject to it at
+      // all — so this costs the desktop nothing and buys back vertical page
+      // scroll on a phone, where `none` made the landing below the hero
+      // unreachable by any gesture. A touch drag is now panned by the browser
+      // and arrives here as `pointercancel`, which `handlePointerEnd` already
+      // handles. Phones lose drag-to-turn and keep tap-to-open, which is how a
+      // list is read on a phone anyway.
+      className={`relative h-full w-full select-none overflow-hidden outline-none [touch-action:pan-y] ${className}`}
       style={rootStyle}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
       onKeyDown={handleKeyDown}
+      onFocus={() => setEngagedBoth(true)}
+      onBlur={(e) => {
+        // Focus moving to a card INSIDE the wheel is not a release.
+        const next = e.relatedTarget;
+        if (next instanceof Node && rootRef.current?.contains(next)) return;
+        setEngagedBoth(false);
+      }}
     >
       {items.map((item, i) => (
         <div

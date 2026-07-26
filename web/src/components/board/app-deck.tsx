@@ -87,6 +87,9 @@ export function AppDeck() {
   // separate on purpose: scrolling moves the highlight, only a click opens.
   const [selected, setSelected] = useState(0);
   const [openName, setOpenName] = useState<string | null>(null);
+  // Whether the wheel is currently taking scroll. The hint below says different
+  // things for the two states, because "scroll to browse" is a lie in one of them.
+  const [wheelEngaged, setWheelEngaged] = useState(false);
 
   // Where the wheel's center row sits, so the globe can put its equator on the
   // same line. Measured rather than assumed: the wheel's distance from the top
@@ -259,6 +262,7 @@ export function AppDeck() {
                   soundUrl="/wheel-tick.wav"
                   soundVolume={0.7}
                   onChange={(index) => setSelected(index)}
+                  onEngagedChange={setWheelEngaged}
                   onItemClick={(_index, key) => setOpenName(key)}
                   className="h-full w-full"
                 />
@@ -269,9 +273,11 @@ export function AppDeck() {
                   right now — and no card on this board is subscribed to
                   anything. The word the sentence actually needed was "open". */}
               <p className="mono mt-2 text-center text-[0.625rem] text-[var(--muted-ink)]">
-                {openName === null
-                  ? "scroll or drag to browse · click a card to open"
-                  : "still scrollable — click another card to switch"}
+                {openName !== null
+                  ? "still scrollable — click another card to switch"
+                  : wheelEngaged
+                    ? "wheel has the scroll — Esc, or click away, to scroll the page"
+                    : "click the wheel to turn it · click a card to open"}
               </p>
             </>
           )}
