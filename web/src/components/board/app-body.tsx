@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import type { Accent, UiBlock, UiDoc } from "@/lib/seed";
 import type { Policy } from "@/lib/contracts/manifest";
 import type { JournalEntry } from "@/lib/contracts/policy";
+import type { ComponentName } from "@/lib/contracts/catalog";
 import { fmtNum, fmtUsd } from "@/lib/store";
 import { Fig, Label } from "@/components/board/chrome";
 import { A2uiRenderer } from "@/components/renderer";
@@ -35,6 +36,7 @@ export function AppBody({
   policy = null,
   spentUsd = 0,
   journal,
+  providedByHost,
   onAction,
 }: {
   doc: unknown;
@@ -46,6 +48,8 @@ export function AppBody({
   spentUsd?: number;
   /** Feeds trade_log. */
   journal?: JournalEntry[];
+  /** Passed straight to the renderer. See `lib/app-view.ts` HOST_PROVIDED. */
+  providedByHost?: readonly ComponentName[];
   /** Receives a complete client_to_server action, ready to POST to /api/act. */
   onAction?: (action: unknown) => void;
 }) {
@@ -60,6 +64,7 @@ export function AppBody({
         policy={policy}
         spentUsd={spentUsd}
         journal={journal}
+        providedByHost={providedByHost}
         onAction={onAction}
       />
     );

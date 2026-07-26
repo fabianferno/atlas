@@ -31,16 +31,16 @@
  *
  * ── Enforcement the composer does not get a vote on ─────────────────────────
  * REQUIRED_FOR_AUTONOMOUS (policy_badge, trade_log, kill_switch) is applied
- * here as well as in the composer. If an autonomous document arrives without
- * its kill switch — a hand-edited manifest, an older fork, a truncated stream —
- * the renderer appends one. An agent must not be able to hide its own controls
- * by declining to emit them.
+ * here as an ON-SCREEN rule rather than an in-document one: a host that renders
+ * them in its own chrome declares so via `providedByHost` and this renderer
+ * appends nothing. See `lib/app-view.ts`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgencyTier, Policy } from "@/lib/contracts/manifest";
 import type { JournalEntry } from "@/lib/contracts/policy";
-import { REQUIRED_FOR_AUTONOMOUS, type ComponentName } from "@/lib/contracts/catalog";
+import type { ComponentName } from "@/lib/contracts/catalog";
+import { missingRequired } from "@/lib/app-view";
 import { KillSwitch, PolicyBadge, TradeLog, lookupCatalog } from "@/components/catalog";
 import { BIND_EVENT } from "@/components/catalog/_shared";
 import { RuntimeProvider, Label, Fig } from "@/components/brutal";
@@ -77,6 +77,13 @@ export interface A2uiRendererProps {
   onAction?: (payload: A2UIClientAction) => void;
   /** Local Function Calls. A closed, client-held table; args are data only. */
   localFunctions?: Record<string, LocalFunction>;
+  /**
+   * Components the surrounding chrome guarantees are on screen, so this renderer
+   * must not re-append them. `AppRuntime` passes the autonomous trio because its
+   * policy strip and Activity tab hold them; a caller that renders a bare
+   * document — the Studio preview — passes nothing and keeps the old behaviour.
+   */
+  providedByHost?: readonly ComponentName[];
   className?: string;
 }
 
@@ -107,6 +114,7 @@ export function A2uiRenderer({
   journal,
   onAction,
   localFunctions,
+  providedByHost = [],
   className,
 }: A2uiRendererProps) {
   const surface = useMemo(() => readSurface(input), [input]);
@@ -214,8 +222,7 @@ export function A2uiRenderer({
     return <EmptySurface reason="surface has no components" issues={validation.issues} />;
   }
 
-  const missing =
-    tier === "autonomous" ? REQUIRED_FOR_AUTONOMOUS.filter((n) => !present.has(n)) : [];
+  const missing = missingRequired(tier, present, providedByHost);
 
   const errors = validation.issues.filter((i) => i.level === "error");
 
