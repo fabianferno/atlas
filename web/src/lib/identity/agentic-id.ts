@@ -330,6 +330,46 @@ export const MINI_APP_REGISTRY_ABI = [
     inputs: [{ name: "ensName", type: "string" }],
     outputs: [{ name: "", type: "bytes32" }],
   },
+  {
+    // Present on the deployed contract from the start — `_keys` carries the
+    // comment "so the registry (prd.md §12) can be enumerated without an
+    // indexer during the demo" — but absent from this ABI until now, so
+    // nothing could call it and the Registry page shipped a hardcoded list
+    // of names instead. See docs/superpowers/specs/2026-07-26-*.
+    type: "function",
+    name: "totalApps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "page",
+    stateMutability: "view",
+    inputs: [
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    outputs: [
+      {
+        name: "out",
+        type: "tuple[]",
+        components: [
+          { name: "ensName", type: "string" },
+          { name: "manifestCID", type: "string" },
+          { name: "attestationHash", type: "bytes32" },
+          { name: "ensNode", type: "bytes32" },
+          { name: "author", type: "address" },
+          { name: "tokenId", type: "uint256" },
+          { name: "forkedFrom", type: "bytes32" },
+          { name: "appVersion", type: "string" },
+          { name: "registeredAt", type: "uint64" },
+          { name: "updatedAt", type: "uint64" },
+          { name: "revision", type: "uint32" },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 /* ========================================================================== */

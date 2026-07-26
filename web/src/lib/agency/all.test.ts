@@ -26,6 +26,7 @@ import "@/lib/kit/substreams-leak.test";
 import "../ratings.test";
 import "../coverage/registry.test";
 import "../coverage/gap.test";
+import "../identity/published.test";
 import "../app-view.test";
 import "../seed-to-a2ui-shape.test";
 
