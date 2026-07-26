@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils";
  *
  * The globe turns about a degree a second. Half the frames carry that just as
  * well as all of them, and each one skipped is a whole sphere not rasterised —
- * the layer is `fixed`, so this runs for as long as the Board is open and is the
- * larger saving by far.
+ * this runs for as long as `paused` is false, which on a long scroll past the
+ * hero is most of a session, so it's the larger saving by far.
  *
  * The threshold sits a few ms under the 33.3ms budget on purpose: on a 60Hz
  * display the deltas that should draw land exactly ON 33.3, and a strict compare

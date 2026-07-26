@@ -92,12 +92,10 @@ export function AppDeck() {
   const [wheelEngaged, setWheelEngaged] = useState(false);
 
   // Where the wheel's center row sits, so the globe can put its equator on the
-  // same line. Measured rather than assumed: the wheel's distance from the top
-  // of the page is the sum of the top bar, the section heading and the mask —
-  // whereas the globe is centered on the VIEWPORT, so the two only agreed at one
-  // window height and drifted apart from there. Page coordinates (rect + scroll)
-  // rather than viewport ones, because the globe is fixed and this is measured
-  // whenever the layout changes, not on every scroll.
+  // same line — measured rather than assumed, because the wheel's distance from
+  // the top of its section is the sum of whatever sits above it (a section
+  // heading, a wrapped title at a narrow width) and not a constant this
+  // component could hardcode.
   const wheelRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [wheelCenterY, setWheelCenterY] = useState<number | null>(null);

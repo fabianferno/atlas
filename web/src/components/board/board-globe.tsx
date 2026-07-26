@@ -40,13 +40,13 @@
  * CSS-only disc, no canvas, no context. It fills the slot rather than leaving
  * it empty because this component **cannot** close the layout up: the space is
  * not ours. It is `--deck-gutter`, a grid track on `app-deck.tsx` derived from
- * `GLOBE_WIDTH` in `board-layout.ts`, and this layer is `fixed` + `-z-10` +
+ * `GLOBE_WIDTH` in `board-layout.ts`, and this layer is `absolute` + `-z-10` +
  * `pointer-events-none` — it reserves nothing and occupies nothing. Rendering
  * `null` here would delete the decoration and keep the hole, which is the bug,
  * not the fix. Collapsing the gutter needs the deck to know the globe is
  * absent; that is a change to `app-deck.tsx` and is not made here.
  */
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Globe } from "@/components/ui/globe";
 import { GLOBE_LEFT, GLOBE_WIDTH } from "@/components/board/board-layout";
 import { cn } from "@/lib/utils";
@@ -80,10 +80,12 @@ function useIsDesktop(): boolean {
  * it's actually being watched. Going back the other way there's no lag at all,
  * so the world is already turning as it comes back in.
  *
- * It answers "is it off the screen", not "is a panel open", because that's what
- * the render loop is being asked. Scroll isn't part of it: the layer is `fixed`
- * and its offset is a constant, so short of the panel the globe is on screen for
- * as long as the Board is.
+ * It answers "is the panel covering it", which used to be the whole question:
+ * the layer was `fixed`, so short of the panel the globe was on screen for as
+ * long as the Board was mounted. It's `absolute` now and scrolls away with the
+ * hero, which is a second, independent way to go unwatched — see
+ * `useOutOfViewport` below for that half. `BoardGlobe` ORs the two into the one
+ * `paused` flag the render loop reads.
  */
 function useOffScreen(open: boolean): boolean {
   const [gone, setGone] = useState(false);
@@ -98,6 +100,31 @@ function useOffScreen(open: boolean): boolean {
     return () => window.clearTimeout(t);
   }, [open]);
   return gone;
+}
+
+/**
+ * True while the globe's own layer has scrolled entirely out of the viewport.
+ * Only possible now that the layer is `absolute` and moves with the page — a
+ * `fixed` layer never left, which is exactly why `useOffScreen` above never had
+ * to know about scroll.
+ *
+ * Watches the layer itself (the outer, untranslated box), not the sliding inner
+ * child the open/close animation moves — that div's own transform would trip
+ * this on every open, double-counting `useOffScreen`'s job and freezing the
+ * globe mid-slide instead of at the end of it. `threshold: 0` (the default)
+ * treats even one visible pixel of the layer as still watched; the render loop
+ * only stops once none of it is.
+ */
+function useOutOfViewport(layerRef: React.RefObject<HTMLDivElement | null>): boolean {
+  const [outOfViewport, setOutOfViewport] = useState(false);
+  useEffect(() => {
+    const el = layerRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setOutOfViewport(!entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [layerRef]);
+  return outOfViewport;
 }
 
 /**
@@ -204,12 +231,17 @@ export function BoardGlobe({
    * wheel's center row, measured by the deck. The sphere's rim and the card arc
    * then bulge from the same line, which is the only way the two read as one
    * curve. Null before the deck has measured (and when it has no wheel to
-   * measure), and the globe falls back to the middle of the viewport.
+   * measure), and the globe falls back to the middle of its own h-screen box —
+   * not the viewport, since that box sits below TopBar and a padded `main`.
    */
   centerY: number | null;
 }): React.JSX.Element {
   const isDesktop = useIsDesktop();
   const offScreen = useOffScreen(open);
+  // What the render loop actually reads: covered by the panel, OR scrolled out
+  // of the viewport. Either alone is enough reason to stop rasterising.
+  const layerRef = useRef<HTMLDivElement>(null);
+  const outOfViewport = useOutOfViewport(layerRef);
   // Optimistic: assume the context is there and let `Globe` tell us it isn't.
   // One code path instead of two — a probe here would have to agree with the
   // one Cobe's own `createGlobe` performs, and it would still miss the case
@@ -218,6 +250,7 @@ export function BoardGlobe({
 
   return (
     <div
+      ref={layerRef}
       aria-hidden
       // ABSOLUTE, not fixed. Fixed gave the globe a full 100vh to live in, but
       // it also pinned it to the viewport while `centerY` — measured by the deck
@@ -263,7 +296,7 @@ export function BoardGlobe({
               /* Parked off the left edge, it draws nothing. The canvas stays
                  mounted and keeps showing its last composited frame, so there is
                  nothing to rebuild when it comes back. */
-              <Globe className="w-full" paused={offScreen} onUnavailable={() => setWebgl(false)} />
+              <Globe className="w-full" paused={offScreen || outOfViewport} onUnavailable={() => setWebgl(false)} />
             ) : (
               <StaticGlobe />
             )}
