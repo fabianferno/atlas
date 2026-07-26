@@ -253,10 +253,21 @@ function convertBlock(block: UiBlock, tier: Manifest["agency"]["tier"], epoch: n
  * Autonomous action chrome
  *
  * Mirrors the composer's autonomous branch (lib/kit/composer.ts), sourced from
- * the manifest instead of a plan. Unlike the composer — which has no journal
- * yet at compose time — the trade log here is seeded with the app's real
- * entries. `policy_badge`, `trade_log` and `kill_switch` are the
- * REQUIRED_FOR_AUTONOMOUS trio; the renderer re-appends any that go missing.
+ * the manifest instead of a plan.
+ *
+ * WHAT IS DELIBERATELY NOT HERE. `policy_badge`, `trade_log` and `kill_switch`
+ * are the REQUIRED_FOR_AUTONOMOUS trio and this function used to push all three.
+ * `AppRuntime` renders each of them in its own chrome — the policy strip above
+ * the tab strip carries the policy summary and the kill switch, the Activity tab
+ * carries the journal — so emitting them here rendered the same three facts
+ * twice, in two different hands. That is the reason a reader could not tell
+ * which part of the drawer the agent had actually composed.
+ *
+ * The invariant is not weakened, it is relocated: `AppRuntime` passes
+ * `HOST_PROVIDED` to the renderer, which is how the renderer knows not to
+ * re-append them. A caller that renders this document with no chrome around it
+ * — the Studio preview — passes nothing and gets all three appended, as before.
+ * See `lib/app-view.ts` and `renderer.tsx`.
  * ──────────────────────────────────────────────────────────────────────── */
 
 function appendAutonomous(
@@ -286,18 +297,6 @@ function appendAutonomous(
   const [actionKey, action] = entries.find(([k]) => k === runKey) ?? entries[0] ?? [undefined, undefined];
   const key = actionKey ?? "execute";
   const blocked = policy.allowlist.length === 0;
-
-  push("policy-badge", "policy_badge", clean({
-    tier,
-    wallet: policy.wallet,
-    maxSpendUsd: policy.maxSpendUsd,
-    maxPerTxUsd: policy.maxPerTxUsd,
-    allowlist: policy.allowlist,
-    expiresAt: policy.expiresAt,
-    requireConfirm: policy.requireConfirm,
-    killSwitch: policy.killSwitch,
-    halted: policy.halted,
-  }), { label: "Policy", caption: "Enforced at the signer, not suggested to the model.", hints: { accent: "spend", span: 12 } });
 
   push("amount-input", "amount_input", {
     value: 0,
@@ -361,19 +360,6 @@ function appendAutonomous(
       hints: { accent: "spend", span: 6 },
     });
   }
-
-  push("trade-log", "trade_log", {
-    entries: journal as unknown as JsonValue,
-    streaming: true,
-    note: "Every query, trigger, policy decision and signature.",
-  }, { label: "Journal", caption: "An agent that spends must show its work.", hints: { accent: "live", span: 12 } });
-
-  push("kill-switch", "kill_switch", { halted: policy.halted, scope: "app", global: false }, {
-    label: "Halt this app",
-    action: serverEvent("halt_agent", { scope: "app", halted: true }),
-    localAction: { call: "setHalted", args: { halted: true } },
-    hints: { accent: "loss", span: 12 },
-  });
 }
 
 /* ────────────────────────────────────────────────────────────────────────

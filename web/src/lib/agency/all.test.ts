@@ -27,5 +27,6 @@ import "../ratings.test";
 import "../coverage/registry.test";
 import "../coverage/gap.test";
 import "../app-view.test";
+import "../seed-to-a2ui-shape.test";
 
 void report();

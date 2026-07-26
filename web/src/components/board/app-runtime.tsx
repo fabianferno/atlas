@@ -52,6 +52,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { TIER_BLURB, SEED_EPOCH } from "@/lib/seed";
+import { HOST_PROVIDED } from "@/lib/app-view";
 import { isConditionEvaluable } from "@/lib/agency/condition";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import type { Manifest } from "@/lib/contracts/manifest";
@@ -85,6 +86,7 @@ import { AppBody } from "@/components/board/app-body";
 import { AppPublishPanel } from "@/components/board/publish-panel";
 import { TradeLog } from "@/components/board/ledger";
 import { ArmedLamp, Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
+import { SponsorMark, type Sponsor } from "@/components/brand/sponsor-mark";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
 // One rule for "this family has nothing live behind it", shared with the
@@ -390,7 +392,7 @@ export function AppRuntime({ name }: { name: string }) {
       <div className={panelClass(tier)}>
         {autonomous ? (
           <div className="policy-strip">
-            <span>policy</span>
+            <span title="Enforced at the signer, not suggested to the model.">policy</span>
             {/* The signer, from the server. Nothing here falls back to
                 `policy.wallet` — a manifest cannot know a server-held key, and
                 an address that is only a claim is worse than no address at all.
@@ -473,7 +475,10 @@ export function AppRuntime({ name }: { name: string }) {
                 than no name. An app with no subname is unpublished, and reads
                 as unpublished. */}
             {m.identity.ens ? (
-              <p className="mono mt-1.5 text-[0.6875rem]">{m.identity.ens}</p>
+              <p className="mono mt-1.5 flex items-center gap-1.5 text-[0.6875rem]">
+                <SponsorMark of="ens" size={13} />
+                {m.identity.ens}
+              </p>
             ) : (
               <p className="mono mt-1.5 text-[0.6875rem] text-[var(--muted-ink)]">
                 unpublished — no ENS subname issued
@@ -528,6 +533,7 @@ export function AppRuntime({ name }: { name: string }) {
           <AppBody
             doc={bodyDoc ?? m.ui}
             animate
+            providedByHost={HOST_PROVIDED}
             policy={policy}
             spentUsd={app.stats.spentUsd}
             journal={journal}
@@ -594,9 +600,14 @@ export function AppRuntime({ name }: { name: string }) {
                 subgraph that died this morning still shows live until Run
                 re-probes it. Dating the count is the difference between a
                 measurement and a claim. */}
+            {/* Every row under this head is about The Graph — the schemas are
+                its standardized families, the sources are deployment ids on its
+                network, and the stream is a Substreams package. One mark on the
+                head says that once, instead of once per row. */}
             <SectionHead
               title="Data plan"
               note={`${app.stats.sourcesHealthy} of ${app.stats.sourcesQueried} deployments live · probed ${fmtDate(app.lastRunAt)}`}
+              right={<SponsorMark of="graph" size={14} />}
             />
             {/*
               THE SERVER MAY NOT BE RUNNING THIS MANIFEST, and until now nothing
@@ -929,7 +940,16 @@ export function AppRuntime({ name }: { name: string }) {
             <dl className="cells mt-2">
               <KV k="Author" v={m.author ?? "unclaimed"} mono />
               <KV k="Model" v={m.provenance.model} mono />
-              <KV k="Compute" v={m.provenance.compute} mono />
+              {/* `compute` is one of three: `0g-private-computer`, `openai`,
+                  `local`. Only the first ran on 0G, and only it gets the mark —
+                  the other two are the honest record that this manifest was
+                  planned somewhere else. */}
+              <KV
+                k="Compute"
+                v={m.provenance.compute}
+                mono
+                mark={m.provenance.compute === "0g-private-computer" ? "zerog" : undefined}
+              />
               <KV k="Attestation" v={m.provenance.attestationRef ?? "none"} mono />
               {/* `manifestCid` and `agenticId` are null on every bundled app,
                   and null is what reaches these strings — "not pinned" and "not
@@ -956,6 +976,9 @@ export function AppRuntime({ name }: { name: string }) {
                     : null
                 }
                 mono
+                /* Same rule as the link: no token, no mark. "not minted" with a
+                   0G logo beside it reads as a 0G registration. */
+                mark={m.identity.agenticId ? "zerog" : undefined}
               />
               <KV k="Forked from" v={m.forkedFrom ?? "original"} mono />
               <KV k="Version" v={m.appVersion} mono />
@@ -1015,6 +1038,7 @@ function KV({
   mono,
   accent,
   href,
+  mark,
 }: {
   k: string;
   /*
@@ -1030,6 +1054,16 @@ function KV({
   accent?: "live" | "gain" | "loss" | "risk" | "spend";
   /** Only pass this when the destination is known to exist. */
   href?: string | null;
+  /**
+   * Whose infrastructure this row is about, marked beside the term rather than
+   * the value. The value column is right-aligned and truncates, so a logo in it
+   * would be the first thing cut; the term never truncates.
+   *
+   * Only pass it when the row holds a value, never when it reads "not minted"
+   * or "none" — a sponsor mark against an absence is the failure described in
+   * the header of `sponsor-mark.tsx`.
+   */
+  mark?: Sponsor;
 }) {
   const fig = (
     <Fig className={cn("text-[0.6875rem]", mono && "block truncate")} accent={accent}>
@@ -1038,7 +1072,10 @@ function KV({
   );
   return (
     <div className="flex items-baseline justify-between gap-3 border-t border-[var(--hairline)] py-1.5 first:border-t-0">
-      <dt className="mono shrink-0 text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">{k}</dt>
+      <dt className="mono flex shrink-0 items-center gap-1.5 text-[0.625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+        {mark ? <SponsorMark of={mark} size={12} /> : null}
+        {k}
+      </dt>
       <dd className="min-w-0 text-right">
         {href ? (
           <a href={href} target="_blank" rel="noreferrer" className="underline decoration-dotted">
