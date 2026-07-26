@@ -19,9 +19,40 @@
  * whole app — including the policy loop — still runs with no keys configured.
  */
 import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
-import { baseSepolia, zeroGGalileoTestnet } from "viem/chains";
+import { defineChain } from "viem";
+import { baseSepolia } from "viem/chains";
 import { useEffect, type ReactNode } from "react";
 import { setWallet } from "@/lib/store";
+
+/**
+ * 0G Galileo testnet, chain id **16602**.
+ *
+ * This used to be viem's `zeroGGalileoTestnet`, which is **16601** — the
+ * earlier Galileo V3 launch, not the network this project's contracts are on.
+ * The mismatch was visible on every page load as `The configured chains are not
+ * supported by Coinbase Smart Wallet: 16601` in the console, and it meant Privy
+ * would have been offering the user a chain where none of our Agentic IDs
+ * exist. `.env.local`'s `ZEROG_CHAIN_ID` is 16602 and `GET /api/publish`
+ * reports 16602; those and this now agree.
+ *
+ * Restated here rather than imported from its source of truth,
+ * `lib/identity/agentic-id.ts` (`zeroGTestnet`, and read its comment for why
+ * 16601 keeps resurfacing): that module opens with `node:crypto`, reads
+ * `ZEROG_*` env vars and holds the deployer private key. This is a
+ * `"use client"` file, so importing it would pull a server module — key
+ * handling and all — into the browser bundle. Two literals is the cheaper
+ * mistake. If the chain id ever moves again, both have to move.
+ */
+const zeroGTestnet = defineChain({
+  id: 16602,
+  name: "0G Galileo Testnet",
+  nativeCurrency: { name: "0G", symbol: "0G", decimals: 18 },
+  rpcUrls: { default: { http: ["https://evmrpc-testnet.0g.ai"] } },
+  blockExplorers: {
+    default: { name: "0G Chainscan", url: "https://chainscan-galileo.0g.ai" },
+  },
+  testnet: true,
+});
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
@@ -74,7 +105,9 @@ export function AgencyPrivyProvider({ children }: { children: ReactNode }) {
         loginMethods: ["email", "wallet", "google"],
         // Testnet only. There is no mainnet entry to fall back to.
         defaultChain: baseSepolia,
-        supportedChains: [baseSepolia, zeroGGalileoTestnet],
+        // 0G is the local `zeroGTestnet` above (16602), not viem's
+        // `zeroGGalileoTestnet` (16601) — see the comment on it.
+        supportedChains: [baseSepolia, zeroGTestnet],
         embeddedWallets: {
           ethereum: {
             createOnLogin: "users-without-wallets",

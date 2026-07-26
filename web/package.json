@@ -2,11 +2,15 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "//": "JSON has no comments, and npm/pnpm ignore a key named `//`, so the WHY for the scripts below lives here. `test` runs the typecheck FIRST and on purpose: `tsx` strips types and runs, it never type-checks, so the suite alone goes green on code that does not compile — see the header of src/lib/agency/all.test.ts. Both halves were documented in that header but existed nowhere in package.json, so the only way to discover the suite was to read a test file. `typecheck` is split out so `test` can call it and so it can be run alone. `seed:live` was referenced by name in src/lib/seed.ts (twice) while no such script existed; it is the full invocation from the header of scripts/seed-live.ts. The other files in scripts/ (ens-*, pin-backfill, publish-*, substreams-verify) are deliberately NOT aliased here — nothing in the repo refers to them by a script name, only by their full `pnpm dlx tsx --env-file=.env.local scripts/<file>.ts` form, and inventing names for them would put commands in this file that no comment, doc or README actually mentions.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run typecheck && pnpm dlx tsx src/lib/agency/all.test.ts",
+    "seed:live": "pnpm dlx tsx --env-file=.env.local scripts/seed-live.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

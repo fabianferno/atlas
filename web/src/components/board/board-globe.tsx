@@ -16,17 +16,45 @@
  * space. One gesture: the world steps out and the app steps in. Closing
  * reverses it.
  *
+ * Leaving is a CSS transform, so the canvas is still mounted and — left alone —
+ * still drawing a globe parked off the screen at full rate, since the render
+ * loop is JS and sees none of the CSS. Once the slide finishes we tell it to
+ * stop; it resumes the moment the panel closes. Same principle as the `lg` gate
+ * below: don't spend frames on a globe nobody can see.
+ *
  * Desktop only, and genuinely so: the layer is `hidden` below `lg` for layout,
  * but CSS `hidden` still leaves the WebGL canvas mounted and spinning off-screen.
  * A phone should spend nothing on decoration it can't see, so the globe is also
  * gated behind the `lg` media query in JS — below it, nothing mounts at all.
+ *
+ * ## No WebGL
+ *
+ * Cobe needs a WebGL context and a desktop browser does not always have one —
+ * blocklisted GPU, `webgl.disabled`, a remote desktop, headless Chrome without
+ * `--enable-gpu`. There was no handling for that at all: `createGlobe` never
+ * painted, the canvas never left `opacity-0` (it is only lifted on the first
+ * painted frame), and the left ~45% of the product's FIRST screen was blank
+ * paper with nothing in it and nothing said about it.
+ *
+ * `Globe` now reports the failure and we swap in `StaticGlobe` below — a
+ * CSS-only disc, no canvas, no context. It fills the slot rather than leaving
+ * it empty because this component **cannot** close the layout up: the space is
+ * not ours. It is `--deck-gutter`, a grid track on `app-deck.tsx` derived from
+ * `GLOBE_WIDTH` in `board-layout.ts`, and this layer is `fixed` + `-z-10` +
+ * `pointer-events-none` — it reserves nothing and occupies nothing. Rendering
+ * `null` here would delete the decoration and keep the hole, which is the bug,
+ * not the fix. Collapsing the gutter needs the deck to know the globe is
+ * absent; that is a change to `app-deck.tsx` and is not made here.
  */
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Globe } from "@/components/ui/globe";
 import { GLOBE_LEFT, GLOBE_WIDTH } from "@/components/board/board-layout";
 import { cn } from "@/lib/utils";
 
 const DESKTOP_QUERY = "(min-width: 1024px)"; // Tailwind's `lg`
+
+/** ms the slide off the left edge takes — must match `duration-300` below. */
+const SLIDE_MS = 300;
 
 /**
  * True at the `lg` breakpoint and up. SSR-safe: the server snapshot is false, so
@@ -45,6 +73,73 @@ function useIsDesktop(): boolean {
   );
 }
 
+/**
+ * True once the globe has finished leaving — `open`, plus the slide it takes to
+ * get off the screen. Lagging the flag is the whole point: pause on the same
+ * tick `open` flips and you'd freeze the globe mid-exit, which is the one moment
+ * it's actually being watched. Going back the other way there's no lag at all,
+ * so the world is already turning as it comes back in.
+ *
+ * It answers "is it off the screen", not "is a panel open", because that's what
+ * the render loop is being asked. Scroll isn't part of it: the layer is `fixed`
+ * and its offset is a constant, so short of the panel the globe is on screen for
+ * as long as the Board is.
+ */
+function useOffScreen(open: boolean): boolean {
+  const [gone, setGone] = useState(false);
+  // Leaving is timed; coming back is not. Resuming during render (the sanctioned
+  // "adjust state while rendering" pattern, same as `AppDrawer`) means the globe
+  // is already drawing in the render that starts its slide back in, rather than
+  // an effect's tick later — a beat that would show as a blank left edge.
+  if (!open && gone) setGone(false);
+  useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => setGone(true), SLIDE_MS);
+    return () => window.clearTimeout(t);
+  }, [open]);
+  return gone;
+}
+
+/**
+ * What stands in for the globe when there is no WebGL to draw one with.
+ *
+ * Pure CSS: a dot grid clipped to a circle by `rounded-full`, faded out toward
+ * the rim by a radial mask, over a soft off-centre shade so it reads as a
+ * sphere lit from the same corner Cobe lights from (`theta: 0.25`). Built out
+ * of `--ink` and `--paper` through `color-mix` so it re-tones with the skin
+ * dice for free — the real globe has to be torn down and rebuilt to do that.
+ *
+ * Deliberately not a picture of the Earth. It is a decoration standing in for a
+ * decoration, and a static world map would be a worse lie than an abstract
+ * disc: it would imply the globe is there and simply not turning.
+ */
+function StaticGlobe(): React.JSX.Element {
+  return (
+    <div
+      aria-hidden
+      className="aspect-square w-full rounded-full"
+      style={{
+        backgroundImage: [
+          // The dots — the map's stand-in. Two colours would be one too many.
+          // The weights here were measured, not guessed: at 14% on a 13px grid
+          // this was invisible in a screenshot of the real thing, which is a
+          // fallback that has not fallen back. 30% on an 11px grid reads as a
+          // sphere across the room and still sits under the cards.
+          "radial-gradient(color-mix(in srgb, var(--ink) 30%, transparent) 1.1px, transparent 1.5px)",
+          // The shade, off-centre to match the real globe's light.
+          "radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--ink) 8%, transparent), transparent 70%)",
+        ].join(", "),
+        backgroundSize: "11px 11px, 100% 100%",
+        // Fades the dots out before the rim, so the disc has no hard edge to
+        // read as a boxed circle in a column — the exact thing this file's
+        // header says the globe is not.
+        maskImage: "radial-gradient(circle at 50% 50%, #000 48%, transparent 80%)",
+        WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 48%, transparent 80%)",
+      }}
+    />
+  );
+}
+
 export function BoardGlobe({
   open,
   centerY,
@@ -60,6 +155,12 @@ export function BoardGlobe({
   centerY: number | null;
 }): React.JSX.Element {
   const isDesktop = useIsDesktop();
+  const offScreen = useOffScreen(open);
+  // Optimistic: assume the context is there and let `Globe` tell us it isn't.
+  // One code path instead of two — a probe here would have to agree with the
+  // one Cobe's own `createGlobe` performs, and it would still miss the case
+  // where the context exists and construction throws anyway.
+  const [webgl, setWebgl] = useState(true);
 
   return (
     // Full-bleed and full-HEIGHT: fixed to the viewport so the globe gets the
@@ -93,7 +194,18 @@ export function BoardGlobe({
             width are shared constants rather than classes only this file knows. */}
         {isDesktop ? (
           <div style={{ marginLeft: GLOBE_LEFT, width: GLOBE_WIDTH }}>
-            <Globe className="w-full" />
+            {/* Same box either way — `GLOBE_LEFT`/`GLOBE_WIDTH` are what the
+                deck's gutter and the panel's width are derived from, so the
+                fallback has to be exactly the size the real globe would have
+                been or the measurement everything else hangs off is a lie. */}
+            {webgl ? (
+              /* Parked off the left edge, it draws nothing. The canvas stays
+                 mounted and keeps showing its last composited frame, so there is
+                 nothing to rebuild when it comes back. */
+              <Globe className="w-full" paused={offScreen} onUnavailable={() => setWebgl(false)} />
+            ) : (
+              <StaticGlobe />
+            )}
           </div>
         ) : null}
       </div>
