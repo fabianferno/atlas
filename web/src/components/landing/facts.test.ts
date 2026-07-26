@@ -7,6 +7,7 @@
 import { describe, it, assert, assertEqual } from "@/lib/kit/testing";
 import { SOURCE_REGISTRY } from "@/lib/kit/sources";
 import { LIVE_SEED_COUNT, SEED_DECLARED_COUNT, SEED_DROPPED } from "@/lib/seed";
+import { MCP_TOOLS } from "@/lib/mcp-tools";
 import { ENS_PARENT, ONCHAIN, REGISTRY, SEED, SUBSTREAMS, ZEROG } from "./facts";
 
 describe("landing facts", () => {
@@ -78,5 +79,33 @@ describe("landing facts", () => {
     assert(ENS_PARENT.endsWith(".eth"), "a real ENS name");
     assertEqual(ZEROG.chainId, 16602);
     assert(ZEROG.tokenId > 0, "a minted token");
+  });
+});
+
+/**
+ * The endpoints section renders this list. It is the same array `/api/mcp`
+ * serves from `tools/list`, imported rather than retyped — the README proved
+ * what retyping costs by tabulating five of these and omitting `check_coverage`
+ * while its own footer said six. Parity with the server is therefore a
+ * compile-time property; what is left to assert is that the list is fit to
+ * render.
+ */
+describe("mcp tool list", () => {
+  it("is non-empty and has unique names", () => {
+    assert(MCP_TOOLS.length > 0, "the server advertises tools");
+    assertEqual(new Set(MCP_TOOLS.map((t) => t.name)).size, MCP_TOOLS.length);
+  });
+
+  it("every tool describes itself, because the list is rendered on the landing", () => {
+    for (const t of MCP_TOOLS) {
+      assert(t.description.trim().length > 0, `${t.name} has a description`);
+    }
+  });
+
+  it("still advertises check_coverage, the one the README dropped", () => {
+    assert(
+      MCP_TOOLS.some((t) => t.name === "check_coverage"),
+      "check_coverage is served — the README table must list it",
+    );
   });
 });

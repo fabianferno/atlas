@@ -39,6 +39,7 @@ import { registryCoverage } from "@/lib/kit/sources";
 import { resolveSourcesDetailed } from "@/lib/kit/resolver";
 import { resolveWithReport } from "@/lib/identity/publish";
 import { assessCoverage } from "@/lib/coverage/gap";
+import { MCP_TOOLS } from "@/lib/mcp-tools";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -88,95 +89,11 @@ function jsonText(value: unknown, isError = false) {
 
 /* ── tools ───────────────────────────────────────────────────────────────── */
 
-const TOOLS = [
-  {
-    name: "list_schemas",
-    description:
-      "List the standardized subgraph schema families this server can query, with how many health-checked deployments exist per network. Call this first — it tells you which schemas and networks the other tools will accept.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  },
-  {
-    name: "check_coverage",
-    description:
-      "Ask whether The Graph can answer a question at all: how many standardized subgraph deployments exist in the schema families the question plans to query, and whether any Substreams package is published for it. Returns a verdict of covered, subgraph-only, substreams-only, uncovered, or unknown, with the reasons behind it. The deployment count is candidates, not a confirmed match — nothing here checks that those deployments index the protocol you asked about, so only a matching Substreams package sets 'covered'. 'uncovered' means the package lookup completed and found nothing; 'unknown' means it did not complete — it failed, timed out, or returned rows that could not be read — so the absence of a package is unproven. 'unknown' is returned whenever that happens, even when subgraph deployments exist; the machine-readable form is the 'substreamsProven' flag. Treat 'unknown' as 'ask again', never as 'nothing exists'. Call this before concluding that data is unavailable — and before building an indexing pipeline, so you do not rebuild something already published.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        question: {
-          type: "string",
-          description: "The protocol or activity to check, e.g. 'Hyperliquid vault flows on Arbitrum'.",
-        },
-      },
-      required: ["question"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "plan_mini_app",
-    description:
-      "Turn a natural-language question about onchain activity into a query plan: which standardized schema families and networks answer it, the GraphQL to run, and the agency tier the question implies. Does not execute anything.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        question: {
-          type: "string",
-          description: "e.g. 'Compare Aave lending markets on Arbitrum and Optimism to DEX liquidity'",
-        },
-      },
-      required: ["question"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "query_graph",
-    description:
-      "Answer a question with live data: resolve the question to standardized schemas, health-check the deployments, query all healthy ones in parallel across networks, and return the merged rows. Rows carrying impossible USD values are flagged `_suspect` and ranked last rather than dropped.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        question: { type: "string", description: "Natural-language question about onchain activity." },
-        limit: {
-          type: "integer",
-          description: "Max rows to return (default 25). The full count is always reported.",
-          minimum: 1,
-          maximum: 200,
-        },
-      },
-      required: ["question"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "build_mini_app",
-    description:
-      "The whole pipeline: question to a renderable mini app. Plans, fans out across live standardized subgraphs, and composes an A2UI v0.9.1 document whose components are chosen from the SHAPE of the returned data. Returns the document plus the provenance of the run.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        question: { type: "string", description: "What the mini app should show or watch." },
-        includeDocument: {
-          type: "boolean",
-          description: "Include the full A2UI document. Default true. Set false for just the summary.",
-        },
-      },
-      required: ["question"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "resolve_mini_app",
-    description:
-      "Resolve a published mini app by ENS name (e.g. 'attested-market-guard.atlas-apps.eth' or just the label). Returns its manifest, its wallet address, its Agentic ID on 0G Chain, and whether the name and the onchain token verify each other in both directions.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "ENS name or bare label of the mini app." },
-      },
-      required: ["name"],
-      additionalProperties: false,
-    },
-  },
-] as const;
+// Lives in `@/lib/mcp-tools` rather than here: the landing page prints this
+// list too, and the README had already shown what retyping it costs — its
+// table omitted `check_coverage` while its own footer counted six. One array,
+// two readers, no drift.
+const TOOLS = MCP_TOOLS;
 
 async function callTool(name: string, args: Record<string, unknown>) {
   switch (name) {

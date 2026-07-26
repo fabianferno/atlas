@@ -169,6 +169,7 @@ We serve MCP at `/api/mcp` — the same URL every published mini app writes into
 | Tool | Does |
 |---|---|
 | `list_schemas` | What's queryable, with per-network deployment counts |
+| `check_coverage` | Whether The Graph can answer a question at all — deployment candidates, whether a Substreams package exists, and a verdict of covered / subgraph-only / substreams-only / uncovered / unknown |
 | `plan_mini_app` | Question → query plan (schemas, networks, GraphQL, tier) |
 | `query_graph` | Question → live merged rows across all healthy deployments |
 | `build_mini_app` | Question → a renderable A2UI document |
