@@ -1,0 +1,16 @@
+graph TD
+  N["ENS subname<br/>name.atlas-apps.eth, Sepolia"]
+  I["Manifest bytes<br/>fetched from ipfs.io, not from us"]
+  EP["Agent endpoints<br/>web + MCP"]
+  T["Agentic ID<br/>ERC-7857 token, 0G Galileo"]
+  R["MiniAppRegistry<br/>0G Chain"]
+  V["mutuallyVerified<br/>true only when all three agree,<br/>read off chain, never assumed"]
+
+  N -->|"contenthash, ENSIP-7"| I
+  N -->|"agent-endpoint, ENSIP-26"| EP
+  N -->|"ENSIP-25 names the token"| T
+  T -->|"ensNameOf names the name"| N
+  R -->|"asserts name + attestationHash"| N
+  N --> V
+  T --> V
+  R --> V

@@ -1,0 +1,24 @@
+graph TD
+  B["Substreams tick<br/>arb-one.streamingfast.io,<br/>one per block"]
+  RW["Rewind<br/>an undo is never a signal"]
+  D["Dedupe on block:hash<br/>a replay is not a second trade"]
+  E["Re-read the metric server-side<br/>from the app's own sources"]
+  T["Trigger grammar"]
+  IN["Marked inert<br/>not listed as armed"]
+  G["Policy gate at the signer"]
+  SG["Signer<br/>session key or ERC-7579"]
+  TX["Base Sepolia transaction"]
+  J["Trade log"]
+  CU["Commit the cursor<br/>after the action, not before"]
+
+  B -->|"blockUndoSignal"| RW
+  B --> D
+  D --> E
+  E --> T
+  T -->|"condition not evaluable"| IN
+  T -->|"condition breached"| G
+  G -->|"rejected, with the reason"| J
+  G -->|"mode, allowlist, per-tx cap,<br/>lifetime cap, expiry, kill switch"| SG
+  SG --> TX
+  TX --> J
+  J --> CU

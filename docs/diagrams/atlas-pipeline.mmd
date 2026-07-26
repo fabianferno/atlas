@@ -1,0 +1,28 @@
+graph TD
+  Q["Question<br/>chat prompt or MCP call"]
+  P["Planner<br/>0G Private Computer, TEE-attested"]
+  R["Resolver<br/>picks a schema family,<br/>not a subgraph id"]
+  H["Health check<br/>96-entry standardized registry"]
+  D1["lending-cdp v3.1.0<br/>arbitrum-one"]
+  D2["dex-amm-extended v4.0.1<br/>optimism"]
+  D3["bridge v1.2.0<br/>base"]
+  DX["...18 deployments queried,<br/>5 dead and named"]
+  M["Merge and rank<br/>_suspect flagged, never dropped"]
+  S["Shape detector<br/>bounded ratio, ranked list, series"]
+  C["A2UI composer<br/>declarative document, not code"]
+  U["Client catalog<br/>renders by component name only"]
+
+  Q --> P
+  P -->|"attestationRef 0g://..."| R
+  R --> H
+  H --> D1
+  H --> D2
+  H --> D3
+  H --> DX
+  D1 --> M
+  D2 --> M
+  D3 --> M
+  DX --> M
+  M -->|"74 rows, 2.8s, $0.0014"| S
+  S --> C
+  C -->|"the agent cannot inject code"| U
