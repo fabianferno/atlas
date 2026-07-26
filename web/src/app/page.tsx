@@ -1,30 +1,76 @@
 /**
- * The Board — the home surface.
+ * The home surface — a landing page whose hero is the Board.
  *
- * Answers "what is here and what is it doing?" in one screen: every mini app on
- * the board gets the whole width, and chrome weight does the talking. It used to
+ * The Board answers "what is here and what is it doing?" in one screen: every
+ * mini app gets the whole width, and chrome weight does the talking. It used to
  * ask the narrower question — "what do I have" — over `myApps()`, which was a
  * seed constant rather than anything about the reader; see the ownership note in
  * `store.ts`. A card says whose it is; the surface is for browsing. The ledger
- * no longer
- * holds a column here — it lives in the dock, bottom-left, on every surface.
- * Making something new happens in the Studio, which lives on the Registry.
+ * no longer holds a column here — it lives in the dock, bottom-left, on every
+ * surface. Making something new happens in the Studio, which lives on the
+ * Registry.
+ *
+ * Everything under the deck is new, and it exists because a stranger arriving
+ * at this origin saw sixteen cards on a wheel and had no way to learn what a
+ * mini app is, why generating one differs from building one, or which of this
+ * project's claims are backed. All of that was in the README and none of it was
+ * on the site.
+ *
+ * Two acts, and the seam between them is drawn on purpose. Act I is the case:
+ * the morph, then why no surface like this existed, then what depth encodes,
+ * then why a generated interface that can move money is safe to render. Act II
+ * is what a reader can check: the measured runs, then the things that are not
+ * built, then where to point an agent. A visitor who came for the idea can stop
+ * at the rule; a judge checking one sponsor claim knows where to start.
+ *
+ * This page composes. It holds no copy and no figures of its own — those live
+ * with their sections, and every number on it is read from
+ * `components/landing/facts.ts` rather than typed here.
  */
 import { TierLegend } from "@/components/board/app-grid";
 import { AppDeck } from "@/components/board/app-deck";
 import { TopBar } from "@/components/board/top-bar";
 import { SponsorMark } from "@/components/brand/sponsor-mark";
+import { MorphSection } from "@/components/landing/morph/morph-section";
+import { WhySection } from "@/components/landing/why-section";
+import { DepthSection } from "@/components/landing/depth-section";
+import { ContainmentSection } from "@/components/landing/containment-section";
+import { ActRule } from "@/components/landing/act-rule";
+import { ReceiptsSection } from "@/components/landing/receipts-section";
+import { NotBuiltSection } from "@/components/landing/not-built-section";
+import { EndpointsSection } from "@/components/landing/endpoints-section";
 
 export default function BoardPage() {
   return (
     <>
       <TopBar active="board" />
-      <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-3 py-4 sm:px-5 sm:py-6">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+
+      {/* THE HERO. `flex-1` is deliberately gone from both of these: it existed
+          to stretch the deck down a viewport that had nothing under it, and now
+          that there is, it would open a gap between the legend and the morph.
+          The deck's own wheel yields page scroll unless you have clicked into it
+          (see option-wheel.tsx), which is what makes anything below this
+          reachable at all. */}
+      <main className="mx-auto flex w-full max-w-[1400px] flex-col px-3 py-4 sm:px-5 sm:py-6">
+        <div className="flex min-h-0 min-w-0 flex-col gap-4">
           <AppDeck />
           <TierLegend />
         </div>
       </main>
+
+      {/* Sections own their own vertical rhythm (`py-16 sm:py-24`) rather than
+          being spaced from here, so a section can be moved or dropped without
+          leaving a hole this file has to remember to close. */}
+      <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-5">
+        <MorphSection />
+        <WhySection />
+        <DepthSection />
+        <ContainmentSection />
+        <ActRule />
+        <ReceiptsSection />
+        <NotBuiltSection />
+        <EndpointsSection />
+      </div>
 
       {/* Left padding clears the docked ledger pill, which floats over this
           corner once the page is scrolled to the bottom. */}
