@@ -1,7 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+# Unanchored: pnpm installs one per workspace package too, e.g.
+# packages/atlas-kit/node_modules. `/node_modules` only covered this file's dir.
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -63,3 +65,7 @@ next-env.d.ts
 # preference. See the IPFS block in `.env.example`.
 .atlas/
 .gstack/
+
+# Built output of the workspace packages. `pnpm --filter @atlas/kit build`
+# regenerates it; publishing runs it via prepublishOnly.
+packages/*/dist

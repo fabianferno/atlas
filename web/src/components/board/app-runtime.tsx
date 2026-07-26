@@ -51,7 +51,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { TIER_BLURB } from "@/lib/seed";
+import { TIER_BLURB, SEED_EPOCH } from "@/lib/seed";
 import { isConditionEvaluable } from "@/lib/agency/condition";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import type { Manifest } from "@/lib/contracts/manifest";
@@ -170,6 +170,9 @@ interface SignerFacts {
     sessionKeyAddress: string;
     onchainEnforced: boolean;
     permissionId?: string;
+    /** Optional: an older server does not send it, and unknown must not render
+     *  as either answer. See the banner below. */
+    keyScope?: "per-app" | "shared" | "ephemeral";
   };
   enforcement: EnforcementReport;
   /*
@@ -302,7 +305,7 @@ export function AppRuntime({ name }: { name: string }) {
   const bodyDoc = useMemo(() => {
     const mm = app?.manifest;
     if (!mm) return null;
-    return mm.agency.tier === "autonomous" ? seedToA2ui(mm, { journal }) : mm.ui;
+    return mm.agency.tier === "autonomous" ? seedToA2ui(mm, { journal, epoch: SEED_EPOCH }) : mm.ui;
   }, [app, journal]);
 
   if (!app && !board.hydrated) {
@@ -767,19 +770,36 @@ export function AppRuntime({ name }: { name: string }) {
                 <KV k="Requires confirm" v={policy.requireConfirm ? "yes" : "no — trigger signs directly"} />
               </dl>
 
-              {/* ONE KEY SIGNS FOR EVERY APP. `AGENT_SESSION_PRIVATE_KEY` is
-                  process-wide, so this address is the same one every other
-                  autonomous mini app on this server signs with — verified by
-                  registering two and comparing. prd.md §4 P3 and §7 both say
-                  "each mini app gets its own wallet", and §8's case for the ENS
-                  name as a safety primitive depends on that isolation. It is the
-                  design, not what runs, and a per-app page is exactly where a
-                  reader would otherwise assume otherwise. */}
-              {signer ? (
+              {/* WHICH KEY SIGNS — reported, not asserted.
+                  This used to be one unconditional paragraph reading "This key
+                  is shared", which was true when it was written and would have
+                  quietly become a lie the moment isolation landed. The server
+                  now answers per app (`keyScope`, from `sessionKeyScope()` in
+                  `lib/agency/wallet.ts`) and this renders that answer. §8's case
+                  for the ENS name as a safety primitive is that you verify a
+                  funded address before funding it, so "is this address this
+                  app's alone" is the one question this block exists to answer —
+                  and an absent field means unknown, which renders as nothing
+                  rather than as either answer. */}
+              {signer?.wallet.keyScope === "shared" ? (
                 <p className="mt-2 text-[0.6875rem] leading-snug" style={{ color: "var(--risk)" }}>
                   This key is shared. One process-wide session key signs for every mini app here, so
-                  funding this address funds all of them and revoking it revokes all of them. Per-app
-                  wallet isolation is specified (prd.md §4 P3, §7) and is not built.
+                  funding this address funds all of them and revoking it revokes all of them. Set
+                  AGENT_SESSION_MASTER_SEED to give each app its own.
+                </p>
+              ) : null}
+              {signer?.wallet.keyScope === "ephemeral" ? (
+                <p className="mt-2 text-[0.6875rem] leading-snug" style={{ color: "var(--risk)" }}>
+                  This key is this app&rsquo;s alone, and it is ephemeral — generated in memory with
+                  no seed configured, so a restart replaces it and nothing funded here survives. Set
+                  AGENT_SESSION_MASTER_SEED to make it durable.
+                </p>
+              ) : null}
+              {signer?.wallet.keyScope === "per-app" ? (
+                <p className="mono mt-2 text-[0.625rem] leading-snug text-[var(--muted-ink)]">
+                  This address is this app&rsquo;s alone — derived per app from the server&rsquo;s
+                  master seed, so funding it funds only {app.manifest.name}. The seed still holds
+                  every app&rsquo;s key: this is isolation between apps, not custody.
                 </p>
               ) : null}
 

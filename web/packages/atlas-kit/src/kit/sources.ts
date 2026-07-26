@@ -13,7 +13,7 @@
  * registry on purpose: the health check is the product, and a registry that
  * only lists things we already know are alive proves nothing.
  */
-import type { Network, SchemaFamily, Source } from "@/lib/contracts/manifest";
+import type { Network, SchemaFamily, Source } from "../contracts/manifest";
 import { graphQuery, isLive, type Transport } from "./gateway";
 
 /** How a candidate deployment ID was obtained. Placeholders are never queried. */

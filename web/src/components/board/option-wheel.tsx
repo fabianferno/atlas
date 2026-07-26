@@ -139,8 +139,15 @@ export default function OptionWheel({
   const dragRef = useRef<{ y: number; start: number; id: number } | null>(null);
   const dragMovedRef = useRef<boolean>(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Tick playback goes through WebAudio, not an <audio> element. Restarting one
+  // element (`currentTime = 0; play()`) costs tens of ms before the first sample
+  // lands, which is longer than the click itself — the attack gets swallowed and
+  // the wheel sounds silent. A decoded buffer fired through a fresh source node
+  // starts on the next audio quantum and lets consecutive ticks overlap.
+  const ctxRef = useRef<AudioContext | null>(null);
+  const bufRef = useRef<AudioBuffer | null>(null);
   const audioUrlRef = useRef<string>("");
+  const volumeRef = useRef<number>(soundVolume);
   const lastTickRef = useRef<number>(0);
 
   const [selectedIndex, setSelectedIndex] = useState<number>(defaultSelected);
@@ -171,30 +178,87 @@ export default function OptionWheel({
 
   // --- audio (optional tick) ------------------------------------------------
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!soundUrl) {
-      audioRef.current = null;
-      audioUrlRef.current = "";
-      return;
-    }
-    if (audioUrlRef.current !== soundUrl) {
-      const a = new Audio(soundUrl);
-      a.preload = "auto";
-      audioRef.current = a;
-      audioUrlRef.current = soundUrl;
-    }
-    if (audioRef.current) audioRef.current.volume = clamp(soundVolume, 0, 1);
-  }, [soundUrl, soundVolume]);
+    volumeRef.current = clamp(soundVolume, 0, 1);
+  }, [soundVolume]);
+
+  // Fetch + decode the clip once. Decoding needs a context, but constructing one
+  // before any user gesture leaves it 'suspended' (and logs a warning), so the
+  // context is created here and resumed on the first gesture below.
+  useEffect(() => {
+    if (typeof window === "undefined" || !soundUrl) return;
+    if (audioUrlRef.current === soundUrl) return;
+
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return; // no WebAudio: the wheel simply stays silent
+
+    audioUrlRef.current = soundUrl;
+    bufRef.current = null;
+    const ctx = ctxRef.current ?? new Ctor();
+    ctxRef.current = ctx;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(soundUrl);
+        const bytes = await res.arrayBuffer();
+        const decoded = await ctx.decodeAudioData(bytes);
+        if (!cancelled) bufRef.current = decoded;
+      } catch {
+        // asset missing or undecodable — stay silent rather than throw
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [soundUrl]);
+
+  // Wheel events do NOT grant user activation, so a context created on load stays
+  // suspended and the first scroll would be silent until the user happened to
+  // click. Resume on the first real gesture anywhere on the page.
+  useEffect(() => {
+    if (typeof document === "undefined" || !soundUrl) return;
+    const unlock = () => {
+      const ctx = ctxRef.current;
+      if (ctx && ctx.state !== "running") void ctx.resume().catch(() => {});
+    };
+    // `once` is wrong here: a gesture that arrives before the context exists
+    // would consume the listener, so keep listening until it is actually running.
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, [soundUrl]);
 
   const playTick = useCallback(() => {
-    const a = audioRef.current;
-    if (!a) return;
+    const ctx = ctxRef.current;
+    const buf = bufRef.current;
+    if (!ctx || !buf) return;
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     if (now - lastTickRef.current < 70) return; // throttle: >=70ms apart
     lastTickRef.current = now;
     try {
-      a.currentTime = 0;
-      void a.play().catch(() => {}); // swallow autoplay/gesture errors
+      if (ctx.state !== "running") {
+        void ctx.resume().catch(() => {});
+        return; // this tick is lost; the next one lands once it's running
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.value = volumeRef.current;
+      src.connect(gain).connect(ctx.destination);
+      src.start();
+      // Source nodes are one-shot; drop the graph when the clip finishes.
+      src.onended = () => {
+        try {
+          src.disconnect();
+          gain.disconnect();
+        } catch {
+          // ignore
+        }
+      };
     } catch {
       // ignore
     }
@@ -427,12 +491,13 @@ export default function OptionWheel({
         cancelAnimationFrame(rafRef.current);
       }
       rafRef.current = null;
-      if (audioRef.current) {
+      if (ctxRef.current) {
         try {
-          audioRef.current.pause();
+          void ctxRef.current.close();
         } catch {
           // ignore
         }
+        ctxRef.current = null;
       }
     };
   }, []);

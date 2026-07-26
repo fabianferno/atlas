@@ -12,8 +12,8 @@
  *   2. It never retries a dead source inline. Retries turn one slow source into
  *      a slow fan-out, and the health check already told us who is alive.
  */
-import type { SchemaFamily, Source } from "@/lib/contracts/manifest";
-import type { FanOut, FanOutResult, PlanResult } from "@/lib/contracts/api";
+import type { SchemaFamily, Source } from "../contracts/manifest";
+import type { FanOut, FanOutResult, PlanResult } from "../contracts/api";
 import { graphQuery, isLive, type Transport } from "./gateway";
 import { lookupEntry } from "./sources";
 
@@ -158,8 +158,38 @@ export const DEFAULT_QUERIES: Record<SchemaFamily, string> = {
   "options@1.3.2": `query AtlasOptions { protocols(first: 1) {${PROTOCOL_CORE} } }`,
 };
 
-/** Root fields whose rows we lift into the merged table. */
-const ROW_ROOTS = [
+/**
+ * Root fields whose rows we lift into the merged table.
+ *
+ * THIS IS AN ALLOWLIST, and a root missing from it is data fetched, paid for and
+ * dropped on the floor — the same failure `planQueriesFor` above describes, one
+ * layer down. It had fifteen entries while the planner's templates selected six
+ * roots that were not among them, so:
+ *
+ *   `positions`               the `position` template, every family that models
+ *                             one — so `position_card` could never render
+ *   `swaps`                   the `events` template (whale movements) — so
+ *                             `distribution` had nothing with the right shape
+ *   `bridgeTransfers`         the `flow` template — the source → destination
+ *                             rows that ARE a flow diagram, which is why
+ *                             `bridge-flows` renders a comparison grid
+ *   `collections`,            the whole nft-marketplace family's rank and
+ *   `collectionDailySnapshots` history queries
+ *   `dailySnapshots`          the network family's history query
+ *
+ * The last two are worse than a missing component: two declared schema families
+ * could return rows and have every one of them discarded.
+ *
+ * Adding a root here is safe in one direction and not the other. Nothing in
+ * `DEFAULT_QUERIES` selects any of the six, so no panel that renders today
+ * changes — they arrive only when a plan asked for them. Removing one silently
+ * deletes data, which is how this list got wrong in the first place.
+ *
+ * Kept in two groups because `shapes.ts` needs the distinction: the aggregates
+ * are what a family's default query returns together and compose into one panel;
+ * a detail entity answers a different question and gets its own.
+ */
+const AGGREGATE_ROOTS = [
   "protocols",
   "lendingProtocols",
   "dexAmmProtocols",
@@ -173,9 +203,21 @@ const ROW_ROOTS = [
   "liquidityPools",
   "pools",
   "vaults",
+] as const;
+
+/** Rows a plan went out of its way to ask for. One panel each — see `shapes.ts`. */
+export const DETAIL_ROOTS = [
   "financialsDailySnapshots",
   "usageMetricsDailySnapshots",
+  "dailySnapshots",
+  "collectionDailySnapshots",
+  "collections",
+  "positions",
+  "swaps",
+  "bridgeTransfers",
 ] as const;
+
+const ROW_ROOTS = [...AGGREGATE_ROOTS, ...DETAIL_ROOTS] as const;
 
 export interface FanOutFailure {
   subgraphId: string;
@@ -209,20 +251,79 @@ export type DetailedFanOutResult = FanOutResult & {
   rowsSuspect: number;
 };
 
-/** Does the plan carry a query written for this specific family? */
-function planQueryFor(plan: PlanResult, schema: SchemaFamily): string | null {
+/**
+ * Every query the plan wants fired at this family, plus the family's baseline.
+ *
+ * THE BUG THIS REPLACES, because it was silent and it cost the product its
+ * charts. The old `planQueryFor` returned ONE query and only recognised three
+ * key shapes: the bare family (`lending-cdp@3.1.0`), its short name, or a lone
+ * unkeyed entry. The planner does not write keys like that. `rankQueries` emits
+ * `rank:<family>`, `timeseriesQueries` emits `history:<family>`, the patterns
+ * emit bare `flow`/`events`/`guard`/`watch`, and the model contributes keys of
+ * its own invention (`timeseries:<family>` was observed live). So every plan
+ * carrying two or more queries matched nothing, returned `null`, and fell
+ * through to `DEFAULT_QUERIES` — the plan was computed, paid for, displayed in
+ * the trace, and then thrown away.
+ *
+ * What that cost: ask for "daily TVL over the last 30 days as a chart" and the
+ * planner correctly writes a `financialsDailySnapshots` query, the fan-out fires
+ * `markets(first: 5)` instead, no row comes back carrying a timestamp, and the
+ * composer — which chooses from the shape of the data and is right to — has no
+ * series to find. `time_series`, `area_stack`, `candlestick` and `flow_diagram`
+ * were unreachable for this reason, not because their detectors were wrong.
+ *
+ * THE RULES, in order:
+ *   1. `<anything>:<family>` and `<anything>:<short>` — every prefix, not one.
+ *      Prefixes are an open namespace: the model writes them too, so matching a
+ *      fixed list would reintroduce the same failure the next time it invents
+ *      one.
+ *   2. Exact `<family>` / `<short>` keys, which some plans still use.
+ *   3. Unprefixed keys with no `:` at all. The planner scopes these to
+ *      `ex.schemas[0]` and means them for the question rather than a family, and
+ *      firing them at every family is the original comment's intent — cross-
+ *      schema reach is the point, and the narrowing retry catches the misses.
+ *   4. `DEFAULT_QUERIES[schema]`, ALWAYS, deduped against the above.
+ *
+ * Rule 4 is the one to justify. The default is the family's baseline shape —
+ * protocol totals plus its top entities — and it is what every panel on the
+ * board is currently composed from. A plan whose only query is `rank:` returns
+ * markets and no protocol row, so honouring the plan *instead of* the default
+ * would have deleted the metric card from screens that have one today. Additive
+ * is the correct relationship: the default is what the family always answers,
+ * the plan's queries are the shapes this question asked for on top. Nothing that
+ * renders today stops rendering; what was asked for now arrives as well.
+ *
+ * Cost is linear and small — one gateway query is $0.0001 — and `runOne` fires
+ * a source's queries concurrently, so the extra shapes cost latency only when
+ * one of them is slower than the baseline was.
+ */
+function planQueriesFor(plan: PlanResult, schema: SchemaFamily): string[] {
   const queries = plan.queries ?? {};
-  if (queries[schema]) return queries[schema];
-
   const short = schema.split("@")[0];
-  if (queries[short]) return queries[short];
+  const out: string[] = [];
 
-  // A single unkeyed query means the planner wrote one query for one question.
-  // Firing it at every family is the right default — cross-schema reach is the
-  // entire point — and the core fallback catches families it doesn't fit.
-  const keys = Object.keys(queries);
-  if (keys.length === 1) return queries[keys[0]];
-  return queries.primary ?? queries.default ?? queries.main ?? null;
+  for (const [key, query] of Object.entries(queries)) {
+    if (typeof query !== "string" || query.length === 0) continue;
+    const colon = key.indexOf(":");
+    if (colon >= 0) {
+      const scope = key.slice(colon + 1);
+      if (scope === schema || scope === short) out.push(query);
+      continue;
+    }
+    if (key === schema || key === short) out.push(query);
+  }
+
+  // Family-agnostic keys, only once no family-scoped query claimed this schema —
+  // a plan that wrote `rank:bridge@1.2.0` AND a bare `flow` means both for
+  // bridges, so these are appended rather than used as an either/or.
+  for (const [key, query] of Object.entries(queries)) {
+    if (typeof query !== "string" || query.length === 0) continue;
+    if (key.includes(":") || key === schema || key === short) continue;
+    out.push(query);
+  }
+
+  out.push(DEFAULT_QUERIES[schema]);
+  return [...new Set(out)];
 }
 
 /** GraphQL validation failures are recoverable with a narrower query. Network
@@ -326,70 +427,95 @@ export async function fanOutDetailed(
     const entry = lookupEntry(source.subgraphId);
     const label = source.label ?? entry?.label ?? source.subgraphId;
     const fixtureHint = { label, schema: source.schema, network: source.network };
-    const query = planQueryFor(plan, source.schema) ?? DEFAULT_QUERIES[source.schema];
+    const planned = planQueriesFor(plan, source.schema);
 
-    let result = await graphQuery<Record<string, unknown>>({
-      subgraphId: source.subgraphId,
-      query,
-      variables: plan.variables ?? {},
-      transport,
-      timeoutMs,
-      fixtureHint,
-    });
-    costUsd += result.costUsd;
+    // Deduped as it accumulates. Two of a plan's queries can select the same
+    // root — `rank:` and a bare `totals` both return `protocols` — and the same
+    // protocol row arriving twice would double a metric card's sum. Keyed on
+    // entity + id rather than the whole row because the two queries ask for
+    // different field sets, so the objects differ while the entity does not.
+    const extracted: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+    const errors: string[] = [];
+
+    const collect = (data: Record<string, unknown>): number => {
+      let added = 0;
+      for (const root of ROW_ROOTS) {
+        const value = data[root];
+        if (!Array.isArray(value)) continue;
+        for (const item of value) {
+          if (!isRecord(item)) continue;
+          const key = `${root} ${String(item.id ?? JSON.stringify(item))}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const suspect = suspectUsdFields(item);
+          extracted.push({
+            ...item,
+            // Present only when something is wrong, so `_suspect in row` is a
+            // clean test and untouched rows stay byte-identical to the source.
+            ...(suspect.length > 0 ? { _suspect: suspect } : {}),
+            // Provenance travels with every row. Without it a merged table across
+            // 27 deployments is unattributable, and Graph Track 2 explicitly asks
+            // which subgraphs were used.
+            _source: source.subgraphId,
+            _label: label,
+            _schema: source.schema,
+            _network: source.network,
+            _entity: root,
+          });
+          added += 1;
+        }
+      }
+      return added;
+    };
+
+    // Concurrently, so asking a deployment for a second shape costs a request
+    // and not a round trip. `budgetExceeded` is checked before the batch rather
+    // than inside it — a half-fired set would report rows for a source whose
+    // other shape was silently dropped.
+    const results = await Promise.all(
+      planned.map((query) =>
+        graphQuery<Record<string, unknown>>({
+          subgraphId: source.subgraphId,
+          query,
+          variables: plan.variables ?? {},
+          transport,
+          timeoutMs,
+          fixtureHint,
+        }),
+      ),
+    );
+
+    for (const result of results) {
+      costUsd += result.costUsd;
+      errors.push(...result.errors);
+      if (result.data !== null) collect(result.data);
+    }
 
     // One narrowing retry, and only for a schema mismatch. A deployment running
     // dex-amm 1.3.0 genuinely cannot answer a 4.0.1 query, and dropping it
     // would silently shrink the fan-out that is the whole submission.
+    //
+    // Gated on the source having produced NOTHING. With a set of queries rather
+    // than one, a mismatch on the shape the plan added is not a reason to throw
+    // away the baseline rows that did arrive and replace them with the core
+    // query's single protocol row.
     if (
       !options.noCoreFallback &&
-      (result.data === null || result.errors.length > 0) &&
-      isSchemaMismatch(result.errors) &&
-      query !== CORE_QUERY
+      extracted.length === 0 &&
+      isSchemaMismatch(errors) &&
+      !planned.includes(CORE_QUERY)
     ) {
-      result = await graphQuery<Record<string, unknown>>({
+      const retry = await graphQuery<Record<string, unknown>>({
         subgraphId: source.subgraphId,
         query: CORE_QUERY,
         transport,
         timeoutMs,
         fixtureHint,
       });
-      costUsd += result.costUsd;
-    }
-
-    if (result.data === null) {
-      failures.push({
-        subgraphId: source.subgraphId,
-        label,
-        schema: source.schema,
-        network: source.network,
-        reason: result.errors[0] ?? "empty response",
-      });
-      return;
-    }
-
-    const extracted: Record<string, unknown>[] = [];
-    for (const root of ROW_ROOTS) {
-      const value = result.data[root];
-      if (!Array.isArray(value)) continue;
-      for (const item of value) {
-        if (!isRecord(item)) continue;
-        const suspect = suspectUsdFields(item);
-        extracted.push({
-          ...item,
-          // Present only when something is wrong, so `_suspect in row` is a
-          // clean test and untouched rows stay byte-identical to the source.
-          ...(suspect.length > 0 ? { _suspect: suspect } : {}),
-          // Provenance travels with every row. Without it a merged table across
-          // 27 deployments is unattributable, and Graph Track 2 explicitly asks
-          // which subgraphs were used.
-          _source: source.subgraphId,
-          _label: label,
-          _schema: source.schema,
-          _network: source.network,
-          _entity: root,
-        });
-      }
+      costUsd += retry.costUsd;
+      errors.push(...retry.errors);
+      if (retry.data !== null) collect(retry.data);
     }
 
     if (extracted.length === 0) {
@@ -398,7 +524,7 @@ export async function fanOutDetailed(
         label,
         schema: source.schema,
         network: source.network,
-        reason: result.errors[0] ?? "response carried no rows",
+        reason: errors[0] ?? "response carried no rows",
       });
       return;
     }

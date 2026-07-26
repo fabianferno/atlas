@@ -31,8 +31,8 @@
  * is the suite's registry and this repo's kit does not own it, so a new file
  * would be a test nothing runs.
  */
-import type { PlanResult } from "@/lib/contracts/api";
-import { assert, assertEqual, describe, it } from "../agency/harness.test";
+import type { PlanResult } from "../contracts/api";
+import { assert, assertEqual, describe, it } from "@/lib/kit/testing";
 import { compose } from "./composer";
 import { detectShape, type Row } from "./shapes";
 

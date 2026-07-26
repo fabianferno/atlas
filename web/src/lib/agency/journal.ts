@@ -15,7 +15,7 @@
  * and a 0G Storage implementation (W9) can be dropped in behind the same three
  * methods without touching a caller.
  */
-import type { JournalEntry } from "../contracts/policy";
+import type { JournalEntry } from "@/lib/contracts/policy";
 
 export type JournalKind = JournalEntry["kind"];
 

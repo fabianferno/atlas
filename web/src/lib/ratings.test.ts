@@ -34,7 +34,7 @@
  * `runStandalone()` below is kept for running this file alone while iterating on
  * it, which is faster than the whole suite. It is not the supported path.
  */
-import { assert, assertEqual, describe, it, itAsync, report } from "./agency/harness.test";
+import { assert, assertEqual, describe, it, itAsync, report } from "@/lib/kit/testing";
 import { score } from "@/components/registry/ratings";
 import { boardSnapshot, localRunCount, ranHere, rateApp, runApp } from "@/lib/store";
 import { SEED_APPS, isSeededReview, type MiniApp, type Review } from "@/lib/seed";

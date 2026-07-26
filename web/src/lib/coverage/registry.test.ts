@@ -4,7 +4,7 @@
  * of them would otherwise surface as "this protocol has no coverage" — which is
  * the exact claim this module exists to make truthfully.
  */
-import { assert, assertEqual, assertRejects, describe, it, itAsync } from "../agency/harness.test";
+import { assert, assertEqual, assertRejects, describe, it, itAsync } from "@/lib/kit/testing";
 import { RegistryRateLimitError, searchPackages, searchTermFor } from "./registry";
 
 function jsonResponse(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) {

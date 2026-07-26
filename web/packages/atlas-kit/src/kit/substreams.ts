@@ -41,7 +41,7 @@ import {
   unpackMapOutput,
 } from "@substreams/core";
 import type { Package } from "@substreams/core/proto";
-import type { Network } from "@/lib/contracts/manifest";
+import type { Network } from "../contracts/manifest";
 
 /* ------------------------------------------------------------------ *
  * Endpoints

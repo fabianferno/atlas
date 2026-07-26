@@ -3,7 +3,7 @@
  * lifetime cap is metered against, so anything that lets a spend go unrecorded
  * is a hole in the policy engine.
  */
-import { assert, assertEqual, describe, itAsync } from "./harness.test";
+import { assert, assertEqual, describe, itAsync } from "@/lib/kit/testing";
 import { MemoryJournalStore, journal, sanitizeMessage } from "./journal";
 
 describe("journal", () => {

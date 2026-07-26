@@ -16,6 +16,7 @@
  * that cannot work.
  */
 import { usePrivy } from "@privy-io/react-auth";
+import { Wallet } from "lucide-react";
 import { PRIVY_ENABLED } from "@/components/providers/privy";
 import { useBoard } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -63,7 +64,12 @@ function PrivyWalletButton({ className }: { className?: string }) {
   }
 
   return (
-    <button type="button" onClick={() => login()} className={cn(BTN, className)}>
+    <button
+      type="button"
+      onClick={() => login()}
+      className={cn(BTN, "inline-flex items-center gap-1.5", className)}
+    >
+      <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
       Connect wallet
     </button>
   );

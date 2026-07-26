@@ -13,7 +13,7 @@
  * every consumer works before any key exists and switches to live the moment
  * one does. Nothing downstream needs to know which mode it is in.
  */
-import type { DataPlan } from "@/lib/contracts/manifest";
+import type { DataPlan } from "../contracts/manifest";
 import { fixtureFor, type FixtureHint } from "./fixtures";
 
 export type Transport = DataPlan["transport"];
@@ -140,7 +140,13 @@ export async function graphQuery<T = Record<string, unknown>>(
     };
   }
 
-  if (transport === "gateway" && typeof window !== "undefined") {
+  // `globalThis` rather than a bare `window`. The check is the same one — is
+  // this running in a browser — but a bare `window` is a DOM global, and the
+  // published package compiles against `lib: ["esnext"]` with no DOM, where the
+  // identifier does not exist. It was the ONLY thing in the kit that assumed a
+  // browser typing environment, and it surfaced the moment the package was
+  // built on its own rather than inside the Next app's tsconfig.
+  if (transport === "gateway" && typeof (globalThis as { window?: unknown }).window !== "undefined") {
     return {
       data: null,
       errors: ["gateway transport is server-only; call /api/graph from the client"],

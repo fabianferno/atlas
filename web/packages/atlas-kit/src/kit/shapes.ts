@@ -19,9 +19,10 @@
  * to be a permutation of every `DataShape`. A shape nothing detects is a
  * component that never renders (contracts/README.md rule 3).
  */
-import type { DataShape, DisplayComponent } from "@/lib/contracts/catalog";
-import { SHAPE_TO_COMPONENT } from "@/lib/contracts/catalog";
-import type { FanOutResult, PlanResult, RequestedMetric } from "@/lib/contracts/api";
+import type { DataShape, DisplayComponent } from "../contracts/catalog";
+import { SHAPE_TO_COMPONENT } from "../contracts/catalog";
+import type { FanOutResult, PlanResult, RequestedMetric } from "../contracts/api";
+import { DETAIL_ROOTS } from "./fanout";
 import { sanitizeForPrompt, sanitizeKey } from "./inference";
 
 export type Row = Record<string, unknown>;
@@ -945,6 +946,58 @@ export interface ShapeBlock extends DetectedShape {
  * produces a stronger shape than the parts (that is where the cross-schema
  * comparison grid comes from).
  */
+/**
+ * Split a schema bucket's DETAIL entities out into buckets of their own.
+ *
+ * One bucket is one panel and one panel is one shape, so a bucket holding both
+ * `markets` (ranked) and `financialsDailySnapshots` (a series) has to lose one
+ * of them — whichever loses the confidence vote disappears from the screen. That
+ * did not matter while the fan-out fired one query per source; it matters now
+ * that a plan asking for a rank AND a history gets both back, which is the whole
+ * point of honouring the plan (see `planQueriesFor` in `kit/fanout.ts`).
+ *
+ * The line is `DETAIL_ROOTS` in `kit/fanout.ts`, and it is drawn where it is for
+ * a reason. An AGGREGATE root is what a family's default query returns — today
+ * `protocols` and `markets` arrive in one document and the composer's
+ * leaderboards are built from that mix, so separating them would rewrite screens
+ * nobody asked to change. A DETAIL root only ever arrives because a plan went
+ * out of its way to ask: daily snapshots, an account's `positions`, large
+ * `swaps`, `bridgeTransfers`. Those answer a different question from a protocol
+ * aggregate, and putting them in the same panel means one of the two questions
+ * goes unanswered.
+ *
+ * A bucket with no detail rows, or with nothing but detail rows, comes back as
+ * itself — the grouping is byte-identical to before for every panel that
+ * composes today.
+ *
+ * Imported rather than restated so the two lists cannot drift: a root added to
+ * `DETAIL_ROOTS` becomes its own panel here without a second edit.
+ */
+const DETAIL_ENTITIES = new Set<string>(DETAIL_ROOTS);
+
+function splitDetailEntities(group: string, rows: Row[]): Array<[string, Row[]]> {
+  const detail = new Map<string, Row[]>();
+  const rest: Row[] = [];
+
+  for (const row of rows) {
+    const entity = typeof row._entity === "string" ? row._entity : "";
+    if (entity && DETAIL_ENTITIES.has(entity)) {
+      const bucket = detail.get(entity);
+      if (bucket) bucket.push(row);
+      else detail.set(entity, [row]);
+    } else {
+      rest.push(row);
+    }
+  }
+
+  if (detail.size === 0 || rest.length === 0) return [[group, rows]];
+
+  return [
+    [group, rest],
+    ...[...detail.entries()].map(([entity, r]) => [`${group} · ${entity}`, r] as [string, Row[]]),
+  ];
+}
+
 export function detectShapes(data: FanOutResult, plan?: PlanResult): ShapeBlock[] {
   const opts: DetectOptions = {
     preferredMetric: typeof plan?.variables?.orderBy === "string" ? plan.variables.orderBy : null,
@@ -956,7 +1009,9 @@ export function detectShapes(data: FanOutResult, plan?: PlanResult): ShapeBlock[
   };
 
   const blocks: ShapeBlock[] = [];
-  const buckets = Object.entries(data.bySchema ?? {}).filter(([, rows]) => Array.isArray(rows) && rows.length > 0);
+  const buckets = Object.entries(data.bySchema ?? {})
+    .filter(([, rows]) => Array.isArray(rows) && rows.length > 0)
+    .flatMap(([group, rows]) => splitDetailEntities(group, rows));
 
   for (const [group, rows] of buckets) {
     const detected = detectShape(rows, opts);

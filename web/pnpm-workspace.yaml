@@ -1,3 +1,12 @@
+# The kit is a real workspace package, not two folders under `src/lib`. It is
+# what Graph Track 1 asks for — "reusable tooling/infrastructure, not a single
+# end-user app" — and extracting it is what turned that from an assertion into
+# something a build can check: `packages/atlas-kit` compiles on its own tsconfig
+# with no DOM lib and no path aliases, so a dependency on the app fails loudly
+# instead of resolving by accident.
+packages:
+  - "packages/*"
+
 # Build scripts (postinstall) we decline to run. These are optional native
 # speed-ups (bufferutil, utf-8-validate, keccak) with pure-JS fallbacks, a
 # wallet-UI postinstall (@reown/appkit), and image/resolver addons we already

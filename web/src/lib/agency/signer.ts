@@ -20,8 +20,8 @@
  * prd.md §7.
  */
 import { keccak256, toHex } from "viem";
-import type { Agency } from "../contracts/manifest";
-import type { JournalEntry, PolicyDecision, ProposedAction, Signer } from "../contracts/policy";
+import type { Agency } from "@/lib/contracts/manifest";
+import type { JournalEntry, PolicyDecision, ProposedAction, Signer } from "@/lib/contracts/policy";
 import { getJournal, journal, type JournalStore } from "./journal";
 import {
   describeDecision,

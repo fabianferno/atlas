@@ -5,9 +5,9 @@
  * a rejection reason to the contract without adding a test for it is a
  * compile error, not an oversight.
  */
-import type { Action, Policy } from "../contracts/manifest";
-import type { PolicyDecision, RejectionReason } from "../contracts/policy";
-import { assert, assertEqual, describe, it } from "./harness.test";
+import type { Action, Policy } from "@/lib/contracts/manifest";
+import type { PolicyDecision, RejectionReason } from "@/lib/contracts/policy";
+import { assert, assertEqual, describe, it } from "@/lib/kit/testing";
 import { evaluatePolicy, remainingBudgetUsd, type AgencyProposedAction, type AgencyPolicyContext } from "./policy";
 
 const ROUTER = "0x94Cc0AAC535CCDb3C01d6787D6413C739ae12bc4";

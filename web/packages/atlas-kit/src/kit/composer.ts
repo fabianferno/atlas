@@ -25,11 +25,11 @@
  * column names and shapes only, never values.
  */
 import { z } from "zod";
-import type { Compose, ComposeResult, FanOutResult, PlanResult } from "@/lib/contracts/api";
-import type { ComponentName } from "@/lib/contracts/catalog";
-import { REQUIRED_FOR_AUTONOMOUS } from "@/lib/contracts/catalog";
-import { AGENCY_TIERS, NETWORKS, SCHEMA_FAMILIES } from "@/lib/contracts/manifest";
-import type { AgencyTier } from "@/lib/contracts/manifest";
+import type { Compose, ComposeResult, FanOutResult, PlanResult } from "../contracts/api";
+import type { ComponentName } from "../contracts/catalog";
+import { REQUIRED_FOR_AUTONOMOUS } from "../contracts/catalog";
+import { AGENCY_TIERS, NETWORKS, SCHEMA_FAMILIES } from "../contracts/manifest";
+import type { AgencyTier } from "../contracts/manifest";
 import {
   buildDocument,
   serverEvent,
@@ -426,6 +426,66 @@ function buildPayload(block: ShapeBlock, split: SuspectSplit): JsonValue {
     case "timeseries_many_metrics": {
       const metrics = f.metrics.slice(0, 5);
       const points = sortByTime(rows, f.time);
+
+      /*
+       * WHOSE SERIES IS IT. A fan-out asks six deployments the same question, so
+       * a daily-snapshot bucket holds six protocols' histories interleaved by
+       * timestamp — Aave at $780M, Compound at $80M, dForce at $200K, all
+       * sharing a `timestamp` column. Pooling them into one line per metric,
+       * which is what this did, draws a line that dives from Aave to Saddle and
+       * back at every point on the x axis. It is not noise in the data; it is a
+       * chart of six things pretending to be a chart of one, and it renders as a
+       * sawtooth that says nothing true.
+       *
+       * `_label` is the fan-out's per-row provenance (`kit/fanout.ts`), so it is
+       * the correct grouping key and it is always present — no detector has to
+       * guess which column names the emitter.
+       *
+       * When several deployments answered, one line per deployment on the
+       * PRIMARY metric only: six sources times three metrics is eighteen lines,
+       * which is a different way of being unreadable. Capped at 8, matching
+       * `timeseries_composition` above, which already grouped correctly and is
+       * the precedent this now follows.
+       *
+       * Ordered by the latest value, largest first, and the cap takes the top of
+       * that order rather than whichever source the fan-out happened to return
+       * first. Rule 3 gives exactly one line the `--live` accent at 2px, so which
+       * one gets it is a real decision: first-seen put it on a $1.6M protocol
+       * sitting flat on the axis while $780M of Aave was drawn in grey behind it.
+       * Biggest-last-value is not a claim about importance, it is the line you
+       * can actually read, and the cap keeps the series that carry the chart.
+       *
+       * One emitter, and nothing changes — series stay one-per-metric, which is
+       * the right answer when there is only one history in the bucket.
+       */
+      const sources = [...new Set(points.map((r) => label(r, "_label", "")).filter((s) => s.length > 0))];
+
+      if (sources.length > 1) {
+        const metric = f.primaryMetric ?? metrics[0];
+        const ranked = sources
+          .map((name) => {
+            const pts = points
+              .filter((r) => label(r, "_label", "") === name)
+              .map((r) => ({ t: cell(r, f.time), v: cell(r, metric) }));
+            // `points` is time-sorted, so the last point is the most recent.
+            const last = toNumber(pts[pts.length - 1]?.v) ?? 0;
+            return { name, pts, last };
+          })
+          .sort((a, b) => b.last - a.last);
+
+        return {
+          ...base,
+          unit: unitFor(metric) ?? "none",
+          metric: humanize(metric ?? "Value"),
+          series: ranked.slice(0, 8).map((s, i) => ({
+            name: s.name,
+            key: s.name,
+            accent: i === 0,
+            points: s.pts,
+          })),
+        };
+      }
+
       return {
         ...base,
         unit: unitFor(f.primaryMetric ?? metrics[0]) ?? "none",

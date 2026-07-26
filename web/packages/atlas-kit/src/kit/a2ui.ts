@@ -23,9 +23,9 @@
  * Spec: https://a2ui.org/specification/v0.9-a2ui/
  * Client-to-server: specification/v0_9_1/json/client_to_server.json
  */
-import type { ComponentName } from "@/lib/contracts/catalog";
-import { ALL_COMPONENTS } from "@/lib/contracts/catalog";
-import type { AgencyTier } from "@/lib/contracts/manifest";
+import type { ComponentName } from "../contracts/catalog";
+import { ALL_COMPONENTS } from "../contracts/catalog";
+import type { AgencyTier } from "../contracts/manifest";
 
 export const A2UI_VERSION = "v0.9.1" as const;
 

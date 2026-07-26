@@ -1,0 +1,29 @@
+{
+  "name": "@atlas/kit",
+  "version": "0.1.0",
+  "description": "Natural language to a live onchain mini app: plan a question against The Graph's standardized subgraphs, fan out across every healthy deployment, and compose the result into an A2UI document.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./contracts": "./dist/contracts/index.js"
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^1.10.1",
+    "@connectrpc/connect": "^1.7.0",
+    "@connectrpc/connect-node": "^1.7.0",
+    "@substreams/core": "^0.17.0",
+    "openai": "^6.49.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

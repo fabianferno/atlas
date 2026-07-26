@@ -19,11 +19,21 @@
       }
     ],
     "paths": {
+      /* The kit and the contracts now live in `packages/atlas-kit` — a real,
+         publishable package rather than two folders under `src/lib`. These two
+         entries are why that move cost zero import-site edits in the app: 69
+         call sites across 35 files still write `@/lib/kit/...` and
+         `@/lib/contracts/...` and still resolve. Order matters — the more
+         specific patterns must precede `@/*` or everything resolves back into
+         `src/lib` and the package is dead weight. */
+      "@/lib/kit/*": ["./packages/atlas-kit/src/kit/*"],
+      "@/lib/contracts/*": ["./packages/atlas-kit/src/contracts/*"],
       "@/*": ["./src/*"]
     }
   },
   "include": [
     "next-env.d.ts",
+    "packages/atlas-kit/src/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

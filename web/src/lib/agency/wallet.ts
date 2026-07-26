@@ -53,7 +53,7 @@ import {
   isSessionEnabled,
   type Session as SmartSession,
 } from "@rhinestone/module-sdk";
-import type { Agency, AgencyTier, DataPlan, Policy } from "../contracts/manifest";
+import type { Agency, AgencyTier, DataPlan, Policy } from "@/lib/contracts/manifest";
 
 /**
  * Read this out loud when a judge asks "what if your server is owned?".
@@ -168,6 +168,14 @@ export interface MiniAppWallet {
   onchainEnforced: boolean;
   /** Smart Sessions permission id — the onchain handle for this grant. */
   permissionId?: Hex;
+  /**
+   * Whether this key is this app's alone. Read from configuration at
+   * provisioning time and carried on the wallet so every surface reports the
+   * same answer — the autonomous panel used to assert "this key is shared" as
+   * static copy, which was true then and would have gone stale the moment it
+   * stopped being. See `sessionKeyScope`.
+   */
+  keyScope: KeyScope;
   createdAt: string;
 }
 
@@ -294,6 +302,64 @@ export function deterministicAddress(seed: string): Address {
   return getAddress(`0x${keccak256(toHex(`atlas:${seed}`)).slice(-40)}`);
 }
 
+/** Whether one key signs for every app, or each app holds its own. */
+export type KeyScope = "per-app" | "shared" | "ephemeral";
+
+/**
+ * WHOSE KEY SIGNS — the answer prd §4 P3, §7 and §14 #1b are all about.
+ *
+ * The file header says "Each mini app gets its own wallet. Never a shared one",
+ * and until this function existed that was the design and not the behaviour:
+ * `provisionWallet` read `AGENT_SESSION_PRIVATE_KEY` — one process-wide value —
+ * so every app returned the same signer and every published name's `addr` record
+ * pointed at the same address. §8's case for an ENS name as a SAFETY primitive
+ * is that you can verify a funded address before funding it; with one key,
+ * funding one app funds all of them and revoking one revokes all of them.
+ *
+ * The plumbing was already per-app — `sessionSecrets` and `SESSION_KEYS` are
+ * both keyed by `appId`, and `ProvisionOptions.sessionPrivateKey` exists — so
+ * the only thing missing was a per-app SOURCE of key material that survives a
+ * restart. That is what this is: a domain-separated keccak of a master seed and
+ * the app id. A 32-byte digest is a valid secp256k1 scalar, derivation is
+ * deterministic so an address survives redeploys, and one secret in the
+ * environment still yields a distinct funded address per app.
+ *
+ * PRECEDENCE, and why it is this way round rather than simply replacing the old
+ * variable. Deriving from an existing `AGENT_SESSION_PRIVATE_KEY` would change
+ * every app's address, which would strand whatever Base Sepolia balance is
+ * already sitting on the shared one and break a funded demo silently — the exact
+ * class of failure this codebase keeps auditing itself for. So:
+ *
+ *   AGENT_SESSION_MASTER_SEED   set → per-app derivation. The correct mode.
+ *   AGENT_SESSION_PRIVATE_KEY   set → one shared key, unchanged behaviour, and
+ *                                     `keyScope: "shared"` says so out loud
+ *                                     rather than a UI banner asserting it.
+ *   neither                     → a random key per app. Isolated, but unfunded
+ *                                     and gone on restart, so it signs nothing
+ *                                     real. `ephemeral`, and reported as such.
+ *
+ * What this does NOT do: make the policy onchain-enforced. The master seed still
+ * compromises every derived key, so this is isolation between apps, not custody.
+ * `smart-session` is the mode where the account itself refuses — see the header.
+ */
+export function sessionKeyScope(): KeyScope {
+  if (process.env.AGENT_SESSION_MASTER_SEED) return "per-app";
+  if (process.env.AGENT_SESSION_PRIVATE_KEY) return "shared";
+  return "ephemeral";
+}
+
+function sessionKeyForApp(appId: string): Hex {
+  const seed = process.env.AGENT_SESSION_MASTER_SEED;
+  if (seed) {
+    // Domain-separated so this digest cannot collide with `deterministicAddress`
+    // above, which hashes `atlas:<seed>` for the keyless display addresses.
+    return keccak256(toHex(`atlas:session-key:${seed}:${appId}`));
+  }
+  const shared = process.env.AGENT_SESSION_PRIVATE_KEY as Hex | undefined;
+  if (shared) return shared;
+  return generatePrivateKey();
+}
+
 /**
  * Session private keys live here and nowhere else — never in a manifest, never
  * in a journal entry, never in an API response. Server process only.
@@ -379,6 +445,8 @@ export async function provisionWallet(opts: ProvisionOptions): Promise<MiniAppWa
       sessionKeyAddress: deterministicAddress(`${opts.appId}:readonly:key`),
       grant: { ...grantFromPolicy(policy, chain.id), allowlist: [], maxPerTxUsd: 0, maxSpendUsd: 0 },
       onchainEnforced: false,
+      // No key exists at this tier, so isolation is trivially true.
+      keyScope: "per-app",
       createdAt,
     };
   }
@@ -396,12 +464,17 @@ export async function provisionWallet(opts: ProvisionOptions): Promise<MiniAppWa
       sessionKeyAddress,
       grant: grantFromPolicy(policy, chain.id),
       onchainEnforced: false,
+      // `deterministicAddress(appId)` — derived per app and signs nothing.
+      keyScope: "per-app",
       createdAt,
     };
   }
 
   // Real key material from here down.
-  const pk = opts.sessionPrivateKey ?? (process.env.AGENT_SESSION_PRIVATE_KEY as Address | undefined) ?? generatePrivateKey();
+  const pk = opts.sessionPrivateKey ?? sessionKeyForApp(opts.appId);
+  // An explicitly-passed key is this app's by construction, whatever the
+  // environment is doing.
+  const keyScope: KeyScope = opts.sessionPrivateKey ? "per-app" : sessionKeyScope();
   const sessionAccount = privateKeyToAccount(pk);
   sessionSecrets.set(opts.appId, pk);
   SESSION_KEYS.set(opts.appId, sessionAccount.address);
@@ -444,6 +517,7 @@ export async function provisionWallet(opts: ProvisionOptions): Promise<MiniAppWa
       grant,
       onchainEnforced,
       permissionId,
+      keyScope,
       createdAt,
     };
   }
@@ -465,6 +539,7 @@ export async function provisionWallet(opts: ProvisionOptions): Promise<MiniAppWa
     appId: opts.appId,
     address,
     kind,
+    keyScope,
     chainId: chain.id,
     chainName: chain.name,
     sessionKeyAddress: sessionAccount.address,

@@ -5,8 +5,8 @@
  * reaches `signer.execute()` directly still cannot sign outside the grant.
  * That is what "enforced at the signer" has to mean to be worth saying.
  */
-import type { Action, Agency, Policy } from "../contracts/manifest";
-import { assert, assertEqual, assertRejects, describe, itAsync } from "./harness.test";
+import type { Action, Agency, Policy } from "@/lib/contracts/manifest";
+import { assert, assertEqual, assertRejects, describe, itAsync } from "@/lib/kit/testing";
 import { MemoryJournalStore } from "./journal";
 import type { AgencyProposedAction } from "./policy";
 import { assertWithinGrant, createStubSigner, runAction, type AgencySigner } from "./signer";

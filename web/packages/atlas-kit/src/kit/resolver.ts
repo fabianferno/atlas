@@ -6,8 +6,8 @@
  * any given moment, so a resolver that returns the registry verbatim hands the
  * fan-out a batch that is a quarter dead and gets the demo killed on stage.
  */
-import type { Network, SchemaFamily, Source } from "@/lib/contracts/manifest";
-import type { ResolveSources } from "@/lib/contracts/api";
+import type { Network, SchemaFamily, Source } from "../contracts/manifest";
+import type { ResolveSources } from "../contracts/api";
 import type { Transport } from "./gateway";
 import { isLive } from "./gateway";
 import {

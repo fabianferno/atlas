@@ -5,8 +5,8 @@
  * conditions never execute attacker-controlled data, and a signal that has
  * already been acted on cannot fire the same trigger twice.
  */
-import type { Action, Agency, Policy, Trigger } from "../contracts/manifest";
-import { assert, assertEqual, describe, it, itAsync } from "./harness.test";
+import type { Action, Agency, Policy, Trigger } from "@/lib/contracts/manifest";
+import { assert, assertEqual, describe, it, itAsync } from "@/lib/kit/testing";
 import { MemoryJournalStore } from "./journal";
 import {
   MemorySignalLedger,

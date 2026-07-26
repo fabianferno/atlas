@@ -15,7 +15,7 @@
  * SAME object, which is the property that stops it recurring.
  */
 import { zeroGTestnet } from "../identity/agentic-id";
-import { assert, assertEqual, assertThrows, describe, it } from "./harness.test";
+import { assert, assertEqual, assertThrows, describe, it } from "@/lib/kit/testing";
 import { DEFAULT_CHAIN_KEY, SUPPORTED_CHAINS, resolveChain } from "./wallet";
 
 describe("supported chains", () => {

@@ -82,15 +82,20 @@
  * `enforcementReport()` in `lib/agency/wallet.ts` is the single author of that
  * answer and is reused verbatim; nothing here recomputes or summarises it.
  *
- * ONE KEY, EVERY APP — the fact the response cannot hide. `provisionWallet`
- * derives from `AGENT_SESSION_PRIVATE_KEY`, which is process-wide, so the
- * address returned for `aave-guard` is byte-identical to the one returned for
- * `copy-trader-arb`. prd.md §4 P3 and §7 both say "each mini app gets its own
- * wallet"; that is the design, and per-app isolation is not what runs. §8's
- * argument that an ENS name is a safety primitive rests on that isolation, so
- * the shape below carries `sessionKeyAddress` alongside `address` and the UI
- * states the sharing out loud rather than letting a per-app page imply it.
- * Fixing it for real means a key per app, held somewhere this process is not.
+ * WHICH KEY SIGNS — `keyScope`, and why it is a field rather than a sentence.
+ * `provisionWallet` used to read `AGENT_SESSION_PRIVATE_KEY` unconditionally, so
+ * the address returned for `aave-guard` was byte-identical to the one returned
+ * for `copy-trader-arb`, and both this header and the app panel said so in prose
+ * that would have gone stale the moment it stopped being true. It now derives a
+ * key per app from `AGENT_SESSION_MASTER_SEED` when one is set, keeps the single
+ * shared key when only `AGENT_SESSION_PRIVATE_KEY` is (so a funded demo address
+ * is not stranded), and reports which of the two happened. prd §4 P3 and §7 say
+ * "each mini app gets its own wallet" and §8's case for an ENS name as a safety
+ * primitive rests on it — you verify a funded address before funding it, which
+ * means nothing if funding one funds all. The response carries
+ * `sessionKeyAddress` alongside `address` and `keyScope` alongside both, so a
+ * client states the answer it was given instead of the one that was true when
+ * its copy was written. See `sessionKeyScope` in `lib/agency/wallet.ts`.
  */
 import { z } from "zod";
 import type { NextRequest } from "next/server";
@@ -136,6 +141,9 @@ function walletReport(wallet: MiniAppWallet) {
     sessionKeyAddress: wallet.sessionKeyAddress,
     onchainEnforced: wallet.onchainEnforced,
     permissionId: wallet.permissionId,
+    // Whether this key is this app's alone. On the wire because the UI must
+    // REPORT it, not assert it — see the header note.
+    keyScope: wallet.keyScope,
   };
 }
 

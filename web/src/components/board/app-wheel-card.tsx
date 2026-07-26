@@ -28,6 +28,7 @@ export function AppWheelCard({
   app,
   active,
   open,
+  owned,
   className,
 }: {
   app: MiniApp;
@@ -35,6 +36,18 @@ export function AppWheelCard({
   active?: boolean;
   /** Running in the panel beside the wheel. Only a click moves this. */
   open?: boolean;
+  /**
+   * Whose this is, decided by `isMine`/`isUnclaimed` in `store.ts` — never by
+   * the card, which cannot see the connected wallet.
+   *
+   *   "yours"      `manifest.author` is the address currently signed in.
+   *   "made-here"  drafted or forked in this browser and never claimed. It is
+   *                NOT the same statement and must not render as if it were:
+   *                nobody has signed for it, and publishing is what would.
+   *   null         somebody else's, or nobody's. The Board is full of these now
+   *                and that is the normal case, so it gets no mark at all.
+   */
+  owned?: "yours" | "made-here" | null;
   className?: string;
 }): React.JSX.Element {
   const m = app.manifest;
@@ -95,6 +108,22 @@ export function AppWheelCard({
                 unpublished
               </span>
             )}
+            {/* Two marks, two weights, because they are two different claims —
+                see the `owned` prop. "yours" is signed for, so it takes the
+                action colour; "made here" is only provenance, so it sits in the
+                muted register beside "unpublished", which it usually is. */}
+            {owned === "yours" ? (
+              <span
+                className="mono shrink-0 text-[0.5rem] uppercase tracking-[0.08em]"
+                style={{ color: "var(--action)" }}
+              >
+                yours
+              </span>
+            ) : owned === "made-here" ? (
+              <span className="mono shrink-0 text-[0.5rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+                made here
+              </span>
+            ) : null}
           </div>
           <p className="mono mt-0.5 truncate text-[0.5625rem] text-[var(--muted-ink)]">
             <span className="uppercase tracking-[0.08em]">{TIER_LABEL[tier]}</span>

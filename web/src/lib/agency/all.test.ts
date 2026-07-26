@@ -12,7 +12,7 @@
  *
  * Exits non-zero on failure, so it drops straight into CI.
  */
-import { report } from "./harness.test";
+import { report } from "@/lib/kit/testing";
 import "./policy.test";
 import "./journal.test";
 import "./signer.test";
@@ -21,8 +21,8 @@ import "./session.test";
 import "./register.test";
 import "./chains.test";
 import "./stream-runner.test";
-import "../kit/shapes.test";
-import "../kit/substreams-leak.test";
+import "@/lib/kit/shapes.test";
+import "@/lib/kit/substreams-leak.test";
 import "../ratings.test";
 import "../coverage/registry.test";
 import "../coverage/gap.test";

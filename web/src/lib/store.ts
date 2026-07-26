@@ -366,6 +366,37 @@ interface PlanResponse extends PlanResult {
 interface FanOutResponse extends FanOutResult {
   live: boolean;
   resolution?: { sources: Source[] };
+  /**
+   * Which rail the queries actually went over — `"gateway"` or `"x402"`, echoed
+   * by the fan-out from what it really used. Optional because `FanOutResult`
+   * (the frozen contract) does not carry it and an older stored response will
+   * not have it; `costLabel` below treats absence as "do not name a rail".
+   */
+  transport?: string;
+}
+
+/**
+ * The measured cost of a fan-out, and the rail it was paid over — named ONLY
+ * when the fan-out says so.
+ *
+ * This used to be `` `$${cost} x402` `` inline at both call sites, appended
+ * whenever `costUsd > 0` and regardless of transport. `X402_PRIVATE_KEY` is
+ * unset in this build, so every query goes over the gateway's API-key path and
+ * every one of those lines named a payment rail that had settled nothing —
+ * including the journal, which is the surface whose entire argument is that an
+ * agent that spends shows its work. §14 #6 records x402 as coded-and-unexercised
+ * precisely so no screen would claim otherwise; two screens did.
+ *
+ * `app-runtime.tsx` already had this right, qualifying the manifest's declared
+ * transport with "no x402 key in this build, so queries went over the gateway
+ * plan". This is the same answer for the two lines that were asserting instead.
+ */
+function costLabel(data: FanOutResponse): string {
+  if (!(data.costUsd > 0)) return "";
+  const usd = `$${data.costUsd.toFixed(4)}`;
+  if (data.transport === "x402") return ` · ${usd} x402`;
+  if (data.transport === "gateway") return ` · ${usd} gateway`;
+  return ` · ${usd}`;
 }
 
 /** `/api/publish` POST → `PublishReport` from `lib/identity/publish.ts`. */
@@ -624,7 +655,10 @@ export async function publishApp(
 
   const app: MiniApp = {
     manifest: published,
-    mine: true,
+    // No `mine: true`. Ownership is `manifest.author` against the connected
+    // wallet — `draft.author` above already carries `state.wallet`, so a publish
+    // made while signed in is yours by the same fact that made it yours, and one
+    // made signed out is unclaimed rather than quietly claimed on your behalf.
     running: published.agency.tier !== "readonly",
     // Published, not run. `runApp` sets `runs` and `costPerRunUsd` from a
     // measured round trip; there is no defensible value for either until one
@@ -765,11 +799,17 @@ export async function publishExisting(
       `${name} is already published as ${already} — republishing would issue a second subname and mint a second Agentic ID for one app, and neither can be undone`,
     );
   }
-  if (!existing.mine) {
+  // Was `!existing.mine` — a seed constant, so this gate passed for thirteen
+  // bundled apps nobody had any claim to. Ownership is derived now, and the two
+  // ways it can fail are different sentences: one is a missing signature, the
+  // other is someone else's work.
+  if (!isMine(state, existing)) {
     return refusal(
       name,
       existing,
-      `${name} is not on your board — it is being browsed from the registry, and publishing it would name someone else's app under your parent`,
+      existing.manifest.author
+        ? `${name} was authored by ${existing.manifest.author} — publishing it would issue a subname under your parent for someone else's app and record you as its author. Fork it instead: the copy carries forkedFrom, so the attribution survives.`
+        : `${name} is not yours to name — it is a bundled app you are browsing. Fork it and publish the copy.`,
     );
   }
   if (publishInFlight.has(name)) {
@@ -1089,7 +1129,7 @@ function livePlanSteps(
       // `degraded` on the returned draft is the machine-readable version; this
       // is so the plan playback cannot narrate a gateway query that never went out.
       detail:
-        `${data.rows.length} rows · ${data.elapsedMs}ms${data.costUsd > 0 ? ` · $${data.costUsd.toFixed(4)} x402` : ""}` +
+        `${data.rows.length} rows · ${data.elapsedMs}ms${costLabel(data)}` +
         (data.live ? "" : " · from fixtures, not the gateway"),
       ms: 460,
     },
@@ -1141,7 +1181,9 @@ export function forkApp(parentName: string, newName: string): ForkResult | null 
       author: state.wallet,
       pricing: null,
     },
-    mine: true,
+    // No `mine: true` — see `publishApp`. A fork made while signed out is on
+    // this browser and unclaimed, which `isMine` reads as yours-by-provenance:
+    // enough to publish it, not enough to render "yours" over an empty address.
     running: false,
     lastRunAt: now,
     journal: [],
@@ -1581,7 +1623,7 @@ export async function runApp(name: string): Promise<RunOutcome> {
       `${m.data.schemas.join(" + ")} — ${data.rows.length} rows from ${data.sourcesHealthy} of ${data.sourcesQueried} deployments` +
       (dead > 0 ? ` · skipped ${dead}` : "") +
       ` · ${elapsedMs}ms` +
-      (data.costUsd > 0 ? ` · $${data.costUsd.toFixed(4)} x402` : "") +
+      costLabel(data) +
       // Non-negotiable. A fixture answer that reads like a gateway answer is
       // the exact failure this product is arguing against.
       (data.live ? "" : " · FIXTURES — gateway not keyed, no deployment queried");
@@ -1743,11 +1785,51 @@ export function ranHere(board: BoardState, name: string): boolean {
   return localRunCount(board, name) > 0;
 }
 
-export function myApps(board: BoardState): MiniApp[] {
+/* ------------------------------------------------------------------ *
+ * OWNERSHIP — derived, never stored.
+ *
+ * `MiniApp.mine` used to be a boolean literal in `seed.ts`: thirteen of the
+ * sixteen bundled apps asserted `true`, `myApps()` filtered on it, and the Board
+ * led with "Your mini apps" over thirteen cards in a browser that had never seen
+ * a wallet. Privy authenticates for real and `PrivyWalletBridge` writes the
+ * address to `state.wallet`; nothing compared the two. Same defect as the
+ * fabricated ledger ticker and the eight apps that claimed to be armed — a fact
+ * about the reader, asserted by a constant, unaffected by whether it was true.
+ *
+ * So ownership is computed from two things that have real writers:
+ *
+ *   CLAIMED   `manifest.author` equals the connected address. `publishApp`,
+ *             `publishExisting` and `forkApp` stamp `state.wallet` into it, and
+ *             `state.wallet` is a projection of a completed Privy login. Sign
+ *             out and this goes false, which is the point.
+ *   MADE HERE `author` is null AND the app is not one of the bundled seeds — so
+ *             it was drafted or forked in THIS browser while nobody was signed
+ *             in. It is unclaimed, not owned, and the UI must say so; what it
+ *             buys is the right to publish it, which is how you claim it.
+ *
+ * A seed app is neither, ever. It is nobody's until you fork it.
+ */
+export function isMine(board: BoardState, app: MiniApp): boolean {
+  const author = app.manifest.author;
+  if (author) return board.wallet !== null && author.toLowerCase() === board.wallet.toLowerCase();
+  return !SEED_NAMES.has(app.manifest.name);
+}
+
+/** True when `isMine` holds only because the app was made here and never claimed. */
+export function isUnclaimed(board: BoardState, app: MiniApp): boolean {
+  return app.manifest.author === null && !SEED_NAMES.has(app.manifest.name);
+}
+
+/** Everything this browser can show, tier-ordered — the Board's browsing set. */
+export function allApps(board: BoardState): MiniApp[] {
   return board.apps
-    .filter((a) => a.mine)
     .slice()
     .sort((a, b) => tierRank(a.manifest.agency.tier) - tierRank(b.manifest.agency.tier) || a.manifest.name.localeCompare(b.manifest.name));
+}
+
+/** The subset of `allApps` that is the signed-in reader's. Often empty, correctly. */
+export function myApps(board: BoardState): MiniApp[] {
+  return allApps(board).filter((a) => isMine(board, a));
 }
 
 /**
@@ -1808,8 +1890,16 @@ export function isArmed(app: MiniApp): boolean {
   );
 }
 
+/**
+ * Stays scoped to the reader's own apps, now that the Board shows everyone's.
+ *
+ * The lamp in the top bar sits beside the global halt and the day's spend: it is
+ * a statement about standing authority THIS reader is answerable for, not a
+ * census of the registry. Counting a stranger's armed app there would put a
+ * number next to a stop button that does not stop it.
+ */
 export function armedCount(board: BoardState): number {
-  return board.apps.filter((a) => a.mine && isArmed(a)).length;
+  return board.apps.filter((a) => isMine(board, a) && isArmed(a)).length;
 }
 
 export function spentToday(board: BoardState): number {
@@ -1819,9 +1909,19 @@ export function spentToday(board: BoardState): number {
     .reduce((sum, l) => sum + (l.spentUsd ?? 0), 0);
 }
 
-export function tierCounts(board: BoardState): Record<AgencyTier, number> {
+/**
+ * Counts the apps ON SCREEN, which since the Board went global means all of
+ * them. It used to filter on `mine` while the heading above it rendered a
+ * different set — the numbers and the cards disagreed by three and nothing said
+ * so. Pass `scope: "mine"` where the surface really is showing only yours.
+ */
+export function tierCounts(
+  board: BoardState,
+  opts?: { scope?: "all" | "mine" },
+): Record<AgencyTier, number> {
   const out: Record<AgencyTier, number> = { readonly: 0, monitor: 0, autonomous: 0 };
-  for (const a of board.apps.filter((x) => x.mine)) out[a.manifest.agency.tier] += 1;
+  const apps = opts?.scope === "mine" ? board.apps.filter((a) => isMine(board, a)) : board.apps;
+  for (const a of apps) out[a.manifest.agency.tier] += 1;
   return out;
 }
 

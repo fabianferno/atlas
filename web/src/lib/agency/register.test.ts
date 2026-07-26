@@ -18,8 +18,8 @@
  *
  * Everything here is offline — `kind: "stub"` needs no key and signs nothing.
  */
-import type { Agency, DataPlan } from "../contracts/manifest";
-import { assert, assertEqual, describe, it, itAsync } from "./harness.test";
+import type { Agency, DataPlan } from "@/lib/contracts/manifest";
+import { assert, assertEqual, describe, it, itAsync } from "@/lib/kit/testing";
 import {
   getApp,
   provisionWallet,

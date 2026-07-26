@@ -29,6 +29,7 @@
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Square } from "lucide-react";
 import { armedCount, fmtUsd, setHalted, spentToday, useBoard } from "@/lib/store";
 import { ArmedLamp } from "@/components/board/chrome";
 import { SkinToggle } from "@/components/board/skin-toggle";
@@ -182,11 +183,12 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
             type="button"
             onClick={() => setHalted(!board.halted)}
             className={cn(
-              "btn shrink-0 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em]",
+              "btn inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.08em]",
               !board.halted && "btn--danger",
             )}
             aria-pressed={board.halted}
           >
+            {!board.halted && <Square className="h-3.5 w-3.5" aria-hidden="true" />}
             {board.halted ? "Release halt" : "Halt all"}
           </button>
 

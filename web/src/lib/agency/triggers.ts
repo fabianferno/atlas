@@ -19,7 +19,7 @@
  *    ledger. An autonomous app that re-trades on the same event is broken, so
  *    the ledger is checked before the gate, not after.
  */
-import type { Agency, Trigger } from "../contracts/manifest";
+import type { Agency, Trigger } from "@/lib/contracts/manifest";
 import { getJournal, journal, type JournalStore } from "./journal";
 import type { AgencyProposedAction } from "./policy";
 import { runAction, type AgencySigner, type RunActionResult } from "./signer";

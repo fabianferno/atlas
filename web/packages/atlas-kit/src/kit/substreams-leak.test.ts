@@ -8,7 +8,7 @@
  * comment.
  */
 import { Binary, Module, Modules, Package } from "@substreams/core/proto";
-import { assert, describe, itAsync } from "../agency/harness.test";
+import { assert, describe, itAsync } from "@/lib/kit/testing";
 import { streamEvents, type StreamTarget } from "./substreams";
 
 const TARGET: StreamTarget = {

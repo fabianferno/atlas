@@ -45,7 +45,9 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import type { MiniApp } from "@/lib/seed";
 import {
+  isMine,
   publishExisting,
+  useBoard,
   useIdentityStatus,
   type IdentityStatusView,
   type PublishOutcome,
@@ -452,6 +454,10 @@ type Stage = "idle" | "armed" | "sending" | "done";
 
 export function AppPublishPanel({ app }: { app: MiniApp }) {
   const m = app.manifest;
+  const board = useBoard();
+  // Recomputed every render on purpose: signing out has to close this gate, and
+  // it did not when ownership was a field on the app.
+  const mine = isMine(board, app);
   const status = useIdentityStatus();
   const [price, setPrice] = useState(m.pricing?.x402.priceUsd.toString() ?? "0");
   const [stage, setStage] = useState<Stage>("idle");
@@ -509,7 +515,16 @@ export function AppPublishPanel({ app }: { app: MiniApp }) {
     );
   }
 
-  if (!app.mine) {
+  /*
+   * Was `!app.mine` — a seed constant that said "yours" about thirteen bundled
+   * apps in a browser with no wallet, so this gate was open on work the reader
+   * had no claim to. `isMine` derives it: authored by the connected address, or
+   * drafted here and never claimed. Two failures, two sentences, because a
+   * reader browsing somebody else's app needs a different instruction from one
+   * looking at a bundled app nobody has signed for.
+   */
+  if (!mine) {
+    const byOther = m.author !== null;
     return (
       <section className="panel p-3">
         <SectionHead title="Publish" note="not yours to name" />
@@ -517,11 +532,22 @@ export function AppPublishPanel({ app }: { app: MiniApp }) {
           Publish
         </button>
         <p className="mono mt-2 text-[0.625rem] leading-relaxed text-[var(--muted-ink)]">
-          this app is being browsed from the registry, not held on your board. publishing it would
-          issue a subname under <span className="fig">{parent}</span>{" "}
-          for someone else&apos;s work and record you as its author. fork it and publish the copy —
-          that is the loop prd.md §12 specifies, and the fork carries{" "}
-          <span className="fig">forkedFrom</span> so the attribution survives.
+          {byOther ? (
+            <>
+              this app is authored by <span className="fig normal-case">{m.author}</span>, not by the
+              wallet signed in here. publishing it would issue a subname under{" "}
+              <span className="fig">{parent}</span> for someone else&apos;s work and record you as
+              its author. fork it and publish the copy — that is the loop prd.md §12 specifies, and
+              the fork carries <span className="fig">forkedFrom</span> so the attribution survives.
+            </>
+          ) : (
+            <>
+              this is a bundled app you are browsing — it was not made here and nobody has signed for
+              it. publishing it would issue a subname under <span className="fig">{parent}</span> for
+              work that is not yours and record you as its author. fork it and publish the copy — the
+              fork carries <span className="fig">forkedFrom</span> so the attribution survives.
+            </>
+          )}
         </p>
       </section>
     );

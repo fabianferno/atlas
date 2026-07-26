@@ -16,7 +16,7 @@
  * testing the wrong thing.
  */
 import type { Network, SchemaFamily } from "@/lib/contracts/manifest";
-import { assert, assertEqual, describe, itAsync } from "../agency/harness.test";
+import { assert, assertEqual, describe, itAsync } from "@/lib/kit/testing";
 import { assessCoverage } from "./gap";
 
 const NO_PACKAGES = async () => new Response(JSON.stringify({}), { headers: { "content-type": "application/json" } });

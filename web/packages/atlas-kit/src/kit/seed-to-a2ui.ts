@@ -21,11 +21,10 @@
  * to numbers, and `time_series` bare-number points are given synthetic
  * timestamps so the renderer has an X axis to draw.
  */
-import type { Manifest, Policy } from "@/lib/contracts/manifest";
-import type { JournalEntry } from "@/lib/contracts/policy";
-import type { Accent, UiBlock, UiDoc } from "@/lib/seed";
-import { SEED_EPOCH } from "@/lib/seed";
-import { ACTION_COMPONENTS } from "@/lib/contracts/catalog";
+import type { Manifest, Policy } from "../contracts/manifest";
+import type { JournalEntry } from "../contracts/policy";
+import type { Accent, UiBlock, UiDoc } from "./ui-doc";
+import { ACTION_COMPONENTS } from "../contracts/catalog";
 import {
   bind,
   buildDocument,
@@ -117,7 +116,7 @@ interface Converted {
   payload: JsonValue;
 }
 
-function convertBlock(block: UiBlock, tier: Manifest["agency"]["tier"]): Converted {
+function convertBlock(block: UiBlock, tier: Manifest["agency"]["tier"], epoch: number): Converted {
   const id = block.id;
   const hints: A2UIHints = { span: spanFor(block) };
   let payload: JsonValue;
@@ -161,7 +160,7 @@ function convertBlock(block: UiBlock, tier: Manifest["agency"]["tier"]): Convert
       const n = d.points.length;
       payload = clean({
         unit: hints.unit,
-        points: d.points.map((v, i) => ({ t: SEED_EPOCH - (n - 1 - i) * 3_600_000, v })),
+        points: d.points.map((v, i) => ({ t: epoch - (n - 1 - i) * 3_600_000, v })),
       });
       break;
     }
@@ -437,8 +436,17 @@ function displayHalf(doc: unknown): { components: A2UIComponent[]; blocks: Recor
  */
 export function seedToA2ui(
   manifest: Manifest,
-  opts: { journal?: JournalEntry[] } = {},
+  /*
+   * `epoch` replaces an import of `SEED_EPOCH` from the app's seed file. It is
+   * used for one thing — giving bare-number `time_series` points synthetic
+   * hourly stamps so the renderer has an X axis — and a fixed demo clock is app
+   * content, not kit behaviour, so the kit takes it as a parameter and defaults
+   * to now. The app passes its seed epoch and keeps the deterministic render it
+   * had; anyone else gets a sensible axis without inheriting our clock.
+   */
+  opts: { journal?: JournalEntry[]; epoch?: number } = {},
 ): A2UIDocument {
+  const epoch = opts.epoch ?? Date.now();
   const ui = manifest.ui;
   const tier = manifest.agency.tier;
   const components: A2UIComponent[] = [];
@@ -446,7 +454,7 @@ export function seedToA2ui(
 
   if (isUiDoc(ui)) {
     for (const block of ui.blocks) {
-      const { component, payload } = convertBlock(block, tier);
+      const { component, payload } = convertBlock(block, tier, epoch);
       blocks[component.id] = payload;
       components.push(component);
     }

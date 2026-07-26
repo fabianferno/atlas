@@ -1,8 +1,12 @@
 /**
  * The Board — the home surface.
  *
- * Answers "what do I have and what is it doing?" in one screen: your mini apps
- * get the whole width, and chrome weight does the talking. The ledger no longer
+ * Answers "what is here and what is it doing?" in one screen: every mini app on
+ * the board gets the whole width, and chrome weight does the talking. It used to
+ * ask the narrower question — "what do I have" — over `myApps()`, which was a
+ * seed constant rather than anything about the reader; see the ownership note in
+ * `store.ts`. A card says whose it is; the surface is for browsing. The ledger
+ * no longer
  * holds a column here — it lives in the dock, bottom-left, on every surface.
  * Making something new happens in the Studio, which lives on the Registry.
  */

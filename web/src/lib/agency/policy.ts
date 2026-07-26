@@ -12,14 +12,14 @@
  *
  * prd.md §7.
  */
-import type { AgencyTier } from "../contracts/manifest";
+import type { AgencyTier } from "@/lib/contracts/manifest";
 import type {
   EvaluatePolicy,
   PolicyContext,
   PolicyDecision,
   ProposedAction,
   RejectionReason,
-} from "../contracts/policy";
+} from "@/lib/contracts/policy";
 
 /**
  * USD amounts arrive as IEEE-754 doubles, so `100.00000000000001 > 100` is

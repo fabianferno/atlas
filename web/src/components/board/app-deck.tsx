@@ -3,7 +3,7 @@
 /**
  * The mini-app deck — the Board's browsing surface.
  *
- * Your mini apps ride a vertical **card-wheel** (curve, tilt, blur, scroll,
+ * Every mini app on the board rides a vertical **card-wheel** (curve, tilt, blur, scroll,
  * drag) instead of a static grid. Scrolling only highlights the centered card;
  * clicking one slides its full runtime in as a drawer — from the left on
  * desktop, into the space the globe vacates, and from the bottom on mobile.
@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { myApps, tierCounts, useBoard } from "@/lib/store";
+import { allApps, isMine, isUnclaimed, tierCounts, useBoard } from "@/lib/store";
 import { SectionHead } from "@/components/board/chrome";
 import { WHEEL_CARD_EXPAND, AppWheelCard } from "@/components/board/app-wheel-card";
 import OptionWheel, { type WheelItem } from "@/components/board/option-wheel";
@@ -35,35 +35,48 @@ import {
 
 export function AppDeck() {
   const board = useBoard();
-  const apps = useMemo(() => myApps(board), [board]);
+  /*
+   * EVERY app, not `myApps()` — and the heading changed with it.
+   *
+   * This wheel used to render `myApps()` under the title "Your mini apps", where
+   * "yours" meant `MiniApp.mine`, a boolean literal in `seed.ts` set on thirteen
+   * of the sixteen bundled apps. The first screen of the product therefore said
+   * *your* to a browser that had never connected a wallet, and went on saying it
+   * after a logout. See the ownership note in `store.ts` for the fix; the part
+   * that lands here is that the Board is a browsing surface, so it shows the
+   * whole set and lets a card say whose it is.
+   *
+   * That also retires the denominator this heading used to carry (`13 of 16
+   * here`), which existed only to disclose that the wheel was a subset. It is
+   * not a subset any more, so the note states the count plainly and adds `N
+   * yours` only when the signed-in reader actually holds some.
+   */
+  const apps = useMemo(() => allApps(board), [board]);
   const counts = tierCounts(board);
   /*
-   * THE DENOMINATOR, which this heading did not have.
-   *
-   * The note read `5 autonomous · 4 monitor · 4 read only` — thirteen apps, and
-   * no way to tell that from all of them. It is not: three seed apps carry
-   * `mine: false` (`bridge-outflow-watch`, `perp-oi-board`, `nft-volume-eth`),
-   * `myApps()` filters on `mine`, and the wheel below renders 13 of the 16 this
-   * browser holds. The snapshot measured 16 of 16 and `/registry` shows all 16,
-   * so the first screen of the product was quietly the only surface that
-   * disagreed, with nothing on it saying so.
-   *
-   * That is a smaller sin than an invented figure and the same family: a count
-   * presented as complete when it is a subset. The fix is a denominator, not a
-   * disclaimer — `13 of 16 here` states the subset and names where the other
-   * three are, and the Registry link is already sitting at the other end of this
-   * heading. If someone forks or publishes, both numbers move together.
-   *
    * `board.apps.length` rather than `SEED_DECLARED_COUNT` from `seed.ts` on
-   * purpose. The right denominator is what this browser can actually show you —
-   * seed apps that survived the live overlay, plus anything published or forked
-   * here. `SEED_DECLARED_COUNT` counts apps the snapshot may have DROPPED for
-   * want of live data, which are on no surface at all; pointing at the Registry
-   * with a number that includes them would send a reader looking for cards that
-   * do not exist. Coverage of the seed set is `LIVE_SEED_COUNT`/`SEED_DROPPED`'s
-   * job and belongs next to the registry's own audit, not in a board heading.
+   * purpose. The right count is what this browser can actually show you — seed
+   * apps that survived the live overlay, plus anything published or forked here.
+   * `SEED_DECLARED_COUNT` counts apps the snapshot may have DROPPED for want of
+   * live data, which are on no surface at all; a number that includes them would
+   * send a reader looking for cards that do not exist. Coverage of the seed set
+   * is `LIVE_SEED_COUNT`/`SEED_DROPPED`'s job and belongs next to the registry's
+   * own audit, not in a board heading.
    */
   const total = board.apps.length;
+  /*
+   * TWO counts, because the cards below draw two marks and one number cannot
+   * stand for both. A single `N yours` read "1 yours" over a card labelled "made
+   * here" — the heading claiming a signature the card was careful not to claim.
+   * Same defect in miniature as the thing this whole change is about, so it gets
+   * the same treatment: count what each word means, print only what is non-zero.
+   */
+  const owned = useMemo(
+    () => board.apps.map((a) => (isMine(board, a) ? (isUnclaimed(board, a) ? "made" : "yours") : null)),
+    [board],
+  );
+  const yoursCount = owned.filter((o) => o === "yours").length;
+  const madeHereCount = owned.filter((o) => o === "made").length;
 
   // The centered card (wheel highlight) and the opened card (drawer). Kept
   // separate on purpose: scrolling moves the highlight, only a click opens.
@@ -107,11 +120,16 @@ export function AppDeck() {
             app={app}
             active={i === selected}
             open={app.manifest.name === openName}
+            // The wheel is everyone's apps now, so a card has to be able to say
+            // it is yours. Computed here rather than in the card because the
+            // answer depends on board state (the connected wallet), and the card
+            // is otherwise a pure function of one app.
+            owned={isMine(board, app) ? (isUnclaimed(board, app) ? "made-here" : "yours") : null}
             className="w-full"
           />
         ),
       })),
-    [apps, selected, openName],
+    [apps, selected, openName, board],
   );
 
   return (
@@ -147,12 +165,19 @@ export function AppDeck() {
           {/* Leads the Board, so it carries the page heading. */}
           <SectionHead
             as="h1"
-            title="Your mini apps"
-            note={
-              apps.length === total
-                ? `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
-                : `${apps.length} of ${total} in this browser · ${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
-            }
+            title="Explore mini apps on The Graph"
+            note={[
+              `${total} here`,
+              // Only when there are some. "0 yours" is true but it reads as a
+              // prompt to fix something, and there is nothing to fix — a reader
+              // who has not forked anything owns nothing, which is the normal
+              // state of this screen and not a deficiency.
+              yoursCount > 0 ? `${yoursCount} yours` : null,
+              madeHereCount > 0 ? `${madeHereCount} made here` : null,
+              `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             right={
               <Link
                 href="/registry"
@@ -163,9 +188,14 @@ export function AppDeck() {
             }
           />
 
+          {/* Reached only if the board holds nothing at all — every bundled app
+              dropped from the live snapshot, or storage cleared mid-session. It
+              used to read "nothing published yet", which was the empty state for
+              a wheel scoped to you; this one is scoped to everything, so an empty
+              wheel is a missing board, not an empty portfolio. */}
           {apps.length === 0 ? (
             <p className="mono py-8 text-center text-xs text-[var(--muted-ink)]">
-              nothing published yet —{" "}
+              no mini apps on this board —{" "}
               <Link href="/registry" className="underline underline-offset-2">
                 describe one in the Studio
               </Link>
@@ -209,6 +239,11 @@ export function AppDeck() {
                   fade={0.2}
                   minOpacity={0.3}
                   loop
+                  // One detent click per row the wheel crosses. The component
+                  // throttles it to 70ms apart, so a fast flick reads as a run
+                  // of ticks slowing to a stop rather than a burst of noise.
+                  soundUrl="/wheel-tick.wav"
+                  soundVolume={0.7}
                   onChange={(index) => setSelected(index)}
                   onItemClick={(_index, key) => setOpenName(key)}
                   className="h-full w-full"

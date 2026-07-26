@@ -65,98 +65,15 @@ const OFFLINE_MODEL = "atlas-deterministic-stub";
  * `kit/seed-to-a2ui.ts` translate one into the other.
  * ------------------------------------------------------------------ */
 
-export type Accent = "live" | "gain" | "loss" | "risk" | "spend" | "ink";
-
-export type UiBlock =
-  | {
-      id: string;
-      component: "metric_card";
-      label: string;
-      span?: number;
-      data: { value: string; delta?: string; dir?: "up" | "down" | "flat"; sub?: string };
-    }
-  | {
-      id: string;
-      component: "leaderboard";
-      label: string;
-      span?: number;
-      data: { unit: string; accentIndex?: number; rows: { label: string; value: number; note?: string }[] };
-    }
-  | {
-      id: string;
-      component: "bar_chart";
-      label: string;
-      span?: number;
-      data: { unit: string; accentIndex?: number; rows: { label: string; value: number }[] };
-    }
-  | {
-      id: string;
-      component: "time_series";
-      label: string;
-      span?: number;
-      data: { unit: string; accent?: Accent; points: number[]; xFirst: string; xLast: string };
-    }
-  | {
-      id: string;
-      component: "gauge";
-      label: string;
-      span?: number;
-      data: { value: number; min: number; max: number; threshold: number; unit: string; status: Accent };
-    }
-  | {
-      id: string;
-      component: "progress_bar";
-      label: string;
-      span?: number;
-      data: { value: number; target: number; unit: string; note?: string };
-    }
-  | {
-      id: string;
-      component: "comparison_grid";
-      label: string;
-      span?: number;
-      data: { columns: string[]; rows: { label: string; cells: string[] }[] };
-    }
-  | {
-      id: string;
-      component: "data_table";
-      label: string;
-      span?: number;
-      data: { columns: string[]; numeric: boolean[]; rows: string[][] };
-    }
-  | {
-      id: string;
-      component: "position_card";
-      label: string;
-      span?: number;
-      data: { asset: string; rows: { k: string; v: string; accent?: Accent }[] };
-    }
-  | {
-      id: string;
-      component: "alert_banner";
-      label: string;
-      span?: number;
-      data: { level: Accent; text: string };
-    }
-  | {
-      id: string;
-      component: "flow_diagram";
-      label: string;
-      span?: number;
-      data: { unit: string; flows: { from: string; to: string; value: number }[] };
-    }
-  | {
-      id: string;
-      component: "distribution";
-      label: string;
-      span?: number;
-      data: { unit: string; buckets: { label: string; count: number }[] };
-    };
-
-export interface UiDoc {
-  spec: "a2ui/0.9.1";
-  blocks: UiBlock[];
-}
+/*
+ * `Accent`, `UiBlock` and `UiDoc` used to be declared here and are now defined
+ * by the kit (`@/lib/kit/ui-doc`), which is where the code that consumes them
+ * lives. Re-exported rather than merely imported: every existing importer of
+ * these types points at this file, and moving a type should not be an API break
+ * for thirty call sites.
+ */
+import type { Accent, UiBlock, UiDoc } from "@/lib/kit/ui-doc";
+export type { Accent, UiBlock, UiDoc };
 
 /* ------------------------------------------------------------------ */
 
@@ -230,8 +147,23 @@ export interface MiniApp {
   manifest: Manifest;
   stats: MiniAppStats;
   reviews: Review[];
-  /** On my board, versus browsed in the registry. */
-  mine: boolean;
+  /*
+   * There is no `mine` field, and its removal is the same correction the rest of
+   * this file records, applied to ownership.
+   *
+   * It was a boolean literal: thirteen of the sixteen apps below carried
+   * `mine: true`, the Board filtered on it, and the home screen therefore led
+   * with "Your mini apps" over thirteen cards — signed in, signed out, or in a
+   * browser that had never seen a wallet. Privy does a real login and writes the
+   * address to `state.wallet`, and nothing anywhere compared the two. A claim
+   * about who holds something, asserted by a constant, surviving a logout: that
+   * is the class §14 #1 cleared out, in the one key that had escaped it.
+   *
+   * Ownership is now DERIVED — `isMine()` in `store.ts` — from `manifest.author`
+   * against the connected wallet, with local provenance as the second case. Both
+   * inputs have real writers (`publishApp`, `forkApp`, `PrivyWalletBridge`), so
+   * a seed app is nobody's until someone forks it, which is the truth.
+   */
   /**
    * SWITCHED ON — the owner has this configuration enabled. It is ONE of the four
    * conditions `isArmed()` in `store.ts` requires, and on its own it means
@@ -364,8 +296,36 @@ interface SeedInput {
   schemas: SchemaFamily[];
   networks: Network[];
   stream?: { package: string; module: string } | null;
-  author: string;
-  mine: boolean;
+  /*
+   * There is no `author` field, and its absence is enforced rather than
+   * conventional — the seed → manifest mapping writes `null` unconditionally, so
+   * a handle cannot be reintroduced here by adding a line.
+   *
+   * There were sixteen of them: `0xdegen.eth`, `vega.eth`, `kaia.eth`,
+   * `mara.eth`, `fabianferno.eth`. They rendered as `by 0xdegen.eth` on the
+   * registry card and `Author  vega.eth` in the app panel, and they were the
+   * last survivors of the class §14 #1 cleared out — an ENS name nobody holds,
+   * asserting who made something. The file header's own ABSENT rule names "an
+   * ENS name" first; `identity.ens` was nulled on all sixteen apps and this
+   * field, which is the same claim in a different key, was missed.
+   *
+   * It sat outside the disclosure too. `runs`, `forks` and the thumbs live under
+   * a "Community · seeded" heading and the reviews carry a per-row `seeded` tag;
+   * the byline is in the card's footer, under neither, with nothing beside it.
+   *
+   * The reviewers keep their handles. An invented rater holding an invented
+   * opinion is texture §12 argues for and the UI labels it as such. Authorship
+   * is not an opinion — it says a person made this thing — so it gets the
+   * treatment every other identity claim in this file got: null, and "unclaimed"
+   * on screen, which is exactly what these apps are.
+   */
+  /*
+   * There is no `mine` field either, and it is the same claim one level up: not
+   * "who wrote this" but "whose is this". See the note on `MiniApp.mine` above
+   * for what it used to assert. Like `author`, its absence is enforced rather
+   * than conventional — the seed → `MiniApp` mapping writes no ownership at all,
+   * so a seed app cannot be made to belong to the reader by adding a line here.
+   */
   /*
    * There is no `running` field, on purpose, and it is the newest of the
    * deliberate omissions here.
@@ -536,7 +496,9 @@ function build(s: SeedInput): MiniApp {
       attestationRef: null,
       generatedAt: daysAgo(s.createdDaysAgo),
     },
-    author: s.author,
+    // Always null, and not read from `s` — see the note on `SeedInput`. Nobody
+    // holds these apps, so nobody is named as having written them.
+    author: null,
     appVersion: "1.0.0",
     // Always null — see the note on `SeedInput`. A fork is an event, and no seed
     // app is the result of one.
@@ -553,7 +515,6 @@ function build(s: SeedInput): MiniApp {
 
   return {
     manifest,
-    mine: s.mine,
     // Always false. `SeedInput` has no field for it and the long note there says
     // why: a seed app has no issued name and no server-side registration, so it
     // holds no standing authority to act and must not be counted as armed.
@@ -611,8 +572,6 @@ const dexVolumeArb = build({
   tier: "readonly",
   schemas: ["dex-amm@1.3.2"],
   networks: ["arbitrum-one"],
-  author: "fabianferno.eth",
-  mine: true,
   createdDaysAgo: 12,
   priceUsd: 0.02,
   stats: { runs: 1842, forks: 37, thumbsUp: 96, thumbsDown: 4, sourcesQueried: 31, sourcesHealthy: 27, costPerRunUsd: 0.012 },
@@ -631,8 +590,6 @@ const tvlCrosschain = build({
   tier: "readonly",
   schemas: ["lending-cdp@3.1.0", "dex-amm@1.3.2", "yield-aggregator@1.3.1"],
   networks: ["arbitrum-one", "optimism", "base"],
-  author: "fabianferno.eth",
-  mine: true,
   createdDaysAgo: 9,
   priceUsd: 0.05,
   stats: { runs: 934, forks: 21, thumbsUp: 58, thumbsDown: 2, sourcesQueried: 44, sourcesHealthy: 38, costPerRunUsd: 0.031 },
@@ -650,8 +607,6 @@ const bridgeFlows = build({
   tier: "readonly",
   schemas: ["bridge@1.2.0"],
   networks: ["arbitrum-one", "mainnet"],
-  author: "0xdegen.eth",
-  mine: true,
   createdDaysAgo: 20,
   priceUsd: 0.02,
   stats: { runs: 611, forks: 14, thumbsUp: 41, thumbsDown: 3, sourcesQueried: 18, sourcesHealthy: 16 },
@@ -666,8 +621,6 @@ const perpOiBoard = build({
   tier: "readonly",
   schemas: ["perp-futures@1.3.4"],
   networks: ["arbitrum-one"],
-  author: "vega.eth",
-  mine: false,
   createdDaysAgo: 16,
   stats: { runs: 388, forks: 9, thumbsUp: 27, thumbsDown: 1 },
 });
@@ -687,8 +640,6 @@ const nftVolumeEth = build({
   tier: "readonly",
   schemas: ["nft-marketplace@2.1.0"],
   networks: ["mainnet"],
-  author: "mara.eth",
-  mine: false,
   createdDaysAgo: 26,
   stats: { runs: 176, forks: 3, thumbsUp: 11, thumbsDown: 4 },
 });
@@ -702,8 +653,6 @@ const yieldLeaderboard = build({
   tier: "readonly",
   schemas: ["yield-aggregator@1.3.1", "lending-cdp@3.1.0"],
   networks: ["arbitrum-one", "optimism"],
-  author: "fabianferno.eth",
-  mine: true,
   createdDaysAgo: 7,
   priceUsd: 0.03,
   stats: { runs: 722, forks: 44, thumbsUp: 63, thumbsDown: 2, sourcesQueried: 22, sourcesHealthy: 19 },
@@ -789,8 +738,6 @@ const healthFactorWatch = build({
   // it: reachable on a real move, not crossed on a quiet day.
   triggers: [{ on: "stream", when: "lending.totalBorrowBalanceUSD > 120000000", run: "notify" }],
   actions: { notify: { kind: "notify", params: { channel: "board" }, label: "Alert me" } },
-  author: "fabianferno.eth",
-  mine: true,
   createdDaysAgo: 11,
   priceUsd: 0.05,
   stats: { runs: 5120, forks: 62, thumbsUp: 128, thumbsDown: 5, sourcesQueried: 12, sourcesHealthy: 11, costPerRunUsd: 0.008 },
@@ -862,8 +809,6 @@ const whaleAlertArb = build({
   // the reason no autonomous app below gates on a `cumulative*` scalar.
   triggers: [{ on: "stream", when: "dex_amm.cumulativeVolumeUSD > 300000000", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
-  author: "0xdegen.eth",
-  mine: true,
   createdDaysAgo: 5,
   priceUsd: 0.02,
   stats: { runs: 3011, forks: 28, thumbsUp: 74, thumbsDown: 6, sourcesQueried: 14, sourcesHealthy: 13, costPerRunUsd: 0.009 },
@@ -893,8 +838,6 @@ const fundingDivergence = build({
     { on: "stream", when: "perp.longOpenInterestUSD > perp.shortOpenInterestUSD", run: "notify" },
   ],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
-  author: "vega.eth",
-  mine: true,
   createdDaysAgo: 14,
   priceUsd: 0.08,
   stats: { runs: 1420, forks: 19, thumbsUp: 52, thumbsDown: 3, sourcesQueried: 9, sourcesHealthy: 8 },
@@ -924,8 +867,6 @@ const staleOracleWatch = build({
   // condition would fire constantly and mean nothing.
   triggers: [{ on: "stream", when: "sourcesHealthy < 3 or rowsSuspect > 0", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
-  author: "kaia.eth",
-  mine: true,
   createdDaysAgo: 18,
   stats: { runs: 806, forks: 7, thumbsUp: 24, thumbsDown: 1 },
 });
@@ -967,8 +908,6 @@ const bridgeOutflowWatch = build({
   // semantics — not something a cleverer constant fixes.
   triggers: [{ on: "stream", when: "bridge.totalValueLockedUSD < 1500000", run: "notify" }],
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
-  author: "mara.eth",
-  mine: false,
   createdDaysAgo: 22,
   stats: { runs: 402, forks: 11, thumbsUp: 18, thumbsDown: 2 },
 });
@@ -1019,8 +958,6 @@ const aaveGuard = build({
     allowlist: [ROUTER_ARB, AAVE_POOL_ARB],
     expiresAt: "2026-08-25T00:00:00.000Z",
   },
-  author: "fabianferno.eth",
-  mine: true,
   createdDaysAgo: 3,
   priceUsd: 0.05,
   stats: {
@@ -1081,8 +1018,6 @@ const copyTraderArb = build({
     allowlist: [ROUTER_ARB],
     expiresAt: "2026-08-10T00:00:00.000Z",
   },
-  author: "0xdegen.eth",
-  mine: true,
   createdDaysAgo: 6,
   priceUsd: 0.1,
   stats: { runs: 942, forks: 51, thumbsUp: 87, thumbsDown: 11, sourcesQueried: 8, sourcesHealthy: 8, costPerRunUsd: 0.011 },
@@ -1122,8 +1057,6 @@ const yieldRotator = build({
     allowlist: [VAULT_ROUTER, ROUTER_OP],
     expiresAt: "2026-09-01T00:00:00.000Z",
   },
-  author: "kaia.eth",
-  mine: true,
   createdDaysAgo: 15,
   priceUsd: 0.15,
   stats: { runs: 288, forks: 34, thumbsUp: 61, thumbsDown: 4, sourcesQueried: 22, sourcesHealthy: 19 },
@@ -1165,8 +1098,6 @@ const perpDeleverage = build({
     allowlist: [ROUTER_ARB],
     expiresAt: "2026-08-15T00:00:00.000Z",
   },
-  author: "vega.eth",
-  mine: true,
   createdDaysAgo: 10,
   priceUsd: 0.1,
   stats: { runs: 164, forks: 12, thumbsUp: 22, thumbsDown: 2, sourcesQueried: 6, sourcesHealthy: 6 },
@@ -1226,8 +1157,6 @@ const gasRebate = build({
     allowlist: [ROUTER_OP],
     expiresAt: "2026-10-01T00:00:00.000Z",
   },
-  author: "mara.eth",
-  mine: true,
   createdDaysAgo: 4,
   priceUsd: 0.02,
   stats: { runs: 96, forks: 5, thumbsUp: 14, thumbsDown: 0, sourcesQueried: 4, sourcesHealthy: 4 },

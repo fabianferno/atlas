@@ -10,7 +10,7 @@
  * ERC-7579 account, a bundler and an owner signature — see the integrator notes.
  * `scripts` in the report cover how to check it against Base Sepolia.
  */
-import { assert, assertEqual, assertThrows, describe, it, itAsync } from "./harness.test";
+import { assert, assertEqual, assertThrows, describe, it, itAsync } from "@/lib/kit/testing";
 import {
   BASE_SEPOLIA_SWAP_ROUTER,
   BASE_SEPOLIA_USDC,
@@ -200,6 +200,55 @@ describe("provisioning refuses to downgrade silently", () => {
     assert(threw, "missing account address must throw, not fall back to a weaker mode");
   });
 
+  /*
+   * prd §14 #1b, and the row it was written to close.
+   *
+   * The disclosure said: "`POST /api/agency/register` for two different app
+   * names — both return `0xedE65679…3fE12`, `sessionKeyAddress` identical."
+   * That is the assertion below, run against `provisionWallet` directly so it
+   * cannot pass because a route happened to cache something.
+   *
+   * Both halves are pinned. Under a master seed two apps MUST differ, because
+   * that is the whole safety property §8 rests on — you verify a funded address
+   * before funding it, which means nothing if funding one funds all. Under the
+   * legacy single key they MUST still match, because that mode is retained
+   * deliberately (a funded demo address would otherwise be stranded) and a
+   * silent change of behaviour is the failure this suite exists to catch.
+   */
+  itAsync("a master seed gives each app its own signer; a shared key does not", async () => {
+    const env = process.env;
+    const before = { seed: env.AGENT_SESSION_MASTER_SEED, key: env.AGENT_SESSION_PRIVATE_KEY };
+    try {
+      delete env.AGENT_SESSION_PRIVATE_KEY;
+      env.AGENT_SESSION_MASTER_SEED = "test-seed-not-a-real-key";
+
+      const a = await provisionWallet({ appId: "app-a", tier: "autonomous", kind: "session-eoa" });
+      const b = await provisionWallet({ appId: "app-b", tier: "autonomous", kind: "session-eoa" });
+      assert(
+        a.sessionKeyAddress !== b.sessionKeyAddress,
+        "two apps under a master seed must not share a signer",
+      );
+      assertEqual(a.keyScope, "per-app");
+
+      // Deterministic: the same app must come back to the same address after a
+      // restart, or every redeploy strands the balance on the old one.
+      const again = await provisionWallet({ appId: "app-a", tier: "autonomous", kind: "session-eoa" });
+      assertEqual(again.sessionKeyAddress, a.sessionKeyAddress);
+
+      delete env.AGENT_SESSION_MASTER_SEED;
+      env.AGENT_SESSION_PRIVATE_KEY = `0x${"22".repeat(32)}`;
+      const c = await provisionWallet({ appId: "app-c", tier: "autonomous", kind: "session-eoa" });
+      const d = await provisionWallet({ appId: "app-d", tier: "autonomous", kind: "session-eoa" });
+      assertEqual(c.sessionKeyAddress, d.sessionKeyAddress);
+      assertEqual(c.keyScope, "shared");
+    } finally {
+      if (before.seed === undefined) delete env.AGENT_SESSION_MASTER_SEED;
+      else env.AGENT_SESSION_MASTER_SEED = before.seed;
+      if (before.key === undefined) delete env.AGENT_SESSION_PRIVATE_KEY;
+      else env.AGENT_SESSION_PRIVATE_KEY = before.key;
+    }
+  });
+
   itAsync("stub mode still works with no keys and no config", async () => {
     // Five other agents demo against this. It must not have moved.
     const wallet = await provisionWallet({ appId: "still-stub", tier: "autonomous", kind: "stub" });
@@ -215,6 +264,7 @@ describe("enforcement reporting tells the truth per mode", () => {
       appId: "x",
       address: "0x2222222222222222222222222222222222222222",
       kind,
+      keyScope: "per-app",
       chainId: 84532,
       chainName: "Base Sepolia",
       sessionKeyAddress: SESSION_KEY,

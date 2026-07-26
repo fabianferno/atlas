@@ -30,9 +30,9 @@
  * point of the seam (prd.md §7).
  */
 import { z } from "zod";
-import type { Plan, PlanInput, PlanResult, RequestedMetric } from "@/lib/contracts/api";
-import type { AgencyTier, Network, SchemaFamily } from "@/lib/contracts/manifest";
-import { AGENCY_TIERS, NETWORKS, SCHEMA_FAMILIES } from "@/lib/contracts/manifest";
+import type { Plan, PlanInput, PlanResult, RequestedMetric } from "../contracts/api";
+import type { AgencyTier, Network, SchemaFamily } from "../contracts/manifest";
+import { AGENCY_TIERS, NETWORKS, SCHEMA_FAMILIES } from "../contracts/manifest";
 import { chatJson, getInferenceConfig, sanitizeForPrompt, STUB_MODEL } from "./inference";
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -266,13 +266,28 @@ export const SCHEMA_QUERIES: Record<SchemaFamily, SchemaQueries> = {
     id name totalValueLockedUSD cumulativeVolumeInUSD cumulativeVolumeOutUSD
   }
 }`,
+    /*
+     * Field names read off the live schema, not guessed. `chainID`,
+     * `crossChainID` and `amountReceivedUSD` were none of them real —
+     * `BridgeTransfer` answers `Type 'BridgeTransfer' has no field 'chainID'`
+     * and the whole query fails, so this template returned nothing on every
+     * bridge deployment it was ever fired at. Introspected against Hop Protocol
+     * Arbitrum (`4xY1CAbwQA7oq3a78CX8mgKFvMoZzPsv21A92Hm7rEvv`): the real fields
+     * are `fromChainID`, `toChainID` and `amountUSD`.
+     *
+     * The aliases are load-bearing and not cosmetic. `shapes.ts` reads flow
+     * endpoints off COLUMN NAMES — `flow_source` is `/^(source|from|origin|src|
+     * fromchain|…)$/i` — and `fromChainID` matches none of them because of the
+     * `ID` suffix. Aliased to `source`/`destination` the detector sees a flow;
+     * unaliased it sees two more numbers and draws a table.
+     */
     flow: `query BridgeFlows($first: Int!, $since: Int!) {
   bridgeTransfers(
     first: $first
     orderBy: timestamp
     orderDirection: desc
     where: { timestamp_gte: $since }
-  ) { id timestamp source: chainID destination: crossChainID amountUSD: amountReceivedUSD }
+  ) { id timestamp source: fromChainID destination: toChainID amountUSD }
 }`,
   },
 

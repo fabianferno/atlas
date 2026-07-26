@@ -10,7 +10,7 @@
  *
  * No token, no socket: the runner takes an injected event source.
  */
-import type { Action, Agency, Policy } from "../contracts/manifest";
+import type { Action, Agency, Policy } from "@/lib/contracts/manifest";
 import {
   MemoryCursorStore,
   cursorKeyOf,
@@ -19,8 +19,8 @@ import {
   SUBSTREAMS_ENDPOINTS,
   type StreamEvent,
   type StreamTick,
-} from "../kit/substreams";
-import { assert, assertEqual, describe, itAsync, it } from "./harness.test";
+} from "@/lib/kit/substreams";
+import { assert, assertEqual, describe, itAsync, it } from "@/lib/kit/testing";
 import { MemoryJournalStore } from "./journal";
 import { buildSignalData, runStream, streamMode } from "./stream-runner";
 import { MemorySignalLedger, setSignalLedger } from "./triggers";

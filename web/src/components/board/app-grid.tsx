@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The grid of your mini apps, sorted by tier — plus `TierLegend`, which is the
- * only export the Board still mounts.
+ * The grid of the board's mini apps, sorted by tier — plus `TierLegend`, which
+ * is the only export the Board still mounts.
  *
  * `AppGrid`/`AppCard` are the pre-wheel browsing surface. `AppDeck` replaced
  * them on `/`, so nothing renders them today; they are kept because the same
@@ -33,46 +33,51 @@
 import Link from "next/link";
 import type { MiniApp } from "@/lib/seed";
 import { TIER_BLURB, TIER_LABEL } from "@/lib/seed";
-import { myApps, tierCounts, useBoard } from "@/lib/store";
+import { allApps, isMine, isUnclaimed, tierCounts, useBoard } from "@/lib/store";
 import { ArmedLamp, Label, SectionHead, panelClass } from "@/components/board/chrome";
 import { AppCardFace } from "./app-card-face";
 
 export function AppGrid() {
   const board = useBoard();
-  const apps = myApps(board);
-  const counts = tierCounts(board);
   /*
-   * THE DENOMINATOR, which this heading did not have either.
+   * EVERY app and the global heading, mirroring `AppDeck`.
    *
-   * `AppDeck` carried the identical bug and was fixed first: the note read
-   * `5 autonomous · 4 monitor · 4 read only` — thirteen apps — with nothing
-   * saying it was a subset. `myApps()` filters on `mine`, three seed apps carry
-   * `mine: false` (`bridge-outflow-watch`, `perp-oi-board`, `nft-volume-eth`),
-   * and `/registry` shows all sixteen. A count presented as complete when it is a
-   * subset is the small end of the same family as an invented figure.
+   * This grid had the identical defect and gets the identical fix: it rendered
+   * `myApps()` under "Your mini apps", where "yours" was `MiniApp.mine`, a
+   * boolean literal in `seed.ts` that no login and no logout could move. See the
+   * ownership note in `store.ts`.
    *
-   * Fixed here too even though nothing mounts this component (see the header),
-   * and fixed by copying `app-deck.tsx`'s expression word for word rather than
-   * writing a second phrasing of the same fact. The reason is not that the string
-   * is on screen — it is not — but that this file is kept as the shape a future
-   * grid would start from, and the shape must not carry the defect. If it is
-   * revived with its own wording, the product ends up stating one fact two ways.
+   * Fixed here even though nothing mounts this component (see the header), and
+   * fixed by copying `app-deck.tsx`'s expressions rather than writing a second
+   * phrasing of the same fact. The reason is not that the string is on screen —
+   * it is not — but that this file is kept as the shape a future grid would start
+   * from, and the shape must not carry the defect. If it is revived with its own
+   * wording, the product ends up stating one fact two ways.
    *
-   * `board.apps.length`, not `SEED_DECLARED_COUNT`: the right denominator is what
-   * this browser can actually show you, and `SEED_DECLARED_COUNT` counts apps the
-   * live snapshot may have DROPPED, which are on no surface at all.
+   * `board.apps.length`, not `SEED_DECLARED_COUNT`: the right count is what this
+   * browser can actually show you, and `SEED_DECLARED_COUNT` counts apps the live
+   * snapshot may have DROPPED, which are on no surface at all.
    */
+  const apps = allApps(board);
+  const counts = tierCounts(board);
   const total = board.apps.length;
+  // Two counts, two words — see the note in `app-deck.tsx`. A single "N yours"
+  // over a card marked "made here" claims a signature that does not exist.
+  const yoursCount = board.apps.filter((a) => isMine(board, a) && !isUnclaimed(board, a)).length;
+  const madeHereCount = board.apps.filter((a) => isUnclaimed(board, a)).length;
 
   return (
     <section>
       <SectionHead
-        title="Your mini apps"
-        note={
-          apps.length === total
-            ? `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
-            : `${apps.length} of ${total} in this browser · ${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
-        }
+        title="Explore mini apps on The Graph"
+        note={[
+          `${total} here`,
+          yoursCount > 0 ? `${yoursCount} yours` : null,
+          madeHereCount > 0 ? `${madeHereCount} made here` : null,
+          `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         right={
           <Link href="/registry" className="mono text-[0.6875rem] uppercase tracking-[0.08em] underline underline-offset-2">
             Registry
@@ -87,9 +92,10 @@ export function AppGrid() {
       {apps.length === 0 ? (
         // "describe something above" was true when the Studio input sat over
         // this grid. It moved to the Registry, so the instruction pointed at
-        // nothing.
+        // nothing. And since the grid is scoped to everything, an empty one is a
+        // missing board rather than an empty portfolio.
         <p className="mono py-8 text-center text-xs text-[var(--muted-ink)]">
-          nothing published yet —{" "}
+          no mini apps on this board —{" "}
           <Link href="/registry" className="underline underline-offset-2">
             describe one in the Studio
           </Link>
