@@ -24,13 +24,14 @@ export default function RegistryPage() {
       {/* Bottom padding clears the docked ledger pill floating over this corner. */}
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pt-4 pb-24 sm:px-5 sm:pt-6">
         <StudioInput />
-        {/* The five subnames that genuinely resolve, read off Sepolia on every
-            mount rather than asserted from a constant. This sits above the grid
-            on purpose: the grid's apps are unpublished, so the only names on this
-            page that resolve should be the ones a judge can verify. It is also
-            the app's only caller of `GET /api/resolve` — prd.md §5 argues a
-            resolved name is a live plan and not a screenshot, and until this
-            mounted, nothing in the product exercised that claim. */}
+        {/* The names that are actually registered under the current ENS
+            parent, enumerated from MiniAppRegistry on every mount rather than
+            listed in the component. This sits above the grid on purpose: the
+            grid's apps are unpublished, so the only names on this page that
+            resolve should be the ones a judge can verify. It is also the app's
+            only caller of `GET /api/resolve` — prd.md §5 argues a resolved name
+            is a live plan and not a screenshot, and until this mounted, nothing
+            in the product exercised that claim. */}
         <PublishedStrip />
         <div className="mt-4">
           <RegistryGrid />

@@ -1,12 +1,21 @@
 "use client";
 
 /**
- * THE PUBLISHED STRIP — the five subnames that actually exist.
+ * THE PUBLISHED STRIP — the subnames that actually exist.
  *
- * Every row is resolved live through `GET /api/resolve/<label>` on mount. The
- * only thing hardcoded in this file is the *list of labels*, because which
- * subnames were issued under `atlas-apps.eth` is a fact about the parent name,
- * not data. Every value beside a label comes off the wire, every time.
+ * The list of names is read from `GET /api/registry/published`, which
+ * enumerates `MiniAppRegistry` on 0G and filters to the configured ENS parent.
+ * Each name is then resolved through `GET /api/resolve/<name>` on mount.
+ * Nothing about the set is stored in this file, and there is no fallback: if
+ * either call fails the strip says so and renders no rows.
+ *
+ * That is a correction, not a preference. This file used to carry a literal
+ * array of five labels, defended in this comment as "a fact about the parent
+ * name, not data". It had drifted from every other record of the same fact —
+ * the contract held nine entries, contracts/deployments/ens-sepolia.json held
+ * eight — and three of the five it did show had manifests that no longer
+ * fetch. See docs/superpowers/specs/2026-07-26-published-strip-live-
+ * enumeration-design.md.
  *
  * ## What it proves (prd.md §5, §8, §14 #8 and #9)
  *
@@ -24,33 +33,31 @@
  * - It is not a health check of the app behind the name. Nothing here runs a
  *   query, composes a surface or reads a subgraph. Resolution only.
  * - "manifest fetched" means *this server* reached the bytes at that CID on
- *   this request. It is not a claim that a public gateway holds them, and it
- *   must not be read as one — of the five names below, only TWO have bytes any
- *   public gateway can serve (`atlas-market-guard`, `durable-market-guard`). An
- *   earlier revision of this comment said three, which was the count across all
- *   six names issued under the parent, not across the five listed here — the
- *   denominator error this whole audit kept finding. The other three were
- *   published while `IPFS_MODE=local`, whose store was the sole provider of their
- *   bytes. Those bytes are gone, `ipfs.io` returns 504 for their CIDs and permanently
- *   will, because a CID is the hash of its bytes and regenerating the manifest
- *   yields a different one that no longer matches the chain. `IPFS_MODE` is now
- *   `pinata` so it cannot recur, and `scripts/pin-backfill.ts --verify` pinned
- *   the eight documents that survived (8/8 read back from ipfs.io). An earlier
- *   revision of this comment deferred the point to prd §14 #9's "all six
- *   published manifests pinned and read back from a public gateway" — that claim
- *   did not hold and is being corrected in the document.
+ *   this request. It is not a claim that a public gateway holds them. Some
+ *   names were published while `IPFS_MODE=local`, whose store was the sole
+ *   provider of their bytes; those bytes are gone and `ipfs.io` returns 504 for
+ *   their CIDs permanently, because a CID is the hash of its bytes and
+ *   regenerating the manifest yields a different one that no longer matches the
+ *   chain. `IPFS_MODE` is now `pinata` so it cannot recur. Which names are
+ *   affected is not asserted here — the row says whether the fetch worked on
+ *   this request, and that is the only honest count.
  * - A row says nothing about whether the wallet at `addr` is funded, or what
  *   the app is allowed to spend. Policy lives with the running app.
  * - **It does not prove anyone holds the key for `addr`.** A resolver returns
  *   whatever address the record names; custody is not a property of a record.
- *   That is not pedantry here — the names below were issued across more than one
+ *   That is not pedantry here — these names were issued across more than one
  *   signer regime, and `POST /api/agency/register` now returns a single
  *   process-wide session key for every app, which matches only one of these
  *   records. So `addr` is "the address this name points at", and the stronger
- *   reading — "the address you should fund" — is exactly the one §8 says a human
- *   must verify rather than assume. `app-runtime.tsx` can make that comparison
- *   for an app on the board, because it knows the server's signer; this strip
- *   resolves arbitrary names and cannot.
+ *   reading — "the address you should fund" — is exactly the one §8 says a
+ *   human must verify rather than assume. `app-runtime.tsx` can make that
+ *   comparison for an app on the board, because it knows the server's signer;
+ *   this strip resolves arbitrary names and cannot.
+ * - It does not show every name ever issued under the parent. It shows what is
+ *   in the registry. A name whose ENS records landed but whose registry write
+ *   did not — `aave-guard-fork`, whose `registerFork` reverted `ParentUnknown`
+ *   — is absent, and correctly so: it was never published. The incident is
+ *   recorded in contracts/deployments/ens-sepolia.json.
  *
  * ## Reading the colour (prd §6 rule 2 — semantic only, never decorative)
  *
@@ -61,33 +68,20 @@
  *
  * The last one is the important discipline: a missing record is not a failure
  * and must never be coloured like one, and must never be back-filled with a
- * plausible-looking value. `aave-health-guard` has no `addr`, so its wallet
- * cell reads "no addr record" — it does not read as an address.
+ * plausible-looking value. A name with no `addr` reads "no addr record" — it
+ * does not read as an address.
  *
  * Depth (prd §6 rule 1, as shipped): this strip cannot act on anything, so it
  * sits flush in the readonly groove. Depth is reserved for agency, and reading
  * records is not agency.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { IdentityStatus, ResolveReport } from "@/lib/identity/publish";
+import type { RegisteredApp } from "@/lib/identity/published";
 import { Fig, Label, LiveDot, SectionHead, panelClass } from "@/components/board/chrome";
 import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { cn } from "@/lib/utils";
-
-/**
- * The published set. Issued under `atlas-apps.eth` on Sepolia by
- * `scripts/publish-under-parent.ts`; `atlas-market-guard` is the one prd §14
- * #13 cites, so it leads. Nothing else about these names is stated here — if a
- * label stops resolving, the row will say so rather than hiding.
- */
-const PUBLISHED_LABELS = [
-  "atlas-market-guard",
-  "durable-market-guard",
-  "attested-market-guard",
-  "wallet-bound-guard",
-  "aave-health-guard",
-] as const;
 
 /* -------------------------------------------------------------------------- */
 /* state                                                                      */
@@ -108,6 +102,17 @@ type RowState =
 type ChainRef = Pick<IdentityStatus["zeroG"], "chainId" | "explorer"> & {
   agenticId: string;
 };
+
+/**
+ * The name list itself is a network call, so it has the same three states the
+ * rows do. `failed` carries the route's own message: a registry that will not
+ * answer is information, and substituting a remembered list for it is the
+ * exact bug this component was rewritten to remove.
+ */
+type CatalogState =
+  | { phase: "loading" }
+  | { phase: "failed"; reason: string }
+  | { phase: "ready"; parent: string; apps: RegisteredApp[]; total: number; retired: number };
 
 function reasonOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -140,28 +145,15 @@ function FigFull({
   );
 }
 
-export function PublishedStrip({
-  labels = PUBLISHED_LABELS,
-  className,
-}: {
-  /** Defaults to the published set. Order is preserved. */
-  labels?: readonly string[];
-  className?: string;
-}) {
-  /* Deriving the list from a joined string keeps the effect's dependency a
-     primitive. A caller passing an inline array literal would otherwise hand
-     the effect a fresh identity on every render, and the effect sets state. */
-  const labelKey = labels.join(",");
-  const list = useMemo(() => labelKey.split(","), [labelKey]);
+export function PublishedStrip({ className }: { className?: string }) {
+  /* The set of names, read from the registry. There is no prop to override it
+     and no default to fall back to — either the chain answers or the strip
+     says it did not. */
+  const [catalog, setCatalog] = useState<CatalogState>({ phase: "loading" });
 
-  /* Results are stamped with the label set they belong to, so a row that has
-     not landed yet needs no stored placeholder — absence IS the loading state,
-     and results from a previous label set are discarded rather than shown
-     against the wrong name. */
-  const [rows, setRows] = useState<{ key: string; map: ReadonlyMap<string, RowState> }>({
-    key: labelKey,
-    map: new Map(),
-  });
+  /* Results are keyed by name, so a row that has not landed yet needs no
+     stored placeholder — absence IS the loading state. */
+  const [rows, setRows] = useState<ReadonlyMap<string, RowState>>(new Map());
   const [chain, setChain] = useState<ChainRef | null>(null);
 
   /* The 0G explorer base and the Agentic ID contract, asked of the server
@@ -183,24 +175,72 @@ export function PublishedStrip({
     return () => controller.abort();
   }, []);
 
+  /* Which names exist. Read once per mount from the registry rather than
+     compiled into this file. */
   useEffect(() => {
     const controller = new AbortController();
-    const key = list.join(",");
+    void (async () => {
+      try {
+        const res = await fetch("/api/registry/published", {
+          signal: controller.signal,
+          headers: { accept: "application/json" },
+        });
+        const body: unknown = await res.json().catch(() => null);
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          const message =
+            body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string"
+              ? (body as { error: string }).error
+              : `registry returned HTTP ${res.status}`;
+          setCatalog({ phase: "failed", reason: message });
+          return;
+        }
+        const parsed = body as {
+          parent?: unknown;
+          apps?: unknown;
+          total?: unknown;
+          retired?: unknown;
+        } | null;
+        if (!parsed || !Array.isArray(parsed.apps) || typeof parsed.parent !== "string") {
+          setCatalog({ phase: "failed", reason: "the registry route returned an unexpected body" });
+          return;
+        }
+        setCatalog({
+          phase: "ready",
+          parent: parsed.parent,
+          apps: parsed.apps as RegisteredApp[],
+          total: typeof parsed.total === "number" ? parsed.total : parsed.apps.length,
+          retired: typeof parsed.retired === "number" ? parsed.retired : 0,
+        });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setCatalog({ phase: "failed", reason: reasonOf(err) });
+      }
+    })();
+    return () => controller.abort();
+  }, []);
 
-    /* Five independent lookups, each landing on its own. One slow name must not
-       hold the other four back, and one dead name must not blank the strip. */
-    for (const label of list) {
+  const names = catalog.phase === "ready" ? catalog.apps.map((a) => a.ensName) : [];
+  const nameKey = names.join(",");
+
+  useEffect(() => {
+    if (nameKey === "") return;
+    const controller = new AbortController();
+
+    /* Independent lookups, each landing on its own. One slow name must not
+       hold the others back, and one dead name must not blank the strip.
+       `rows` is not reset here: `nameKey` only ever moves from "" (nothing
+       registered yet) to the one list the registry returned, so there is no
+       stale entry from a previous set to clear — and clearing synchronously
+       inside an effect is itself the pattern this repo's lint config flags. */
+    for (const name of nameKey.split(",")) {
       void (async () => {
         const settle = (state: RowState) => {
           if (controller.signal.aborted) return;
-          setRows((prev) =>
-            prev.key === key
-              ? { key, map: new Map(prev.map).set(label, state) }
-              : { key, map: new Map([[label, state]]) },
-          );
+          setRows((prev) => new Map(prev).set(name, state));
         };
         try {
-          const res = await fetch(`/api/resolve/${encodeURIComponent(label)}`, {
+          const res = await fetch(`/api/resolve/${encodeURIComponent(name)}`, {
             signal: controller.signal,
             headers: { accept: "application/json" },
           });
@@ -226,44 +266,73 @@ export function PublishedStrip({
     }
 
     return () => controller.abort();
-  }, [list]);
+  }, [nameKey]);
 
-  const landed = rows.key === labelKey ? rows.map : null;
-  const states = list.map((label) => landed?.get(label) ?? { phase: "loading" as const });
+  const states = names.map((name) => rows.get(name) ?? { phase: "loading" as const });
   const pending = states.filter((s) => s.phase === "loading").length;
   const resolved = states.filter((s) => s.phase === "resolved").length;
+
+  const note =
+    catalog.phase === "loading"
+      ? "reading the registry"
+      : catalog.phase === "failed"
+        ? "registry did not answer"
+        : names.length === 0
+          ? "nothing registered under this parent"
+          : pending > 0
+            ? `${names.length} names · reading`
+            : `${resolved} of ${names.length} resolved · read live on mount`;
+
+  const busy = catalog.phase === "loading" || pending > 0;
 
   return (
     <section className={cn(panelClass("readonly", "mt-4"), className)}>
       <div className="px-3 pt-3 sm:px-4">
         <SectionHead
           title="Published names"
-          note={
-            pending > 0
-              ? `${list.length} names · reading`
-              : `${resolved} of ${list.length} resolved · read live on mount`
-          }
-          right={pending > 0 ? <LiveDot label="resolving" /> : undefined}
+          note={note}
+          right={busy ? <LiveDot label="resolving" /> : undefined}
         />
       </div>
 
-      <ul className="px-3 sm:px-4">
-        {list.map((label, i) => (
-          <NameRow
-            key={label}
-            label={label}
-            state={states[i]}
-            chain={chain}
-            first={i === 0}
-          />
-        ))}
-      </ul>
+      {catalog.phase === "failed" ? (
+        /* The route's own words. No list is rendered — a remembered set served
+           during an outage is a claim nobody can check at the moment they most
+           need to. */
+        <p className="px-3 pt-2 pb-3 text-[0.6875rem] leading-snug sm:px-4">
+          <Fig accent="loss" className="text-[0.6875rem] uppercase tracking-[0.06em]">
+            registry unreadable
+          </Fig>{" "}
+          <span className="text-[var(--muted-ink)]">{catalog.reason}</span>
+        </p>
+      ) : catalog.phase === "ready" && names.length === 0 ? (
+        <p className="px-3 pt-2 pb-3 text-[0.6875rem] leading-snug text-[var(--muted-ink)] sm:px-4">
+          No apps are registered under <span className="mono">{catalog.parent}</span> yet. Publishing one from
+          the Studio adds it here — this list is read from the registry, not maintained by hand.
+        </p>
+      ) : (
+        <ul className="px-3 sm:px-4">
+          {names.map((name, i) => (
+            <NameRow key={name} label={name} state={states[i]} chain={chain} first={i === 0} />
+          ))}
+        </ul>
+      )}
 
       <p className="border-t border-hairline px-3 pt-2 pb-3 text-[0.6875rem] leading-snug text-[var(--muted-ink)] sm:px-4">
-        Read live from <span className="mono">GET /api/resolve/&lt;label&gt;</span> each time this mounts —
-        nothing on this strip is stored, and a record that is absent from the name renders as absent. The CID
-        and the wallet are shown rather than linked: <span className="mono">GET /api/publish</span> reports the
-        IPFS mode but no public gateway base, and an <span className="mono">addr</span> record carries no chain
+        The set of names comes from <span className="mono">GET /api/registry/published</span>, which enumerates
+        MiniAppRegistry on 0G; each one is then read live from{" "}
+        <span className="mono">GET /api/resolve/&lt;name&gt;</span> on mount. Nothing here is stored, and a record
+        that is absent from the name renders as absent.
+        {catalog.phase === "ready" && catalog.retired > 0 ? (
+          <>
+            {" "}
+            {catalog.retired} of {catalog.total} registry entries name a different parent — they were registered
+            before the rename and the token↔name binding is immutable by design, so they cannot be re-pointed.
+            They are not shown.
+          </>
+        ) : null}{" "}
+        The CID and the wallet are shown rather than linked: <span className="mono">GET /api/publish</span> reports
+        the IPFS mode but no public gateway base, and an <span className="mono">addr</span> record carries no chain
         id, so either link would have to be guessed.
       </p>
     </section>
@@ -536,7 +605,7 @@ function readBinding(
       verdict: "ens side only",
       accent: "risk",
       title: "The ENS record asserts the token; the token does not carry this name back, so the registry's check against it returns false.",
-      note: `The name asserts token ${tokenId ?? "?"}, but the token does not carry this name back, so the registry's check against it returns false. Tokens minted before the ENS rename still assert the old parent and the binding is immutable by design — prd §14 #13 discloses this, it is not a break.`,
+      note: `The name asserts token ${tokenId ?? "?"}, but that token's registry entry carries the parent it was minted under, not this one, so MiniAppRegistry.verify() rejects the pair. Both bindings are immutable by design — prd §14 #13 discloses this, it is not a break.`,
     };
   }
 
