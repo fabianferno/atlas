@@ -236,8 +236,12 @@ token's registry entry carries the pre-rebrand parent, so
 Separate step. Spends Sepolia and 0G gas and abandons three tokens, so it lands
 after phase 1 and is confirmed before anything is broadcast.
 
-`web/scripts/republish-lost-manifests.ts`, over `attested-market-guard`,
-`wallet-bound-guard` and `aave-health-guard`. Per name:
+**No new script.** `web/scripts/publish-under-parent.ts` already does exactly
+this, parameterised by `--name` and `--intent`, and its own header explains why
+it exists in the same terms: the bindings are immutable, so "restoring the claim
+therefore requires a fresh publish: new subname, new token, new registry record,
+all three agreeing." It is run three times, over `attested-market-guard`,
+`wallet-bound-guard` and `aave-health-guard`. Per name it:
 
 1. Rebuild the manifest and pin it (`IPFS_MODE=pinata`) → new CID.
 2. Mint a fresh Agentic ID on 0G. Required: the old token is immovably bound.
@@ -249,6 +253,11 @@ after phase 1 and is confirmed before anything is broadcast.
 
 Then update `contracts/deployments/ens-sepolia.json`: record the new tokens and
 CIDs, mark tokens 5/6/7 orphaned, and correct `manifestAvailability`.
+
+One thing this does not do: restore the original manifests. Their bytes existed
+only in the gitignored local store and a CID is the hash of its bytes, so what
+comes back is a *fresh plan for the same intent*, generated through the real
+planner. The deployments note must say so rather than implying a recovery.
 
 Result: six names under the current parent, every one with all three
 verification legs true and a manifest that fetches from a public gateway.
