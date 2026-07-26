@@ -1147,7 +1147,14 @@ The header currently renders (`app-runtime.tsx:475-481`):
             )}
 ```
 
-Replace the unpublished branch with:
+First hoist the sentence to a module constant near the top of `app-runtime.tsx`, so the three branches below cannot drift apart:
+
+```tsx
+/** One sentence, three renderings — a header line, a button, a page paragraph. */
+const UNPUBLISHED = "unpublished — no ENS subname issued";
+```
+
+Then replace the unpublished branch with (using `{UNPUBLISHED}` in place of each literal):
 
 ```tsx
             {m.identity.ens ? (
@@ -1164,11 +1171,11 @@ Replace the unpublished branch with:
                 onClick={() => setActiveTab("about")}
                 className="mono mt-1.5 block text-left text-[0.6875rem] text-[var(--muted-ink)] underline decoration-dotted"
               >
-                unpublished — no ENS subname issued
+                {UNPUBLISHED}
               </button>
             ) : (
               <p className="mono mt-1.5 text-[0.6875rem] text-[var(--muted-ink)]">
-                unpublished — no ENS subname issued
+                {UNPUBLISHED}
               </p>
             )}
 ```
