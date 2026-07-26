@@ -140,27 +140,42 @@ export function MorphSection() {
   const assembling = !reduced && elapsed >= TRACE_END && elapsed < ASSEMBLE_END;
 
   /*
+   * Which surface is on screen right now. Before this scene's trace finishes it
+   * is still the PREVIOUS scene's — held dimmed rather than blanked, so the box
+   * is never empty. `(index - 1 + n) % n` rather than `index - 1` because scene
+   * 0's predecessor is the last scene, not index -1.
+   */
+  const shownScene = surfaceVisible
+    ? scene
+    : SCENES[(index - 1 + SCENES.length) % SCENES.length];
+
+  /*
    * The frame is height-locked to the tallest scene so the page does not jump
    * as the loop advances. Measured rather than guessed: the three surfaces hold
    * different component counts, and a hardcoded height would be wrong the first
-   * time anyone edits a scene. Held in a ref-backed state so it only ever grows
-   * — a scene measured mid-assembly must not shrink the box.
+   * time anyone edits a scene.
+   *
+   * The measured element is the INNER wrapper, which never carries the lock;
+   * the lock goes on the outer box. Measuring the locked element instead is a
+   * feedback loop — its own `scrollHeight` can never fall below the `minHeight`
+   * just written to it, so every observation ratchets the box taller. That bug
+   * shipped for one commit and grew the frame 369 → 806px in twenty seconds.
    */
-  const frameRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
   const [minHeight, setMinHeight] = useState<number | undefined>(undefined);
   useEffect(() => {
-    const el = frameRef.current;
+    const el = measureRef.current;
     if (!el) return;
     const measure = () =>
       setMinHeight((prev) => {
-        const h = el.scrollHeight;
-        return prev === undefined || h > prev ? h : prev;
+        const h = el.offsetHeight;
+        return h > 0 && (prev === undefined || h > prev) ? h : prev;
       });
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [index, surfaceVisible]);
+  }, []);
 
   const pause = useCallback(() => {
     pausedRef.current = true;
@@ -201,23 +216,39 @@ export function MorphSection() {
         </div>
 
         <div className="mt-8 min-w-0 lg:mt-0">
-          <div ref={frameRef} style={minHeight ? { minHeight } : undefined}>
-            {surfaceVisible ? (
-              <div key={scene.key} className={assembling ? "[&>*]:snap-in" : undefined}>
-                {/*
-                  No `providedByHost`: this frame is not a runtime, so the
-                  document's own components are all there is. That is also what
-                  makes the autonomous scene's policy strip, trade log and kill
-                  switch meaningful — they are in the document, not chrome this
-                  page drew around it.
-                */}
-                <A2uiRenderer document={scene.doc} />
+          {/* Centred in the locked box rather than pinned to its top: the box is
+              as tall as the TALLEST scene, so a shorter one would otherwise
+              trail a few hundred pixels of dead space beneath it and read as a
+              layout bug. Centred, the slack is split and looks deliberate. */}
+          <div
+            className="flex flex-col justify-center"
+            style={minHeight ? { minHeight } : undefined}
+          >
+            <div ref={measureRef}>
+              {/*
+                The surface on screen is the one whose prompt has FINISHED —
+                during the next prompt's typing and trace, the previous answer
+                stays up, dimmed. An empty box for four seconds of every cycle
+                reads as a broken render on a landing page, and dimming the last
+                answer keeps the causality the section is arguing for: a new
+                interface appears when the pipeline finishes, not while the
+                question is still being asked.
+
+                No `providedByHost`: this frame is not a runtime, so the
+                document's own components are all there is. That is also what
+                makes the autonomous scene's policy strip, trade log and kill
+                switch meaningful — they are in the document, not chrome this
+                page drew around it.
+              */}
+              <div
+                key={shownScene.key}
+                className={`transition-opacity duration-500 ${
+                  surfaceVisible ? "opacity-100" : "opacity-30"
+                } ${assembling ? "[&>*]:snap-in" : ""}`}
+              >
+                <A2uiRenderer document={shownScene.doc} />
               </div>
-            ) : (
-              // Holds the box while the prompt types, so the frame does not pop
-              // into existence a third of the way through every scene.
-              <div className="h-full" aria-hidden />
-            )}
+            </div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-4">

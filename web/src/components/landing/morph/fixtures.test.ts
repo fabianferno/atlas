@@ -75,6 +75,28 @@ describe("morph scene documents", () => {
     assertEqual(JSON.stringify(gaugeOf("autonomous")), JSON.stringify(gaugeOf("monitor")));
   });
 
+  /*
+   * `metric_card` renders `delta` as a PERCENTAGE of the value, so it is a
+   * fraction and not an absolute change. Getting that wrong is silent — the
+   * document still validates, the component still draws — and it printed
+   * "-9640000.00%" on the first screen of the landing page before this test
+   * existed. A fraction outside ±100% is not impossible in general, but on a
+   * hand-authored demo scene it means someone typed an absolute.
+   */
+  it("keeps scalar deltas as fractions, not absolute changes", () => {
+    for (const [key, doc] of Object.entries(SCENE_DOCS)) {
+      const blocks = (readSurface(doc)!.dataModel as { blocks: Record<string, unknown> }).blocks;
+      for (const [id, block] of Object.entries(blocks)) {
+        const b = block as { shape?: string; delta?: number };
+        if (b.shape !== "scalar_with_delta" || typeof b.delta !== "number") continue;
+        assert(
+          Math.abs(b.delta) <= 1,
+          `${key}/${id}: delta ${b.delta} is an absolute change, not a fraction`,
+        );
+      }
+    }
+  });
+
   it("carries a prompt and a four-line trace per scene, in play order", () => {
     assertEqual(SCENES.length, 3);
     assertEqual(

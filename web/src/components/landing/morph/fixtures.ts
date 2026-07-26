@@ -76,6 +76,12 @@ const ANALYTICS_BLOCKS: Record<string, JsonValue> = {
       { rank: 5, label: "USDC / DAI — Abracadabra", value: 1.72, delta: 0.02 },
     ],
   },
+  /*
+   * `delta` is a FRACTION of the value, not an absolute change — `metric_card`
+   * renders it as a percentage. `b-net-apy` in `renderer/fixture.tsx` is the
+   * reference: `value: 3.42, delta: -0.151` reads as −15.1%. Passing an
+   * absolute here printed "-9640000.00%" on the landing page's first screen.
+   */
   "a-at-risk": {
     shape: "scalar_with_delta",
     title: "Positions under 1.25",
@@ -94,7 +100,7 @@ const ANALYTICS_BLOCKS: Record<string, JsonValue> = {
     confidence: 0.97,
     rowCount: 36,
     value: 1284000,
-    delta: -96400,
+    delta: -0.0751,
     label: "Collateral Usd",
     unit: "usd",
   },
