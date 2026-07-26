@@ -1,5 +1,5 @@
 import type { MiniApp } from "@/lib/seed";
-import { fmtNum, fmtUsd, isArmed } from "@/lib/store";
+import { fmtNum, fmtUsd, isArmed, useFigure } from "@/lib/store";
 import { ArmedLamp, Fig, TierTag, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
 import { SponsorMark } from "@/components/brand/sponsor-mark";
@@ -67,6 +67,7 @@ export function AppCardFace({
 }): React.JSX.Element {
   const m = app.manifest;
   const tier = m.agency.tier;
+  const figure = useFigure(m.name);
   const halted = m.agency.policy.halted;
   const spentPct = m.agency.policy.maxSpendUsd > 0 ? app.stats.spentUsd / m.agency.policy.maxSpendUsd : 0;
 
@@ -143,12 +144,18 @@ export function AppCardFace({
         </div>
 
         <dl className="cells mt-auto border-t border-[var(--hairline)] pt-2">
+          {/* `Runs` and `Spent` print straight from `stats` and are right to:
+              one is seeded texture disclosed as such, the other is hard-zeroed
+              at the source. The other two are measurements, and until this
+              session has taken them the only honest rendering is `figure`'s —
+              see `useFigure`. They used to print the build-time snapshot's
+              numbers here, indistinguishable from a fan-out that just landed. */}
           <Row k="Runs" v={fmtNum(app.stats.runs)} />
-          <Row k="Sources live" v={`${app.stats.sourcesHealthy} / ${app.stats.sourcesQueried}`} />
+          <Row k="Sources live" v={figure(`${app.stats.sourcesHealthy} / ${app.stats.sourcesQueried}`)} />
           {tier === "autonomous" ? (
             <Row k="Spent" v={fmtUsd(app.stats.spentUsd)} accent={app.stats.spentUsd > 0 ? "spend" : "ink"} />
           ) : (
-            <Row k="Cost per run" v={`$${app.stats.costPerRunUsd.toFixed(3)}`} />
+            <Row k="Cost per run" v={figure(`$${app.stats.costPerRunUsd.toFixed(3)}`)} />
           )}
         </dl>
 

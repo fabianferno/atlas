@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { allApps, isMine, isUnclaimed, tierCounts, useBoard } from "@/lib/store";
+import { allApps, isMine, isUnclaimed, tierCounts, useBoard, useBoardSweep } from "@/lib/store";
 import { SectionHead } from "@/components/board/chrome";
 import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { WHEEL_CARD_EXPAND, AppWheelCard } from "@/components/board/app-wheel-card";
@@ -36,6 +36,10 @@ import {
 
 export function AppDeck() {
   const board = useBoard();
+  // Puts a measurement behind the two figures every wheel card prints. Without
+  // it the cards below show `seed-live.generated.json`'s build-time numbers, or
+  // — once `useFigure` stopped letting them — nothing at all.
+  useBoardSweep();
   /*
    * EVERY app, not `myApps()` — and the heading changed with it.
    *

@@ -8,10 +8,11 @@
  * contracts/deployments/ens-sepolia.json.
  *
  * `total` is the WHOLE registry and `retired` is how many entries name a
- * different parent — three, at time of writing, all under `graphminis.eth`
- * from before the Atlas rebrand. They are reported rather than dropped
- * silently: a filtered list presented as the whole is the same class of error
- * this route exists to fix.
+ * different parent — in practice the ones left under `graphminis.eth` from
+ * before the Atlas rebrand. They are reported rather than dropped silently: a
+ * filtered list presented as the whole is the same class of error this route
+ * exists to fix. The count lives in the response, not in this comment; an
+ * earlier revision wrote one down here and it was wrong within the day.
  *
  * There is deliberately no fallback. If the chain does not answer, this returns
  * 502 and the caller renders nothing — a hardcoded list served during an

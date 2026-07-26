@@ -61,12 +61,17 @@ const PHI_PER_MS = 0.0032 / (1000 / 60);
 /** RGB in 0..1, the space Cobe wants. */
 type RGB = [number, number, number];
 
-/** Parse a `#RRGGBB` token into 0..1 RGB. Falls back to mid-grey on anything odd. */
-function hexToRgb01(hex: string): RGB {
+/** Parse a `#RRGGBB` token into 0..1 RGB, or null when it isn't one. */
+function parseHex(hex: string): RGB | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return [0.5, 0.5, 0.5];
+  if (!m) return null;
   const n = parseInt(m[1], 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+/** Parse a `#RRGGBB` token into 0..1 RGB. Falls back to mid-grey on anything odd. */
+function hexToRgb01(hex: string): RGB {
+  return parseHex(hex) ?? [0.5, 0.5, 0.5];
 }
 
 /** Linear blend from a toward b by t (0..1). */
@@ -82,8 +87,16 @@ function luminance([r, g, b]: RGB): number {
 /**
  * The palette Cobe should render in for the current skin, derived from the two
  * ground tokens. On a light skin the globe is a faint darkening of the paper; on
- * a dark skin it's a tone lifted off the ground toward the ink. Either way the
- * glow melts into the background rather than ringing it.
+ * a dark skin it's a tone lifted off the ground toward the ink.
+ *
+ * The glow is the one part that is NOT derived: it reads `--globe-rim`, the
+ * accent each dark skin nominates for its own halo (see `globals.css`). Cobe
+ * spends that colour twice — `pow(1.-i,4.)` rims the sphere's own limb with it,
+ * and the atmosphere just outside the disc is painted in it at falling alpha —
+ * so one token buys the outline the sphere was missing on a dark ground. Skins
+ * that don't set it (the light ones) fall back to paper, which is the old
+ * behaviour exactly: a glow that melts into the background rather than ringing
+ * it, because on paper a halo is smog.
  */
 function skinPalette(): {
   dark: number;
@@ -96,6 +109,7 @@ function skinPalette(): {
   const paper = hexToRgb01(styles.getPropertyValue("--paper"));
   const ink = hexToRgb01(styles.getPropertyValue("--ink"));
   const isDark = luminance(paper) < 0.5;
+  const rim = parseHex(styles.getPropertyValue("--globe-rim"));
   return {
     dark: isDark ? 1 : 0,
     // Base sits almost on the paper so the sphere barely fills — what you see is
@@ -103,7 +117,11 @@ function skinPalette(): {
     // light skins, a little more lifted on dark ones so the globe still reads.
     baseColor: isDark ? mix(paper, ink, 0.18) : mix(paper, ink, 0.02),
     markerColor: ink,
-    glowColor: paper,
+    // A third of the way to the accent, not the accent itself: Cobe holds this
+    // colour at FULL strength along the limb (`f` → 1 as you approach the disc
+    // from outside), so the raw token — and even a half-mix — drew a hard neon
+    // band around a faint sphere. A circle sticker, not an atmosphere.
+    glowColor: rim ? mix(paper, rim, 0.32) : paper,
     // On a near-paper base the dots have to be pushed dark to carry the map.
     mapBrightness: isDark ? 5 : 3,
   };

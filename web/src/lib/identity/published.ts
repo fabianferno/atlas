@@ -125,7 +125,12 @@ export async function listRegisteredApps(reader?: RegistryReader): Promise<Regis
     offset += BigInt(rows.length);
   }
 
-  if (BigInt(out.length) !== total) {
+  /* Short is a failure; long is not. A publish landing between `totalApps()`
+     and the last `page()` makes the read arrive with MORE than the count it
+     started from, and failing that would turn someone else's successful
+     publish into a 502 on this page. Only the shortfall narrows a denominator,
+     and only the shortfall is refused. */
+  if (BigInt(out.length) < total) {
     throw new Error(`the registry reported ${total} entries but served only ${out.length}`);
   }
 
@@ -150,11 +155,13 @@ function normalise(row: RawAppRecord): RegisteredApp {
 /**
  * The records issued under one parent, plus the denominator.
  *
- * Some entries on the deployed registry name `graphminis.eth` (three, at time
- * of writing), the parent this project used before the Atlas rebrand: the ENS
- * records were re-issued under the new parent but the registry entries were
- * never re-registered, and the token→name binding is immutable by design, so
- * they cannot be. They are history. `retired` reports how many were set aside
+ * Some entries on the deployed registry name `graphminis.eth`, the parent this
+ * project used before the Atlas rebrand: the ENS records were re-issued under
+ * the new parent but the registry entries were never re-registered, and the
+ * token→name binding is immutable by design, so they cannot be. They are
+ * history. No count is given here on purpose — the live one is `retired` on
+ * `GET /api/registry/published`, and a number written into a comment is what
+ * this whole module was built to stop trusting. `retired` reports how many were set aside
  * so a caller can say so out loud — dropping them silently would trade one
  * misleading denominator for another.
  *

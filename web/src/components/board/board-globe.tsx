@@ -140,6 +140,60 @@ function StaticGlobe(): React.JSX.Element {
   );
 }
 
+/**
+ * The halo behind the sphere — what makes the globe's edge findable on a dark
+ * ground.
+ *
+ * A dark skin gave the globe nowhere to end: base colour a few percent off the
+ * paper, no rim, so the left half of the first screen was a dotted smudge with
+ * no silhouette. Cobe now rims its own limb (`--globe-rim`, see `globe.tsx`),
+ * and this is the outer half of the same effect — the bloom that spills past the
+ * disc onto the paper, which Cobe's atmosphere is far too tight to give.
+ *
+ * ## Why a sibling div and not a filter on the canvas
+ *
+ * `filter: drop-shadow()` on the canvas would trace the sphere's real alpha for
+ * free and need none of the geometry below. It would also re-run a ~100px blur
+ * over an 820px surface on every one of the 30 frames a second this thing draws,
+ * on the layer that is on screen for as long as the Board is. This div paints
+ * once and then never again — the sphere's size is a constant, so the halo can
+ * be one too.
+ *
+ * `inset-[10%]` is that constant: Cobe's sphere is `dot(b,b) <= 0.64` in a
+ * -1..1 square, i.e. radius 0.8, so the disc is 80% of the canvas box and the
+ * halo has to be inset 10% a side to sit on its edge rather than outside it.
+ * Three shadows of one colour rather than one big blur, so the falloff has a
+ * bright edge and a long tail instead of reading as a uniform grey doughnut.
+ *
+ * On light skins `--globe-glow` is `transparent` and this paints nothing.
+ */
+function GlobeHalo(): React.JSX.Element {
+  return (
+    <div
+      aria-hidden
+      // `-z-10` because it has to be BEHIND the sphere: a positioned element
+      // paints over its static siblings by default, which put the inner half of
+      // the bloom on top of the map instead of under it. Negative z-index
+      // resolves inside the sliding layer above (which `will-change: translate`
+      // already makes a stacking context), so this drops behind the canvas
+      // without escaping the globe layer.
+      className="pointer-events-none absolute inset-[10%] -z-10 rounded-full"
+      style={{
+        boxShadow: [
+          // The tight layer is thinned, because all three stack at the limb and
+          // three full-strength shadows there summed to a hard neon ring — the
+          // loudest thing on the screen, on a decoration that sits behind the
+          // cards. Thin the near one, keep the far ones, and the falloff reads
+          // as air around a planet instead of a stroke around a circle.
+          "0 0 24px color-mix(in srgb, var(--globe-glow) 45%, transparent)",
+          "0 0 80px color-mix(in srgb, var(--globe-glow) 75%, transparent)",
+          "0 0 170px var(--globe-glow)",
+        ].join(", "),
+      }}
+    />
+  );
+}
+
 export function BoardGlobe({
   open,
   centerY,
@@ -193,7 +247,12 @@ export function BoardGlobe({
             are both measured from this globe's right edge, so its position and
             width are shared constants rather than classes only this file knows. */}
         {isDesktop ? (
-          <div style={{ marginLeft: GLOBE_LEFT, width: GLOBE_WIDTH }}>
+          <div className="relative" style={{ marginLeft: GLOBE_LEFT, width: GLOBE_WIDTH }}>
+            {/* Behind whichever globe we draw, and behind BOTH of them — the
+                fallback disc is just as invisible on Galaxy Dark as the real
+                sphere was. `relative` above is only here to give it something
+                to be absolute against. */}
+            <GlobeHalo />
             {/* Same box either way — `GLOBE_LEFT`/`GLOBE_WIDTH` are what the
                 deck's gutter and the panel's width are derived from, so the
                 fallback has to be exactly the size the real globe would have

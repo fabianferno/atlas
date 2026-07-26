@@ -56,7 +56,7 @@ import Link from "next/link";
 import type { AgencyTier, Network, SchemaFamily } from "@/lib/contracts/manifest";
 import type { MiniApp } from "@/lib/seed";
 import { TIER_BLURB, TIER_LABEL, tierRank } from "@/lib/seed";
-import { fmtNum, fmtUsd, isArmed, useBoard } from "@/lib/store";
+import { fmtNum, fmtUsd, isArmed, useBoard, useBoardSweep, useFigure } from "@/lib/store";
 import { ArmedLamp, Fig, Label, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
 import { ForkDialog } from "@/components/registry/fork-dialog";
@@ -85,6 +85,10 @@ const SORTS: { key: Sort; label: string }[] = [
 
 export function RegistryGrid() {
   const board = useBoard();
+  // Every card below prints two measured figures; this is what puts a
+  // measurement behind them. Idempotent across surfaces — arriving here from the
+  // board finds the sweep already done or already running.
+  useBoardSweep();
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<AgencyTier | "all">("all");
   const [chain, setChain] = useState<Network | "all">("all");
@@ -329,6 +333,7 @@ function RegistryCard({
   const m = app.manifest;
   const tier = m.agency.tier;
   const s = score(app);
+  const figure = useFigure(m.name);
 
   return (
     <article
@@ -463,9 +468,13 @@ function RegistryCard({
         >
           <Label className="text-[0.5625rem] tracking-[0.08em]">Measured</Label>
           <dl className="mt-1 grid grid-cols-2 gap-x-3">
+            {/* The section says "Measured" and the tooltip says these came off
+                the wire, so they may not be printed before this session has put
+                them there — see `useFigure`. On a cold board they were the
+                build-time snapshot's, under that same heading. */}
             <Cell
               k="Sources live"
-              v={`${fmtNum(app.stats.sourcesHealthy)} / ${fmtNum(app.stats.sourcesQueried)}`}
+              v={figure(`${fmtNum(app.stats.sourcesHealthy)} / ${fmtNum(app.stats.sourcesQueried)}`)}
             />
             {tier === "autonomous" ? (
               /* Spend against the cap — real, and the one money figure this
@@ -480,7 +489,7 @@ function RegistryCard({
               /* No wallet at this tier, so there is no spend to report and a $0
                  would be answering a question nobody asked. What it does cost is
                  the data. */
-              <Cell k="Cost per run" v={`$${app.stats.costPerRunUsd.toFixed(3)}`} />
+              <Cell k="Cost per run" v={figure(`$${app.stats.costPerRunUsd.toFixed(3)}`)} />
             )}
           </dl>
         </div>

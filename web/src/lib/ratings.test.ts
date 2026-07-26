@@ -36,7 +36,7 @@
  */
 import { assert, assertEqual, describe, it, itAsync, report } from "@/lib/kit/testing";
 import { score } from "@/components/registry/ratings";
-import { boardSnapshot, localRunCount, ranHere, rateApp, runApp } from "@/lib/store";
+import { boardSnapshot, localRunCount, ranHere, rateApp, runApp, sweepBoard } from "@/lib/store";
 import { SEED_APPS, isSeededReview, type MiniApp, type Review } from "@/lib/seed";
 
 /* ------------------------------------------------------------------ *
@@ -64,10 +64,16 @@ function newest(name: string): Review {
  * the narrowest bodies the store actually reads, so a run either completes or
  * fails for the reason under test and never for a missing field.
  */
-function stubFetch(opts: { ok: boolean }): () => void {
+function stubFetch(opts: { ok: boolean; onRequest?: () => void }): () => void {
   const original = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
+    opts.onRequest?.();
+    // A microtask boundary, so a caller that fans several runs out at once
+    // really is concurrent here rather than each one completing before the next
+    // begins. Without it the sweep's concurrency limit is untestable: every run
+    // would resolve synchronously and the peak would always read 1.
+    await Promise.resolve();
     if (!opts.ok) return new Response("upstream is down", { status: 502 });
     const body = url.includes("/api/compose")
       ? { ui: { spec: "a2ui/0.9.1", blocks: [] }, componentsUsed: [] }
@@ -154,7 +160,7 @@ describe("ranIt is the rater's own run, not the app's run counter", () => {
    * the second half is that the counter moved only after the first half failed
    * to move it.
    */
-  itAsync("a failed run grants nothing; a real one grants 3×", async () => {
+  itAsync("a failed run grants nothing; a press grants 3×; an on-open refresh grants nothing", async () => {
     const name = (SEEDED as MiniApp).manifest.name;
 
     const failing = stubFetch({ ok: false });
@@ -191,6 +197,133 @@ describe("ranIt is the rater's own run, not the app's run counter", () => {
     rateApp(name, "up", "Rated after really running it.", "0xtest");
     assertEqual(newest(name).ranIt, true, "the rater did run it");
     assertEqual(score(appNamed(name)).weighted - before, 3, "weighted 3×");
+
+    /*
+     * THE ON-OPEN REFRESH, which is a run of the app and is not the reader
+     * running it.
+     *
+     * `AppRuntime` re-queries an app whose measurements have aged out the moment
+     * you open it, so a fan-out now happens without anybody pressing anything.
+     * The first version of that let the same write-back bump `localRuns`, which
+     * meant merely looking at an app told you "you ran this — counts 3×" and
+     * silently tripled the weight of any rating you then posted. That is the
+     * defect this whole describe block exists about, re-entering by a new door:
+     * the counter was seeded before, and now it would be automated, but either
+     * way the reader is credited with an act they did not perform.
+     */
+    const openRuns = appNamed(name).stats.runs;
+    const openLocal = localRunCount(boardSnapshot(), name);
+    const opening = stubFetch({ ok: true });
+    try {
+      assertEqual((await runApp(name, "auto")).ok, true, "the on-open refresh completed");
+    } finally {
+      opening();
+    }
+    assertEqual(
+      localRunCount(boardSnapshot(), name),
+      openLocal,
+      "opening an app is not the reader running it",
+    );
+    assertEqual(ranHere(boardSnapshot(), name), true, "an earlier press still stands, though");
+    assertEqual(
+      appNamed(name).stats.runs,
+      openRuns + 1,
+      "the query really happened and was really paid for, so the display total moves",
+    );
+
+    /*
+     * And the seam between the two: press Run while the automatic query for the
+     * same app is still in flight. `runApp` hands back the query already
+     * running rather than paying for a second one, so there is no second
+     * write-back to credit — the trigger recorded in `runningApps` is upgraded
+     * instead, and the write-back reads it there. Without that upgrade a reader
+     * who pressed, waited, and got a real answer would be told they had not run
+     * it, because of a race they cannot see.
+     */
+    const joinLocal = localRunCount(boardSnapshot(), name);
+    const joining = stubFetch({ ok: true });
+    try {
+      const opened = runApp(name, "auto");
+      const pressed = runApp(name, "press");
+      assert(opened === pressed, "the press joins the query already in flight");
+      assertEqual((await pressed).ok, true, "and gets its result");
+    } finally {
+      joining();
+    }
+    assertEqual(
+      localRunCount(boardSnapshot(), name),
+      joinLocal + 1,
+      "a press that joins an in-flight auto is still this reader's run",
+    );
+
+    /*
+     * THE BOARD SWEEP — same describe, same sequential body, for the same reason
+     * the two run outcomes share one: it installs the global `fetch` stub, and a
+     * second `itAsync` would race this one for it.
+     *
+     * THE SWEEP IS RUN AGAINST A FAILING GATEWAY, which is not the obvious choice
+     * and is the only one that can prove the property that matters. `sweepBoard`
+     * attempts each app at most once per session, and the mechanism is a module
+     * `Set` marked before the first request rather than a filter on
+     * `measuredHere` — precisely so that a run which did NOT come back is not
+     * queued again. Against a working gateway that distinction is invisible:
+     * every app lands on `measuredHere`, so both mechanisms produce an empty
+     * queue on the second call and a test cannot tell them apart. Only a sweep
+     * whose apps stay unmeasured can.
+     *
+     * That matters because `useBoardSweep` re-runs whenever the board's app count
+     * changes — it has to, or an app you publish onto an already-swept board
+     * keeps reading "—" until the next reload. Filtering on `measuredHere` alone
+     * would turn every publish into a re-fan-out of every previously failed app.
+     */
+    const boardNames = boardSnapshot().apps.map((a) => a.manifest.name);
+    const alreadyMeasured = boardNames.filter((n) =>
+      boardSnapshot().measuredHere.includes(n),
+    );
+
+    const queried = new Set<string>();
+    let peak = 0;
+    const failing2 = stubFetch({
+      ok: false,
+      onRequest: () => {
+        // `runningApps` is the store's own record of what is in flight, so it
+        // answers both questions at once: which apps the sweep reached, and how
+        // many it held open together.
+        const live = Object.keys(boardSnapshot().runningApps);
+        for (const n of live) queried.add(n);
+        peak = Math.max(peak, live.length);
+      },
+    });
+    try {
+      await sweepBoard();
+    } finally {
+      failing2();
+    }
+
+    const missed = boardNames.filter((n) => !queried.has(n) && !alreadyMeasured.includes(n));
+    assertEqual(missed.length, 0, `the sweep reached every app — missed ${missed.join(", ")}`);
+    assert(peak > 0, "the sweep actually issued requests");
+    assert(peak <= 3, `never more than 3 apps in flight at once — peaked at ${peak}`);
+
+    const measuredAfterFailure = boardNames.filter(
+      (n) => !alreadyMeasured.includes(n) && boardSnapshot().measuredHere.includes(n),
+    );
+    assertEqual(
+      measuredAfterFailure.length,
+      0,
+      `a run that did not come back measures nothing — ${measuredAfterFailure.join(", ")} claim otherwise`,
+    );
+
+    // The guard itself: a second sweep, now against a gateway that works, must
+    // not re-queue a single one of the apps that just failed.
+    let retried = 0;
+    const working = stubFetch({ ok: true, onRequest: () => void retried++ });
+    try {
+      await sweepBoard();
+    } finally {
+      working();
+    }
+    assertEqual(retried, 0, "a failed app is not swept again — the retry would be unbounded");
   });
 });
 

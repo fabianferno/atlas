@@ -178,10 +178,41 @@ export interface BoardState {
    * explained by anything unless the line says so.
    */
   runningApps: Record<string, RunTrigger>;
+  /**
+   * Apps THIS BROWSER has measured, this session. Not persisted, and that is the
+   * claim: a reload starts over because "we measured this" is a statement about
+   * the session making it.
+   *
+   * WHY IT IS NOT `lastRunAt`. Every app already carries one, and it is a real
+   * timestamp — but a bundled app's is written by `withLiveData` from
+   * `seed-live.generated.json`, so on a cold board every one of them looks
+   * measured with a date attached and there is nothing in the shape to say the
+   * measurement was taken at build time by a script rather than here by a
+   * request. That is the exact confusion the registry surfaces were showing:
+   * "Sources live 6/6" from a snapshot, rendered identically to 6/6 from a
+   * fan-out that just came back. A separate list is the only thing that can tell
+   * those two apart, because the difference is not in the value.
+   *
+   * WHY IT IS NOT `isRunStale`. That answers "is this measurement old", which is
+   * the right question for deciding to re-query and the wrong one for deciding
+   * what to print: a fresh figure would silently become "measuring…" sixty
+   * seconds later with nothing measuring it. Membership here only ever moves one
+   * way within a session — once measured, printed.
+   */
+  measuredHere: string[];
 }
 
-/** What started a run. See `BoardState.runningApps`. */
-export type RunTrigger = "press" | "open";
+/**
+ * What started a run.
+ *
+ * Two values, not three, even though there are three callers — the Run button,
+ * `AppRuntime`'s on-open refresh, and `sweepBoard`. Everything downstream splits
+ * on press-versus-not: `localRuns` credit (a press is the reader running it, the
+ * other two are the product keeping itself honest) and the wording of the
+ * waiting line. A third value would add a branch to both for no difference in
+ * behaviour, and `"auto"` is the honest name for "the app decided to".
+ */
+export type RunTrigger = "press" | "auto";
 
 const SEED_STATE: BoardState = {
   apps: SEED_APPS,
@@ -190,6 +221,7 @@ const SEED_STATE: BoardState = {
   wallet: null,
   hydrated: false,
   runningApps: {},
+  measuredHere: [],
   // Zero runs on the server snapshot, which is also the truth on first paint:
   // SSR has no browser history to speak for. The panel therefore renders
   // "you have not run this" on both sides of hydration and nothing flashes.
@@ -331,6 +363,54 @@ export function boardSnapshot(): BoardState {
 export function useApp(name: string): MiniApp | undefined {
   const board = useBoard();
   return board.apps.find((a) => a.manifest.name === name);
+}
+
+/**
+ * Start the board-wide measurement sweep. Mount on any surface that prints
+ * per-app figures — the board and the registry both do.
+ *
+ * Gated on `hydrated`, and not merely for tidiness: `hydrateOnce` REPLACES
+ * `state.apps` with what localStorage holds. A sweep that started first would
+ * write measured sources and a re-composed body into apps that are about to be
+ * thrown away, so the work would be paid for and then discarded, and the cards
+ * would flip back to snapshot figures the moment hydration landed.
+ */
+export function useBoardSweep(): void {
+  const board = useBoard();
+  useEffect(() => {
+    if (!board.hydrated) return;
+    void sweepBoard();
+    // `apps.length` as well as `hydrated`, because publishing puts a card on a
+    // board whose sweep finished minutes ago. Depending on `hydrated` alone left
+    // that card reading "—" for source health and cost until the next reload —
+    // on the one app the reader had just made, which is the worst place for the
+    // board to claim it has no measurement. `sweepBoard` attempts each app once
+    // per session, so re-running it here costs nothing for the sixteen already
+    // done and picks up only what is new.
+  }, [board.hydrated, board.apps.length]);
+}
+
+/**
+ * How to print one per-app figure, given that it may not have been measured yet.
+ *
+ * Returns a formatter rather than a boolean so the rule lives in one place
+ * instead of being re-spelled at each of the three call sites that need it — the
+ * wheel card, the board card face and the registry grid all print the same two
+ * figures and all three used to print them straight off `stats`.
+ *
+ * Three states, and the middle one is why "—" alone is not enough: a card that
+ * has not been reached yet and a card being queried right now are different
+ * facts, and during a sweep the reader is watching the difference travel across
+ * the board.
+ */
+export function useFigure(name: string): (measured: string) => string {
+  const board = useBoard();
+  if (board.measuredHere.includes(name)) return (measured) => measured;
+  if (board.runningApps[name] !== undefined) return () => "measuring…";
+  // No measurement taken here, or one was taken and did not come back. Either
+  // way there is nothing this browser can stand behind, and the snapshot figure
+  // sitting in `stats` is precisely what must not be printed in its place.
+  return () => "—";
 }
 
 /* ------------------------------------------------------------------ *
@@ -1682,9 +1762,38 @@ async function runAppOnce(name: string): Promise<RunOutcome> {
       // `stats.runs` above is seeded base + measured increments folded into one
       // integer, which is fine for a display total and useless for the question
       // "did the person at this keyboard run it" — see `BoardState.localRuns`.
-      // Written here and nowhere else, on the same success branch that bumps the
-      // counter, so the two can never disagree about a run that really happened.
-      localRuns: { ...state.localRuns, [name]: (state.localRuns[name] ?? 0) + 1 },
+      //
+      // A PRESS ONLY. `localRuns` answers "did the person at this keyboard run
+      // this app", it is the sole evidence behind the sentence that says so and
+      // behind §12's 3× weight on their rating, and the on-open refresh is not
+      // that person doing anything. Without this condition, merely opening an app
+      // hands the reader a claim about their own history plus a triple-weighted
+      // vote — the same class of error as `stats.runs > 0` once telling every
+      // first-time visitor they had run all sixteen apps, except authored fresh
+      // rather than inherited.
+      //
+      // READ OFF `runningApps` RATHER THAN A PARAMETER, and the difference is not
+      // stylistic. `runApp` hands a joining caller the promise already in flight,
+      // so a press that lands on top of an on-open query never starts a run of
+      // its own — an argument captured when this one started would say "open"
+      // forever and quietly deny that reader the run they asked for and got. The
+      // map is upgraded to "press" when they press, so reading it at write-back
+      // credits them. This depends on the entry still being present here, which
+      // it is: `runApp`'s `.finally` deletes it only after this function returns.
+      //
+      // `stats.runs` above is deliberately still bumped either way: a query really
+      // was paid for and answered, and that total has never meant "a human asked".
+      ...(state.runningApps[name] === "press"
+        ? { localRuns: { ...state.localRuns, [name]: (state.localRuns[name] ?? 0) + 1 } }
+        : {}),
+      // Regardless of trigger, because this list answers "was the figure on
+      // screen produced here" and a sweep produces it just as much as a press
+      // does. Only a run that CAME BACK joins: the failure branch below leaves
+      // the app off this list, so a card whose fan-out died keeps printing "—"
+      // rather than adopting the snapshot's numbers as its own.
+      measuredHere: state.measuredHere.includes(name)
+        ? state.measuredHere
+        : [...state.measuredHere, name],
     });
 
     return {
@@ -1737,10 +1846,11 @@ const runsInFlight = new Map<string, Promise<RunOutcome>>();
 export function runApp(name: string, trigger: RunTrigger = "press"): Promise<RunOutcome> {
   const existing = runsInFlight.get(name);
   if (existing) {
-    // Pressing Run while the on-open query is still in flight gets that query's
+    // Pressing Run while an automatic query is still in flight gets that query's
     // result — it started moments ago and re-asking would answer the same. But
-    // the press is real and the waiting line should stop explaining the open.
-    if (trigger === "press" && state.runningApps[name] === "open") {
+    // the press is real, and both the waiting line and the run credit read the
+    // trigger, so it has to be upgraded rather than ignored.
+    if (trigger === "press" && state.runningApps[name] === "auto") {
       set({ runningApps: { ...state.runningApps, [name]: "press" } });
     }
     return existing;
@@ -1758,6 +1868,83 @@ export function runApp(name: string, trigger: RunTrigger = "press"): Promise<Run
   });
   runsInFlight.set(name, started);
   return started;
+}
+
+/**
+ * How many of the board's apps are fanned out at once by `sweepBoard`.
+ *
+ * Three, and the number is the whole reason the sweep exists as a queue rather
+ * than a `Promise.all`. One app is not one request: the fan-out queries every
+ * healthy deployment it resolved for the app's schema families, which for
+ * `tvl-crosschain` alone was twenty-five. Firing all sixteen together is on the
+ * order of a hundred concurrent gateway queries from one page load, and a
+ * rate-limited board does not degrade to the old figures — it degrades to cards
+ * that print "—" because their run came back empty, which is worse than the
+ * problem being solved. Three keeps the board filling visibly while leaving the
+ * gateway a queue it can serve.
+ */
+const SWEEP_CONCURRENCY = 3;
+
+/**
+ * Measure every app on the board that this session has not measured yet.
+ *
+ * WHY THE BOARD SWEEPS AT ALL. `AppRuntime`'s on-open refresh made the app you
+ * OPEN live, and left the board you open it from showing
+ * `seed-live.generated.json` — "Sources live 6/6", "Cost per run $0.001" —
+ * rendered with exactly the confidence of a figure that had just come back from
+ * the wire. Sixteen cards of build-time numbers is the same claim the on-open
+ * refresh was built to stop making, at sixteen times the surface area, and it is
+ * the first thing anybody sees.
+ *
+ * ONCE PER APP, NOT A POLL. Safe to call again — and it has to be, because
+ * publishing adds an app to a board whose sweep finished minutes ago. Each app
+ * is attempted exactly once per session and then never again on its own; a
+ * reload is what asks for fresh figures, and a reload is a thing a person did.
+ * A timer that kept re-measuring would spend money on nobody's behalf.
+ *
+ * FAILURES ARE LEFT AS FAILURES, and `attempted` below is what makes that
+ * possible rather than merely intended. `runApp` resolves rather than rejects,
+ * and an app whose run did not come back stays off `measuredHere` — so filtering
+ * the queue on `measuredHere` alone would re-queue it on every call, and since
+ * the caller re-runs whenever the board changes, a persistently failing app
+ * becomes an unbounded retry loop against a gateway that is already unhappy.
+ * `attempted` records the try; `measuredHere` records the answer. A card whose
+ * run failed goes on saying it has no measurement, which is true, instead of
+ * quietly falling back to the snapshot.
+ */
+let sweeping = false;
+const attempted = new Set<string>();
+export async function sweepBoard(concurrency = SWEEP_CONCURRENCY): Promise<void> {
+  // Re-entrant by construction — two board surfaces can mount at once, and in
+  // development every effect runs twice. Without this the second caller queues
+  // the same apps again, because nothing has landed on `attempted` yet.
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    const queue = state.apps
+      .map((a) => a.manifest.name)
+      .filter((name) => !attempted.has(name) && !state.measuredHere.includes(name));
+    // Marked before the first request, not after each one: the whole point is
+    // that a failure does not come back round.
+    for (const name of queue) attempted.add(name);
+
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      for (let i = next++; i < queue.length; i = next++) {
+        const name = queue[i];
+        if (name === undefined) return;
+        // `runApp`, not `runAppOnce`: if the reader opens one of these mid-sweep
+        // the two callers meet on the same promise and the app is queried once.
+        await runApp(name, "auto");
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()),
+    );
+  } finally {
+    sweeping = false;
+  }
 }
 
 /**

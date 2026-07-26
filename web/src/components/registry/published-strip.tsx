@@ -27,7 +27,6 @@
  * include, which is why the rendered sentence only states the count and does
  * not narrate a cause.
  *
-
  * ## What it proves (prd.md §5, §8, §14 #8 and #9)
  *
  * That an ENS name here is not a label but an executable, fundable artifact.

@@ -1,6 +1,6 @@
 import type { MiniApp } from "@/lib/seed";
 import { TIER_LABEL } from "@/lib/seed";
-import { fmtNum, fmtUsd, isArmed } from "@/lib/store";
+import { fmtNum, fmtUsd, isArmed, useFigure } from "@/lib/store";
 import { ArmedLamp, Fig, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
 import { SponsorMark } from "@/components/brand/sponsor-mark";
@@ -56,6 +56,7 @@ export function AppWheelCard({
   const halted = m.agency.policy.halted;
   const spentPct =
     m.agency.policy.maxSpendUsd > 0 ? app.stats.spentUsd / m.agency.policy.maxSpendUsd : 0;
+  const figure = useFigure(m.name);
 
   return (
     <div
@@ -178,8 +179,11 @@ export function AppWheelCard({
         </p>
 
         <div className="mt-auto flex items-end justify-between gap-3 border-t border-[var(--hairline)] pt-2">
+          {/* Only the two measurements go through `figure` — `Runs` is disclosed
+              seeded texture and `Spent` is hard-zeroed at the source. See the
+              matching note in `app-card-face.tsx`. */}
           <Stat k="Runs" v={fmtNum(app.stats.runs)} />
-          <Stat k="Sources" v={`${app.stats.sourcesHealthy}/${app.stats.sourcesQueried}`} />
+          <Stat k="Sources" v={figure(`${app.stats.sourcesHealthy}/${app.stats.sourcesQueried}`)} />
           {tier === "autonomous" ? (
             <Stat
               k="Spent"
@@ -187,7 +191,7 @@ export function AppWheelCard({
               accent={app.stats.spentUsd > 0 ? "spend" : "ink"}
             />
           ) : (
-            <Stat k="Per run" v={`$${app.stats.costPerRunUsd.toFixed(3)}`} />
+            <Stat k="Per run" v={figure(`$${app.stats.costPerRunUsd.toFixed(3)}`)} />
           )}
           <span className="mono truncate text-[0.5625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
             {m.data.networks

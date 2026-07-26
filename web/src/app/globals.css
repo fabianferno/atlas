@@ -178,6 +178,17 @@
   /* Rounded again. Buttons override to a pill. */
   --radius: 0.75rem;
 
+  /* --- the globe's rim ---
+     On a light ground the sphere reads as a faint darkening of the paper and
+     needs nothing behind it — a halo on paper is smog. So the light skins set
+     both of these to nothing and the glow costs them literally zero: the CSS
+     layer paints `transparent`, and `--globe-rim` unset makes Cobe fall back to
+     the paper colour, which is what it already used.
+
+     --globe-glow  colour of the CSS bloom painted behind the sphere (needs alpha)
+     --globe-rim   opaque hex Cobe renders its own atmosphere in (see globe.tsx) */
+  --globe-glow: transparent;
+
   /* Remap shadcn's tokens onto ours so its primitives inherit the system. */
   --background: var(--paper);
   --foreground: var(--ink);
@@ -282,6 +293,12 @@
   --elev-3: 0 10px 34px rgba(8,6,26,0.7), 0 0 34px rgba(111,76,255,0.35);
   --inset-groove: inset 0 1px 0 rgba(255,255,255,0.04);
 
+  /* The globe gets the same purple halo the autonomous cards do — on Galaxy Dark
+     an unlit sphere is a hole in the page, and this is the skin's own answer to
+     "how does something read as present here". */
+  --globe-glow: rgba(111, 76, 255, 0.34);
+  --globe-rim: #6F4CFF;
+
   --radius: 0.9rem;
 }
 
@@ -311,6 +328,10 @@
   --elev-2: 0 0 8px rgba(59,240,122,0.4);
   --elev-3: 0 0 12px rgba(59,240,122,0.6);
   --inset-groove: none;
+
+  /* Phosphor bloom, the one light source this skin has. */
+  --globe-glow: rgba(59, 240, 122, 0.26);
+  --globe-rim: #3BF07A;
 
   --radius: 0;
 }
@@ -342,6 +363,10 @@
   --elev-2: 4px 4px 0 rgba(79,195,247,0.5);
   --elev-3: 4px 4px 0 rgba(79,195,247,0.5);
   --inset-groove: none;
+
+  /* Cyan, like every other line on the drawing. */
+  --globe-glow: rgba(79, 195, 247, 0.28);
+  --globe-rim: #4FC3F7;
 
   --radius: 0;
 }
@@ -376,6 +401,12 @@
   --elev-2: 0 4px 12px rgba(0,0,0,0.55);
   --elev-3: 0 10px 26px rgba(0,0,0,0.6);
   --inset-groove: inset 0 1px 0 rgba(255,255,255,0.05);
+
+  /* The CARDS lost their halo here on purpose (agency is the rim, above). The
+     globe is decoration, not a tier, so a magenta bloom says nothing about
+     capability and can't be confused for it. */
+  --globe-glow: rgba(255, 60, 172, 0.28);
+  --globe-rim: #FF3CAC;
 
   --radius: 0.5rem;
 }

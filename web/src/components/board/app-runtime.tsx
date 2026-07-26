@@ -224,7 +224,7 @@ export function AppRuntime({
     refreshedFor.current.add(name);
     if (!isRunStale(app)) return;
 
-    void runApp(name, "open")
+    void runApp(name, "auto")
       // `runApp` reports failure by returning `ok: false`, so a rejection here is
       // a fault it does not know about and there is no receipt to write for it.
       // The ledger already carries whatever the store did record.
@@ -489,7 +489,7 @@ export function AppRuntime({
               <Receipt
                 tone="wait"
                 text={
-                  runTrigger === "open"
+                  runTrigger === "auto"
                     ? "last measured too long ago — re-querying deployments and re-composing…"
                     : "querying deployments and re-composing…"
                 }
