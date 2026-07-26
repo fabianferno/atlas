@@ -49,10 +49,10 @@
  * so the panel states what will happen before it and takes a second, deliberate
  * confirm — see its header for why.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SEED_EPOCH } from "@/lib/seed";
-import { HOST_PROVIDED } from "@/lib/app-view";
+import { HOST_PROVIDED, seamLine, type TabKey } from "@/lib/app-view";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import {
   dispatchAction,
@@ -80,13 +80,45 @@ import { DataPlanPanel } from "@/components/board/panels/data-plan";
 import { PermissionsPanel } from "@/components/board/panels/permissions";
 import { ProvenancePanel } from "@/components/board/panels/provenance";
 import { UsagePanel } from "@/components/board/panels/usage";
+import { RailSections, TabbedSections, type AppSections } from "@/components/board/app-sections";
 // One rule for "this family has nothing live behind it", shared with the
 // registry's schema select — the control prd.md §14 #7 cites — rather than
 // re-derived here. A second copy of that test would drift, and the direction it
 // drifts is always towards claiming more. See `lib/schema-coverage.ts`.
 import { familiesWithNoLiveSource } from "@/lib/schema-coverage";
 
-export function AppRuntime({ name }: { name: string }) {
+/**
+ * A round trip and the app it was made for. `out: null` means still in flight.
+ *
+ * `auto` distinguishes the query the reader started from the one opening the app
+ * started. Only the waiting line reads it — the outcome is the same fact either
+ * way — but while it is in flight, "querying…" under an app nobody pressed
+ * anything on is unexplained, and unexplained motion on a page arguing for
+ * legibility is its own kind of lie.
+ */
+interface RunState {
+  app: string;
+  auto: boolean;
+  out: RunOutcome | null;
+}
+
+interface WatchState {
+  app: string;
+  out: WatchOutcome | null;
+}
+
+export function AppRuntime({
+  name,
+  variant = "page",
+}: {
+  name: string;
+  /**
+   * `page` keeps the 380px rail — the width it was measured for. `drawer` puts
+   * the sections behind tabs, because at panel width the rail collapses to one
+   * column and the composed body becomes 1 of 9 stacked panels.
+   */
+  variant?: "drawer" | "page";
+}) {
   const board = useBoard();
   const app = useApp(name);
   const [forking, setForking] = useState(false);
@@ -103,10 +135,19 @@ export function AppRuntime({ name }: { name: string }) {
   // The two real round trips this page can start. Each keeps its own last
   // outcome, and each renders the outcome the server actually returned —
   // including the failures, which are the more informative half.
-  const [running, setRunning] = useState(false);
-  const [runOut, setRunOut] = useState<RunOutcome | null>(null);
-  const [watching, setWatching] = useState(false);
-  const [watchOut, setWatchOut] = useState<WatchOutcome | null>(null);
+  //
+  // Both carry the app they belong to, because this component is not remounted
+  // per app: the drawer keeps one instance and changes `name` under it as the
+  // wheel turns. Without the owner, flicking away from a run in flight lands the
+  // previous app's row counts and its "live" verdict on the next app's header —
+  // a measurement of one thing captioned as a measurement of another, which is
+  // the failure this whole surface exists to prevent.
+  const [run, setRun] = useState<RunState | null>(null);
+  const [watch, setWatch] = useState<WatchState | null>(null);
+  const running = run !== null && run.app === name && run.out === null;
+  const runOut = run?.app === name ? run.out : null;
+  const watching = watch !== null && watch.app === name && watch.out === null;
+  const watchOut = watch?.app === name ? watch.out : null;
 
   // This app's slice of the board ledger, feeding trade_log inside the
   // generated body as well as the panel below it. Memoised so its identity is
@@ -122,6 +163,16 @@ export function AppRuntime({ name }: { name: string }) {
   // plan panel below marks them; see the import note for why the rule is not
   // re-derived here.
   const noLiveSource = useMemo(() => familiesWithNoLiveSource(board.apps), [board.apps]);
+
+  const [activeTab, setActiveTab] = useState<TabKey>("app");
+  // Reset when the wheel flicks to a different app. Adjusting state during
+  // render is the sanctioned pattern and avoids a frame of the previous app's
+  // Safety tab showing under this app's name.
+  const [tabbedApp, setTabbedApp] = useState(name);
+  if (name !== tabbedApp) {
+    setTabbedApp(name);
+    setActiveTab("app");
+  }
 
   // Autonomous seed apps carry a fixture body (display only). Compose it into a
   // real A2UI document so the renderer draws the full action surface — the same
@@ -189,6 +240,65 @@ export function AppRuntime({ name }: { name: string }) {
       setWatching(false);
     }
   }
+
+  const onBodyAction = (action: unknown) => {
+    // Two shapes reach here: the fixture body dispatches a bare
+    // `{ name, context }`; the A2UI renderer dispatches a full
+    // client_to_server action `{ action: { name, context } }`.
+    const raw = action as {
+      name?: string;
+      context?: Record<string, unknown>;
+      action?: { name?: string; context?: Record<string, unknown> };
+    };
+    const name = raw.action?.name ?? raw.name;
+    const context = raw.action?.context ?? raw.context ?? {};
+    if (!name) return;
+
+    // The kill switch is not a spend — it flips the halt flag on the
+    // board and the server, same as the policy strip's button.
+    if (name === "halt_agent") {
+      void haltRemote(m, context.halted !== false);
+      return;
+    }
+
+    // requireConfirm is satisfied here only because a human pressed
+    // the button. A trigger-fired action goes through the signal
+    // path and never sets this. An explicit confirm_action carries
+    // its own consent.
+    void dispatchAction(m, { name, context }, {
+      userInitiated: true,
+      confirmed: name === "confirm_action" || !policy.requireConfirm,
+    });
+  };
+
+  const sections: AppSections = {
+    app: (
+      <AppBody
+        doc={bodyDoc ?? m.ui}
+        animate
+        providedByHost={HOST_PROVIDED}
+        policy={policy}
+        spentUsd={app.stats.spentUsd}
+        journal={journal}
+        onAction={onBodyAction}
+      />
+    ),
+    data: <DataPlanPanel app={app} signer={signer} stream={stream} noLiveSource={noLiveSource} />,
+    safety: autonomous ? <PermissionsPanel app={app} signer={signer} /> : null,
+    activity: (
+      <>
+        {watchable ? <TradeLog appName={m.name} /> : null}
+        <UsagePanel app={app} />
+      </>
+    ),
+    about: (
+      <>
+        <AppPublishPanel app={app} />
+        <ProvenancePanel m={m} explorerBase={explorerBase} />
+        <Ratings appName={m.name} />
+      </>
+    ),
+  };
 
   return (
     // Bottom padding clears the docked ledger pill floating over this corner.
@@ -282,88 +392,27 @@ export function AppRuntime({ name }: { name: string }) {
           </div>
         ) : null}
 
-        <div className="p-3 sm:p-4">
-          <AppBody
-            doc={bodyDoc ?? m.ui}
-            animate
-            providedByHost={HOST_PROVIDED}
-            policy={policy}
-            spentUsd={app.stats.spentUsd}
-            journal={journal}
-            onAction={(action) => {
-              // Two shapes reach here: the fixture body dispatches a bare
-              // `{ name, context }`; the A2UI renderer dispatches a full
-              // client_to_server action `{ action: { name, context } }`.
-              const raw = action as {
-                name?: string;
-                context?: Record<string, unknown>;
-                action?: { name?: string; context?: Record<string, unknown> };
-              };
-              const name = raw.action?.name ?? raw.name;
-              const context = raw.action?.context ?? raw.context ?? {};
-              if (!name) return;
-
-              // The kill switch is not a spend — it flips the halt flag on the
-              // board and the server, same as the policy strip's button.
-              if (name === "halt_agent") {
-                void haltRemote(m, context.halted !== false);
-                return;
-              }
-
-              // requireConfirm is satisfied here only because a human pressed
-              // the button. A trigger-fired action goes through the signal
-              // path and never sets this. An explicit confirm_action carries
-              // its own consent.
-              void dispatchAction(m, { name, context }, {
-                userInitiated: true,
-                confirmed: name === "confirm_action" || !policy.requireConfirm,
-              });
-            }}
-          />
-        </div>
+        {/* On the page the composed body stays inside the tier panel, exactly
+            where it was. In the drawer it belongs to the App tab instead. */}
+        {variant === "page" ? <div className="p-3 sm:p-4">{sections.app}</div> : null}
       </div>
 
-      {/* The 380px rail only earns its keep when the main column still has room
-          to breathe beside it. Container-relative, so the Board's panel stacks
-          and the full-page route splits — the same rule, asked of the real
-          width instead of the window's. */}
-      <div className="mt-4 grid grid-cols-1 gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
-        <div className="min-w-0 space-y-4">
-          {/* PUBLISH — the step that was unreachable from here.
-              `publishApp` mints a new board entry and its only caller was the
-              Studio's bar, which hangs off a freshly described draft. So a fork
-              could be created, refined and run, and never named: no ENS subname,
-              no manifest CID, no Agentic ID, ever. prd.md §12 calls fork-and-remix
-              the flywheel and states the loop as "fork → refine → publish under
-              your own name", and §8 makes the name the thing a human verifies
-              BEFORE funding a mini app — so the missing leg was the safety story's
-              last step, not a convenience.
+      {variant === "page" ? <RailSections sections={sections} /> : null}
 
-              It sits above the data plan deliberately. The header directly above
-              says "unpublished — no ENS subname issued"; the control that changes
-              that belongs next to the claim, not in a rail below the fold. It
-              renders in every state, disabled with the reason when it cannot
-              apply, because "why can I not publish this?" is a question worth
-              answering in words. */}
-          <AppPublishPanel app={app} />
-
-          <DataPlanPanel app={app} signer={signer} stream={stream} noLiveSource={noLiveSource} />
-
-          {autonomous ? (
-            <PermissionsPanel app={app} signer={signer} />
-          ) : null}
-
-          <Ratings appName={m.name} />
-        </div>
-
-        <aside className="min-w-0 space-y-4">
-          {autonomous || tier === "monitor" ? <TradeLog appName={m.name} /> : null}
-
-          <ProvenancePanel m={m} explorerBase={explorerBase} />
-
-          <UsagePanel app={app} />
-        </aside>
-      </div>
+      {variant === "drawer" ? (
+        <TabbedSections
+          sections={sections}
+          tier={tier}
+          seam={seamLine({
+            rows: runOut?.ok ? runOut.rows : null,
+            sourcesHealthy: app.stats.sourcesHealthy,
+            sourcesQueried: app.stats.sourcesQueried,
+            live: runOut?.ok ? runOut.live : null,
+          })}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+      ) : null}
 
       {forking ? <ForkDialog app={app} onClose={() => setForking(false)} /> : null}
     </main>

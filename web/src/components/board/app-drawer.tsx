@@ -282,7 +282,7 @@ export function AppDrawer({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {shownName ? <AppRuntime name={shownName} /> : null}
+          {shownName ? <AppRuntime name={shownName} variant="drawer" /> : null}
         </div>
       </div>
     </div>,
