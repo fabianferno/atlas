@@ -50,9 +50,27 @@ export function rowsOf(data: unknown, ...keys: string[]): unknown[] {
   return [];
 }
 
+/**
+ * Strings JS will happily read as a *non-decimal literal*: `0x…` (hex), `0b…`
+ * (binary), `0o…` (octal), with an optional sign. Nothing in this product ever
+ * means a number when it writes one of those — subgraphs return BigInt and
+ * BigDecimal as plain decimal strings, and a `0x` string is always an id, an
+ * address, a tx hash or a pool key.
+ */
+const NON_DECIMAL_LITERAL = /^[+-]?0[xXbBoO]/;
+
 export function num(v: unknown, fallback = NaN): number {
   if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
   if (typeof v === "string" && v.trim() !== "") {
+    // This used to be a bare `Number(v)`, which is how every entity id in the
+    // product ended up rendered as a figure: `Number("0xbea9f78…56e9")` is not
+    // NaN, it is 1.0884986328782432e+48 — finite, so every downstream
+    // `Number.isFinite` check said "this is a number" and the table printed
+    // 3.6e+35T where an address belonged. Short ids were worse than wrong and
+    // plausible: "0x1f98" came out as 8088. Refuse the literal forms outright
+    // so callers get their fallback (usually NaN) and fall through to their
+    // address/text branch.
+    if (NON_DECIMAL_LITERAL.test(v.trim())) return fallback;
     const n = Number(v);
     if (Number.isFinite(n)) return n;
   }
@@ -113,9 +131,20 @@ export function cellText(v: unknown): string {
   return "{…}";
 }
 
-/** True when a string looks like an EVM address or tx hash — render as mono. */
+/**
+ * True when a string looks like an EVM address or tx hash — render as mono and
+ * shorten it. This is a *presentation* test, deliberately stricter than the
+ * parse-side guard in `num()`: it wants at least 8 hex digits so it does not
+ * ellipsise something that is only incidentally hex-shaped. Anything shorter
+ * (`"0x1f98"`) is still refused by `num()` and simply renders as plain text —
+ * the two must never disagree in the direction that lets a hex string reach a
+ * numeric formatter.
+ */
 export function looksHex(v: unknown): boolean {
-  return typeof v === "string" && /^0x[0-9a-fA-F]{8,}$/.test(v);
+  // `0X` as well as `0x`: subgraphs emit lowercase, but a hand-written fixture
+  // or a checksummed value pasted from a block explorer may not, and the parse
+  // guard above is already case-insensitive. The two should agree.
+  return typeof v === "string" && /^0[xX][0-9a-fA-F]{8,}$/.test(v);
 }
 
 /** Index of the maximum, used to pick the single accented series (Rule 3). */

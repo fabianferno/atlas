@@ -16,8 +16,20 @@
  * composer only sets it on a held position in an autonomous app (Rule 2).
  */
 
-import { Panel, Label, Fig, Delta, Empty, fmtValue, Tag } from "@/components/brutal";
-import { dict, pick, pickNum, pickStr, str, bool, num, hintsOf, unitOf, type CatProps } from "./_shared";
+import { Panel, Label, Fig, Delta, Empty, fmtValue, shortAddr, Tag } from "@/components/brutal";
+import {
+  dict,
+  pick,
+  pickNum,
+  pickStr,
+  str,
+  bool,
+  num,
+  looksHex,
+  hintsOf,
+  unitOf,
+  type CatProps,
+} from "./_shared";
 
 export function MetricCard({ id, data, label, index }: CatProps) {
   const d = dict(data);
@@ -44,8 +56,19 @@ export function MetricCard({ id, data, label, index }: CatProps) {
     );
   }
 
-  const n = num(rawValue);
-  const display = Number.isFinite(n) ? fmtValue(n, unit) : str(rawValue, "—");
+  // A `scalar` block whose value turns out to be an id — a "top pool" answer
+  // that resolved to the pool address rather than its TVL — must not be
+  // formatted as a figure. `num()` refuses "0x…" strings outright now (it used
+  // to hand back the hex literal's value, so an address rendered as a 40-digit
+  // number in 36pt type), and we shorten it here so the card shows an
+  // identifier at identifier length instead of overflowing the panel.
+  const hex = looksHex(rawValue);
+  const n = hex ? NaN : num(rawValue);
+  const display = Number.isFinite(n)
+    ? fmtValue(n, unit)
+    : hex
+      ? shortAddr(str(rawValue))
+      : str(rawValue, "—");
 
   const pct = Number.isFinite(deltaRaw)
     ? deltaRaw
@@ -56,7 +79,11 @@ export function MetricCard({ id, data, label, index }: CatProps) {
   return (
     <Panel index={index} title={title} meta={source ? <Tag>{source}</Tag> : undefined}>
       <div className="flex flex-col gap-1">
-        <Fig size="xl" tone={spend ? "spend" : "neutral"}>
+        <Fig
+          size="xl"
+          tone={spend ? "spend" : "neutral"}
+          title={hex ? str(rawValue) : undefined}
+        >
           {display}
         </Fig>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

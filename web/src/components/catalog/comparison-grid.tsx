@@ -17,9 +17,19 @@
  * entity is exactly the rainbow Rule 3 forbids.
  */
 
-import { Panel, Empty, Fig, ScrollX, Tag, fmtValue } from "@/components/brutal";
+import { Panel, Empty, Fig, ScrollX, Tag, fmtValue, shortAddr } from "@/components/brutal";
 import { cn } from "@/lib/utils";
-import { cellText, dict, list, num, pickStr, str, bool, type CatProps } from "./_shared";
+import {
+  cellText,
+  dict,
+  list,
+  looksHex,
+  num,
+  pickStr,
+  str,
+  bool,
+  type CatProps,
+} from "./_shared";
 
 /** Lower is better for cost-like metrics; the composer does not tell us. */
 const LOWER_IS_BETTER = /(borrow|fee|cost|util|risk|ltv|liquidat|slippage|reserve)/i;
@@ -116,8 +126,22 @@ export function ComparisonGrid({ data, label, index }: CatProps) {
                         i === best && "border-l-[1.5px] border-l-rule bg-ink/[0.04]",
                       )}
                     >
-                      <Fig size="sm" className={cn(i === best && "font-semibold")}>
-                        {Number.isFinite(nums[i]) ? fmtValue(nums[i], r.unit) : cellText(v)}
+                      {/* A metric row can carry an identity cell — "pool" or
+                          "id" across three protocols. `num()` refuses "0x…"
+                          (before that guard, `Number()` read the address as a
+                          hex literal, so the cell printed ~1e+48 and, worse,
+                          won the "best on that metric" rule against real
+                          numbers). Shorten it like the data table does. */}
+                      <Fig
+                        size="sm"
+                        className={cn(i === best && "font-semibold")}
+                        title={looksHex(v) ? str(v) : undefined}
+                      >
+                        {Number.isFinite(nums[i])
+                          ? fmtValue(nums[i], r.unit)
+                          : looksHex(v)
+                            ? shortAddr(str(v))
+                            : cellText(v)}
                       </Fig>
                     </td>
                   ))}

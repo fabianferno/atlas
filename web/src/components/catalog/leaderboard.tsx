@@ -24,11 +24,20 @@ export function Leaderboard({ data, label, index }: CatProps) {
 
   const rows = raw.map((r) => {
     const o = dict(r);
+    // Two separate questions about the ranked value, and they used to be one.
+    // `value` feeds the bar geometry and must be a finite number or the row
+    // has no width; `hasValue` says whether that number came from the data at
+    // all. Collapsing them meant an unreadable cell — an id string, say —
+    // rendered as a confident "0", which is a claim the row cannot back. (It
+    // was worse before `num()` refused "0x…": the hex parsed to ~1e+48, took
+    // the max, and squashed every honest bar in the list to 2%.)
+    const rawValue = num(o.value ?? o.v ?? o.amount ?? o.total ?? o.tvl ?? o.fees, NaN);
     return {
       label: pickStr(o, ["label", "name", "pool", "protocol", "market", "key"], "—"),
       sublabel: pickStr(o, ["sublabel", "network", "chain", "category"]),
       address: pickStr(o, ["address", "id", "account"]),
-      value: num(o.value ?? o.v ?? o.amount ?? o.total ?? o.tvl ?? o.fees, 0),
+      hasValue: Number.isFinite(rawValue),
+      value: Number.isFinite(rawValue) ? rawValue : 0,
       deltaPct: pickNum(o, ["deltaPct", "changePct"]),
       /** Composer's `delta` is a raw column value, not a percentage. */
       deltaAbs: pickNum(o, ["delta", "change"]),
@@ -87,7 +96,7 @@ export function Leaderboard({ data, label, index }: CatProps) {
             </span>
             <span className="relative flex items-baseline gap-2">
               <Fig size="sm" tone={i === ai ? "live" : "neutral"}>
-                {fmtValue(r.value, unit)}
+                {r.hasValue ? fmtValue(r.value, unit) : "—"}
               </Fig>
               {Number.isFinite(r.deltaPct) ? (
                 <Delta pct={r.deltaPct} size="xs" />

@@ -61,7 +61,10 @@ function toTime(v: unknown): number {
     return v < 1e11 ? v * 1000 : v;
   }
   const s = str(v);
-  const n = Number(s);
+  // `num()`, not a bare `Number(s)` — a bare Number reads "0x…" as a hex
+  // literal, so a series keyed by an entity id used to plot a point somewhere
+  // around the year 3.4e+37 and flatten every real point onto the axis.
+  const n = num(s, NaN);
   if (Number.isFinite(n) && s !== "") return n < 1e11 ? n * 1000 : n;
   const d = Date.parse(s);
   return Number.isFinite(d) ? d : NaN;

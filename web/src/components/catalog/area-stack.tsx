@@ -35,7 +35,10 @@ import { accentIndex, dict, list, num, pickStr, str, unitOf, type CatProps } fro
 function toTime(v: unknown): number {
   if (typeof v === "number") return v < 1e11 ? v * 1000 : v;
   const s = str(v);
-  const n = Number(s);
+  // `num()` refuses "0x…"; a bare `Number(s)` would read an entity id as a hex
+  // literal and put the point 1e37 years out, which silently collapses the
+  // whole stack onto one pixel. Same guard as time-series/candlestick.
+  const n = num(s, NaN);
   if (Number.isFinite(n) && s !== "") return n < 1e11 ? n * 1000 : n;
   const d = Date.parse(s);
   return Number.isFinite(d) ? d : NaN;

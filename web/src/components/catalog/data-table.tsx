@@ -16,6 +16,11 @@
  *
  * Hairlines between rows (`.cells`), one heavy rule under the head. Addresses
  * and hashes are detected and shortened; nothing renders "[object Object]".
+ *
+ * The one invariant worth stating out loud, because it was broken once and the
+ * breakage was invisible in fixtures but hit every real subgraph row: a cell is
+ * classified as an *address* before it is classified as a *number*. Hex is an
+ * identity, and no identity may reach a numeric formatter.
  */
 
 import { Panel, Empty, Fig, ScrollX, fmtValue, shortAddr } from "@/components/brutal";
@@ -91,10 +96,14 @@ export function DataTable({ data, label, index }: CatProps) {
     );
   }
 
-  // Right-align a column when its first present value is numeric.
+  // Right-align a column when its first present value is numeric. An address
+  // column is never right-aligned, even when the payload asked for it — the
+  // cells refuse to right-align a hex value (see below) and a right-aligned
+  // header over left-aligned cells reads as a rendering fault.
   const aligned = cols.map((c, i) => {
-    if (c.align === "right") return c;
     const sample = rows.find((r) => r[i] !== null && r[i] !== undefined)?.[i];
+    if (looksHex(sample)) return { ...c, align: "left" as const };
+    if (c.align === "right") return c;
     const isNum = typeof sample === "number";
     return { ...c, align: isNum ? ("right" as const) : c.align };
   });
@@ -132,26 +141,39 @@ export function DataTable({ data, label, index }: CatProps) {
               <tr key={ri}>
                 {aligned.map((c, ci) => {
                   const v = r[ci];
+                  // Identity beats arithmetic. `hex` is tested FIRST and `isNum`
+                  // is explicitly barred from claiming a hex value, because the
+                  // old order (`isNum ? … : hex ? …`) made the address branch
+                  // unreachable for exactly the strings it existed for: with a
+                  // bare `Number()` behind `num()`, "0xbea9…56e9" parsed to a
+                  // finite 1.09e+48 and every subgraph `id` column rendered as
+                  // "3.6e+35T". `num()` now refuses `0x` strings on its own, so
+                  // this is belt and braces — but the two guards are in
+                  // different files and only one of them is obvious at the
+                  // call site.
+                  const hex = looksHex(v);
                   const n = num(v, NaN);
                   const isNum =
-                    typeof v === "number" ||
-                    (typeof v === "string" && v !== "" && Number.isFinite(n));
-                  const hex = looksHex(v);
+                    !hex &&
+                    (typeof v === "number" ||
+                      (typeof v === "string" && v !== "" && Number.isFinite(n)));
                   return (
                     <td
                       key={ci}
                       className={cn(
                         "px-3 py-1.5 align-top text-[0.75rem]",
-                        (isNum || c.align === "right") && "text-right",
+                        // An address is a label, not a figure: it stays left
+                        // even in a column the header inferred as right.
+                        !hex && (isNum || c.align === "right") && "text-right",
                       )}
                       title={hex ? str(v) : undefined}
                     >
-                      {isNum ? (
-                        <Fig size="sm">{fmtValue(n, c.unit)}</Fig>
-                      ) : hex ? (
+                      {hex ? (
                         <Fig size="sm" className="text-[var(--muted-ink)]">
                           {shortAddr(str(v))}
                         </Fig>
+                      ) : isNum ? (
+                        <Fig size="sm">{fmtValue(n, c.unit)}</Fig>
                       ) : (
                         <span className="block max-w-[18rem] truncate">{cellText(v)}</span>
                       )}

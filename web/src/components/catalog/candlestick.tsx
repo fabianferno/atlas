@@ -34,7 +34,10 @@ import { dict, list, num, pickStr, str, type CatProps } from "./_shared";
 function toTime(v: unknown): number {
   if (typeof v === "number") return v < 1e11 ? v * 1000 : v;
   const s = str(v);
-  const n = Number(s);
+  // `num()` refuses "0x…"; a bare `Number(s)` read it as a hex literal and the
+  // candle landed 1e37 years from the rest of the series. Same guard as
+  // time-series/area-stack.
+  const n = num(s, NaN);
   if (Number.isFinite(n) && s !== "") return n < 1e11 ? n * 1000 : n;
   const d = Date.parse(s);
   return Number.isFinite(d) ? d : NaN;

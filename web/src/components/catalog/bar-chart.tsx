@@ -29,7 +29,13 @@ export function BarChart({ data, label, index }: CatalogComponentProps & { index
       const o = dict(r);
       return {
         label: pickStr(o, ["label", "name", "category", "key", "protocol"], "—"),
-        value: num(o.value ?? o.v ?? o.amount ?? o.total, 0),
+        // NaN, not 0. The filter below has always meant to drop bars whose
+        // value the payload does not actually contain, but a `0` fallback made
+        // it dead code and drew a confident zero-length bar labelled "0"
+        // instead — a claim the row cannot back. It matters now that `num()`
+        // refuses "0x…" strings: an id that lands in the value slot returns
+        // the fallback, and the honest response is to omit the bar.
+        value: num(o.value ?? o.v ?? o.amount ?? o.total, NaN),
         accent: o.accent,
       };
     })
