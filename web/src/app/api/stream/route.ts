@@ -22,13 +22,36 @@
  *   - a metric. The numbers a trigger compares come from re-reading the app's
  *     own data plan server-side (see agency/enrich.ts). A client that could post
  *     `healthFactor` could make an autonomous app trade on demand.
+ *   - a stream target. `spkg` and `module` come from the app's REGISTERED data
+ *     plan, never from this request body.
+ *
+ * WHICH MEANS THE TARGET CAN BE STALE, AND THAT USED TO BE INVISIBLE. Because
+ * the target is read from the registry and the app page renders the package out
+ * of its own local manifest, the two can disagree with nothing saying so. They
+ * did: this server held `aave-v3-arbitrum@v0.4.1` / `map_reserve_updates` from an
+ * older build of `lib/seed.ts` while every seed app had long since moved to one
+ * verified `.spkg` URL, and `POST /api/stream {"appId":"aave-guard"}` answered
+ * 502 `Failed to parse URL from aave-v3-arbitrum@v0.4.1` — the one feature in the
+ * product that opens a real Substreams subscription, broken by a stale
+ * registration, with a parse error for an explanation. `/api/agency/register`
+ * now refreshes the stream block (a clock, not a policy — see its header and
+ * `reconcileRegistration`) and reports every field it refused to refresh. This
+ * route's job is the other half: `target` and `targetSource` below say, on every
+ * response including the failures, that what ran came from the registry, so a UI
+ * can put it next to the package its manifest claims and see the disagreement.
+ *
+ * ONE PROCESS. Same disclosure as `/api/act`: the registry is an in-memory Map on
+ * `globalThis`, so on a serverless deployment the register call and this call can
+ * land on different instances and this one 404s. Failing loudly is correct —
+ * accepting a manifest here would mean accepting a policy on the request that
+ * spends — and the 404 body says how to recover. See `registryScope()`.
  */
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { dataPlanEnrich } from "@/lib/agency/enrich";
 import { getJournal } from "@/lib/agency/journal";
 import { runStream, streamMode } from "@/lib/agency/stream-runner";
-import { ensureDemoApp, getApp } from "@/lib/agency/wallet";
+import { ensureDemoApp, getApp, registryScope } from "@/lib/agency/wallet";
 import { NETWORKS } from "@/lib/contracts/manifest";
 import {
   DEFAULT_MODULE,
@@ -112,12 +135,43 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   if (body.appId === "demo") await ensureDemoApp("demo");
   const app = getApp(body.appId);
-  if (!app) return json({ ok: false, error: `Unknown mini app "${body.appId}"` }, 404);
+  if (!app) {
+    // Same 404 body as `/api/act`, deliberately: this instance may simply not be
+    // the instance the app was registered on, and it cannot tell that apart from
+    // an app id that never existed. Say what to do rather than only what failed.
+    return json(
+      {
+        ok: false,
+        error: `Unknown mini app "${body.appId}"`,
+        recover:
+          "This server instance has no registration for that app. It cannot distinguish " +
+          "'never registered' from 'registered on another instance'. POST the manifest to " +
+          "/api/agency/register, then retry. A data plan will never be read from this request " +
+          "body, which is why recovery has to be a separate, explicit call.",
+        registry: registryScope(),
+      },
+      404,
+    );
+  }
 
   const target = resolveStreamTarget({
     network: body.network,
     stream: app.data?.stream ?? null,
   });
+
+  /**
+   * Where `target` came from, on every branch below.
+   *
+   * A `target` alone is ambiguous: the reader cannot tell whether it is the
+   * package their manifest declares or a leftover from whatever was registered
+   * first. It was the second one for aave-guard, for several commits, and the
+   * only visible symptom was a URL parse error. Naming the source makes the
+   * disagreement checkable client-side without adding a comparison this route
+   * has no manifest to perform.
+   */
+  const targetSource = app.data?.stream
+    ? ("registered-data-plan" as const)
+    : ("server-default" as const);
 
   // Only enrich when the server actually holds a data plan for this app. The
   // demo app has none, and inventing metrics for it would be exactly the kind of
@@ -148,6 +202,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       ok: true,
       mode: "substreams",
       target,
+      targetSource,
+      registry: registryScope(),
       enriched: Boolean(enrich),
       /** Named so a UI cannot mistake "no data plan" for "metrics were zero". */
       enrichmentNote: enrich
@@ -161,10 +217,19 @@ export async function POST(request: NextRequest): Promise<Response> {
     return json(
       {
         ok: false,
+        // `detail` is the transport's own words, verbatim. A real refusal —
+        // `[resource_exhausted] Concurrent stream limit exceeded (active
+        // sessions: 2/2)` from thegraph.market's free tier, which allows two —
+        // is a fact about the account, and flattening it into "stream error"
+        // would delete the one line that tells you to close the other watch.
+        // `retryable` classifies it (that one IS retryable); it does not replace
+        // it.
         error: "Subscription failed",
         detail: message,
         retryable: isRetryableStreamError(err),
         target,
+        targetSource,
+        registry: registryScope(),
         entries: await getJournal().list(app.appId, 20),
       },
       502,

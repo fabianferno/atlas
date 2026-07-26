@@ -32,7 +32,15 @@
  */
 import { getAddress, keccak256, numberToHex, pad, toHex, type Chain } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { baseSepolia, zeroGGalileoTestnet } from "viem/chains";
+import { baseSepolia } from "viem/chains";
+// Not `zeroGGalileoTestnet` from viem/chains — see SUPPORTED_CHAINS below for
+// the chain id that made the difference. This is a plain server-side import:
+// `agentic-id.ts` opens with `node:crypto` and reads the deployer key, which is
+// why the client-side twin of this fix (`components/providers/privy.tsx`) had to
+// restate the chain inline instead. Nothing in that file's import graph reaches
+// back here — `agentic-id.ts` imports only `./ipfs` and `contracts/manifest` —
+// so there is no cycle and no reason for a second definition.
+import { zeroGTestnet } from "../identity/agentic-id";
 import {
   OWNABLE_VALIDATOR_ADDRESS,
   encodeValidationData,
@@ -167,9 +175,37 @@ export interface MiniAppWallet {
  * Chains — testnet only, enforced.
  * ------------------------------------------------------------------ */
 
+/**
+ * THE 0G ENTRY USED TO BE viem's `zeroGGalileoTestnet`, AND THAT IS THE WRONG
+ * CHAIN. viem pins it at id **16601** (`node_modules/viem/_esm/chains/
+ * definitions/0gGalileoTestnet.js`, `id: 16_601`) — the earlier Galileo V3
+ * launch that still shows up on ChainList and in stale configs. Every 0G
+ * contract this project actually deployed is on **16602**: `ZEROG_CHAIN_ID` in
+ * `.env.local`, `GET /api/publish` answering `"chainId":16602`, and the
+ * AgenticId / MiniAppRegistry addresses it reports. `identity/agentic-id.ts`
+ * already had this right and says so in a comment; it is now the one definition,
+ * imported rather than restated, so the two cannot drift again.
+ *
+ * WHY IT WAS INVISIBLE: the RPC URL and the block explorer are byte-identical
+ * between the two definitions (`https://evmrpc-testnet.0g.ai`,
+ * `https://chainscan-galileo.0g.ai`) — only the id and the native currency
+ * differ (viem says `A0GI`, the live network is `0G`). So nothing would 404 or
+ * fail to connect. A transaction signed for 16601 and posted to the 16602 node
+ * is rejected by EIP-155 replay protection, which fails closed, but it fails
+ * with an unrecognisable chain-id error rather than "you are on the wrong
+ * network" — and a read against the right RPC would have looked perfectly fine.
+ *
+ * WHAT THIS DOES NOT CHANGE, stated so the fix is not read as bigger than it is:
+ * nothing signs on 0G today. `resolveChain` defaults to `base-sepolia`,
+ * `NEXT_PUBLIC_AGENCY_CHAIN` is unset, and the running `session-eoa` mode
+ * provisions on Base Sepolia (chainId 84532) — which is what
+ * `POST /api/agency/register` returns for every app. This entry is reachable only
+ * by setting that env var, so the correction removes a trap rather than repairing
+ * a live break.
+ */
 export const SUPPORTED_CHAINS = {
   "base-sepolia": baseSepolia,
-  "0g-galileo": zeroGGalileoTestnet,
+  "0g-galileo": zeroGTestnet,
 } as const satisfies Record<string, Chain>;
 
 export type SupportedChainKey = keyof typeof SUPPORTED_CHAINS;
@@ -789,12 +825,73 @@ export interface RegisteredApp {
 }
 
 const REGISTRY_KEY = "__atlas_app_registry__";
-type RegistryGlobal = typeof globalThis & { [REGISTRY_KEY]?: Map<string, RegisteredApp> };
+const REGISTRY_INSTANCE_KEY = "__atlas_app_registry_instance__";
+type RegistryGlobal = typeof globalThis & {
+  [REGISTRY_KEY]?: Map<string, RegisteredApp>;
+  [REGISTRY_INSTANCE_KEY]?: string;
+};
 
 function registry(): Map<string, RegisteredApp> {
   const g = globalThis as RegistryGlobal;
   g[REGISTRY_KEY] ??= new Map<string, RegisteredApp>();
   return g[REGISTRY_KEY];
+}
+
+/**
+ * THE REGISTRY IS PROCESS-LOCAL, AND THAT IS A DEPLOYMENT-SHAPED HOLE.
+ *
+ * `globalThis` above is one JavaScript process. This app is deployed to Vercel
+ * (https://atlas-mini-apps.vercel.app), where each serverless invocation may
+ * land on a different instance, and instances are recycled without notice. So
+ * `POST /api/agency/register` can succeed on instance A and the very next
+ * `POST /api/act` or `POST /api/stream` can hit instance B, which has never seen
+ * that app and answers `404 unknown mini app` mid-demo. In `pnpm dev` this never
+ * reproduces — one process, and the map even survives HMR because it hangs off
+ * `globalThis` — which is exactly why it went undisclosed for so long: nothing
+ * in the code, the UI or the README said it, and the only symptom is an
+ * intermittent 404 that looks like a bug in the caller.
+ *
+ * WHY THERE IS NO DATABASE HERE. Persisting the registry would mean persisting
+ * a policy, and the policy currently arrives from the client (see the TRUST
+ * BOUNDARY note in `app/api/agency/register/route.ts`). Writing a client-supplied
+ * spending limit to durable storage makes a temporary honesty problem permanent:
+ * the correct fix is to register from the pinned manifest CID, not to give the
+ * current, client-fed policy a longer life. So the process-local map stays, and
+ * what changes is that it now says out loud what it is.
+ *
+ * `instanceId` is a fresh random per process. A client that keeps the value it
+ * saw last can tell "the registry moved instances" apart from "my app was never
+ * registered", which is a distinction THIS PROCESS cannot make on its own — from
+ * in here, an unknown app id and an app registered on a sibling instance are the
+ * same absence.
+ */
+export interface RegistryScope {
+  /** Where the registry lives. `process` means: gone on redeploy, not shared. */
+  scope: "process";
+  /** Random per process. Changes ⇒ you are talking to a different instance. */
+  instanceId: string;
+  /** Survives a restart, a redeploy, or a second serverless instance? No. */
+  durable: false;
+  /** Apps this instance currently holds. Zero is normal on a cold instance. */
+  registeredApps: number;
+  note: string;
+}
+
+export function registryScope(): RegistryScope {
+  const g = globalThis as RegistryGlobal;
+  g[REGISTRY_INSTANCE_KEY] ??= Math.random().toString(36).slice(2, 10);
+  return {
+    scope: "process",
+    instanceId: g[REGISTRY_INSTANCE_KEY],
+    durable: false,
+    registeredApps: registry().size,
+    note:
+      "The app registry is an in-memory Map on globalThis, scoped to ONE server process. " +
+      "On a serverless deployment a register call and the act/stream call that follows it " +
+      "can land on different instances, and the second one will answer 404 until the client " +
+      "re-registers. Re-POST the manifest to /api/agency/register and retry; that is the " +
+      "documented recovery and the client already does it on a 404.",
+  };
 }
 
 export function registerApp(app: RegisteredApp): RegisteredApp {
@@ -825,6 +922,201 @@ export function resumeApp(appId: string): boolean {
   return true;
 }
 
+/* ------------------------------------------------------------------ *
+ * Re-registration — what a second POST of the same app id may change
+ * ------------------------------------------------------------------ */
+
+/**
+ * Order-independent JSON, so "the same plan" does not read as a divergence just
+ * because two clients serialised their object keys in a different order.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+}
+
+function differs(a: unknown, b: unknown): boolean {
+  return canonicalJson(a) !== canonicalJson(b);
+}
+
+/**
+ * What a re-registration changed, and — more importantly — what it did NOT.
+ *
+ * WHY THIS TYPE EXISTS. `/api/agency/register` is first-write-wins, and used to
+ * answer a re-register with a bare `alreadyRegistered: true`. That is not enough
+ * information to be safe with: the caller learns that ITS manifest was discarded
+ * but not that the server is now running a DIFFERENT one. That is precisely how
+ * the aave-guard break stayed invisible — the server was still holding a data
+ * plan from an older build of the seed data (`aave-v3-arbitrum@v0.4.1`,
+ * `map_reserve_updates`, both of which have not existed in `lib/seed.ts` for
+ * several commits), the app page rendered the CORRECT package from its own local
+ * manifest, and the only symptom was `POST /api/stream` returning
+ * `Failed to parse URL from aave-v3-arbitrum@v0.4.1` with no hint that the two
+ * sides disagreed about what this app streams.
+ *
+ * `ignored` is the field a UI must render. It means: your copy is not what runs.
+ */
+export interface PlanDivergence {
+  /** True when the posted manifest differed from what this instance held. */
+  diverged: boolean;
+  /**
+   * Non-policy fields that differed and were TAKEN from the posted manifest.
+   * After this call the client and the server agree about them.
+   */
+  refreshed: string[];
+  /**
+   * Fields that differed and were REFUSED. The first registration still runs.
+   * Non-empty means the UI and the server disagree and the UI is wrong.
+   */
+  ignored: string[];
+  /** One sentence, safe to render verbatim. Empty when nothing diverged. */
+  summary: string;
+}
+
+/**
+ * The manifest half a re-registration is allowed to touch.
+ *
+ * THE SPLIT, AND WHY IT IS DRAWN EXACTLY HERE. A stream package is a CLOCK, not
+ * a metric. `stream-runner.ts` says it, `enrich.ts` says it, and `seed.ts` says
+ * it in the comment above `SEED_SPKG`: the Substreams tick decides *when* a
+ * trigger re-evaluates, and the numbers it compares are re-read server-side from
+ * `data.sources` / `data.queries` on every block, with the tick payload
+ * namespaced under `block` so it can never shadow one of ours. So:
+ *
+ *   REFRESHABLE — `data.stream` and `intent`. Neither can raise a cap, add an
+ *   allowlist entry, move an expiry, clear `halted`, change a tier, or change a
+ *   number a condition compares. The worst a hostile re-register achieves is
+ *   pointing the clock at a package that fails to parse or never ticks: a denial
+ *   of service against an app, not an escalation of what it may spend. It buys
+ *   no new reach either — any client can already register a FRESH app id with an
+ *   arbitrary package URL, so the set of URLs this server will fetch is
+ *   unchanged by allowing the refresh.
+ *
+ *   NOT REFRESHABLE — everything else in `data` (`sources`, `queries`,
+ *   `variables`, `schemas`, `networks`, `transport`) and ALL of `agency`. Those
+ *   decide the value a condition is tested against and the limits that bound the
+ *   result. Letting a re-register replace `sources` would hand a hostile client
+ *   the number that decides whether an autonomous app spends — the single thing
+ *   `/api/act` and `/api/stream` both refuse to accept in a request body. It
+ *   would be the same hole through a slower door.
+ *
+ * When in doubt the answer was "not refreshable". `sources` is genuinely the
+ * other half of the stale-plan problem and it is deliberately left stale-and-
+ * reported rather than stale-and-fixed, because reporting cannot widen a grant
+ * and refreshing can.
+ *
+ * Compares a posted manifest against what this instance already holds, applies
+ * the refreshable half, and describes both halves. Pure apart from the mutation
+ * of the registered app's `data.stream` / `intent`.
+ *
+ * Callers must treat a non-empty `ignored` as a fact to display, not a warning
+ * to log: the whole point is that the client's manifest is NOT what runs.
+ */
+export function reconcileRegistration(
+  appId: string,
+  posted: { agency: Agency; data?: DataPlan | null; intent?: string },
+): PlanDivergence {
+  const app = registry().get(appId);
+  if (!app) {
+    return { diverged: false, refreshed: [], ignored: [], summary: "" };
+  }
+
+  const refreshed: string[] = [];
+  const ignored: string[] = [];
+
+  /* ---- the refreshable half ------------------------------------- */
+
+  // The clock. `resolveStreamTarget` reads only `package` and `module`; `filter`
+  // travels with them so the block stays one object rather than two half-updated
+  // ones.
+  const postedStream = posted.data?.stream ?? null;
+  const heldStream = app.data?.stream ?? null;
+  if (posted.data && differs(heldStream, postedStream)) {
+    if (app.data) {
+      app.data = { ...app.data, stream: postedStream };
+      refreshed.push("data.stream");
+    } else {
+      // The app was registered WITHOUT a server-side data plan at all — the
+      // cold-start demo app is the case, and `/api/stream` deliberately skips
+      // enrichment for it rather than inventing metrics. Adopting the posted
+      // plan here would mean adopting `sources` along with the clock, which is
+      // the half that is not ours to take. So this is a refusal, reported.
+      ignored.push("data (this instance holds no data plan for this app; the clock alone cannot be grafted onto one)");
+    }
+  }
+
+  // A label on journal lines and the string handed to `planFromDataPlan`. It
+  // cannot gate a spend.
+  if (posted.intent !== undefined && posted.intent !== app.intent) {
+    app.intent = posted.intent;
+    refreshed.push("intent");
+  }
+
+  /* ---- the refused half ------------------------------------------ */
+
+  // Policy first, because it is the one a reader most needs to see refused.
+  //
+  // `policy.wallet` is deliberately NOT in this list. It is a client-side claim
+  // about a server-held key — `provisionWallet` overwrites it on registration and
+  // the app page has rendered the server's address rather than the manifest's
+  // since the seed apps were caught claiming hand-written 40-hex addresses nobody
+  // holds the key to. Comparing it would flag a divergence on literally every
+  // re-register (the manifest carries `null`, the registry carries the provisioned
+  // address), and a field that always cries wolf trains a UI to stop reading it.
+  const heldPolicy = app.agency.policy;
+  const postedPolicy = posted.agency.policy;
+  for (const field of [
+    "maxSpendUsd",
+    "maxPerTxUsd",
+    "allowlist",
+    "expiresAt",
+    "requireConfirm",
+    "killSwitch",
+    "halted",
+  ] as const) {
+    if (differs(heldPolicy[field], postedPolicy[field])) ignored.push(`agency.policy.${field}`);
+  }
+  if (app.agency.tier !== posted.agency.tier) ignored.push("agency.tier");
+  if (differs(app.agency.triggers, posted.agency.triggers)) ignored.push("agency.triggers");
+  if (differs(app.agency.actions, posted.agency.actions)) ignored.push("agency.actions");
+
+  // The metric half of the data plan. Stale here means the trigger compares a
+  // number read through the first registration's sources — worth saying, not
+  // worth silently replacing.
+  if (posted.data && app.data) {
+    for (const field of [
+      "sources",
+      "queries",
+      "variables",
+      "schemas",
+      "networks",
+      "transport",
+    ] as const) {
+      if (differs(app.data[field], posted.data[field])) ignored.push(`data.${field}`);
+    }
+  }
+
+  const diverged = refreshed.length > 0 || ignored.length > 0;
+  const parts: string[] = [];
+  if (refreshed.length > 0) {
+    parts.push(`Refreshed from the posted manifest: ${refreshed.join(", ")}.`);
+  }
+  if (ignored.length > 0) {
+    parts.push(
+      `NOT refreshed — this instance keeps the values it was first registered with, ` +
+        `so your copy is not what runs: ${ignored.join(", ")}. ` +
+        `Policy and the metric half of the data plan are first-write-wins on purpose: ` +
+        `a re-registration that could change them could raise its own spending limit.`,
+    );
+  }
+
+  return { diverged, refreshed, ignored, summary: parts.join(" ") };
+}
+
 /**
  * Uniswap V3 SwapRouter02 on Base Sepolia — the demo seed's single allowlisted
  * contract. Testnet, and the only address the demo app can touch.
@@ -851,6 +1143,28 @@ export const DEMO_GRANT_ACTIONS: GrantAction[] = [
 /**
  * Seeds one autonomous demo app so `POST /api/act` works on a cold start with
  * zero configuration. Idempotent.
+ *
+ * THIS IS THE ONLY APP THAT CAN RECOVER ITSELF, and the reason is worth stating
+ * because it is also the argument for why every OTHER app must fail loudly when
+ * this instance has never seen it (see `registryScope()` above for the
+ * serverless split-brain that makes that a routine event, not a corner case).
+ *
+ * `demo`'s policy is a constant IN THIS FILE: the allowlist, the $50 per-tx cap
+ * and the $250 lifetime cap below are written by the server and cannot be
+ * influenced by a caller. So re-deriving them on a cold instance restores
+ * exactly the grant that was there before — recovery with no trust transfer.
+ *
+ * A published mini app has no such server-side source. Its policy exists only in
+ * the manifest the client holds. The only "graceful degradation" available to
+ * `/api/act` or `/api/stream` on a cold instance would be to accept a manifest
+ * in the ACTION request and provision from it — which is precisely the thing
+ * both routes exist to refuse, because a caller that can attach a policy to the
+ * request that spends is a caller that sets its own spending limit. Recovering
+ * quietly would be worse than a 404: the 404 is a demo hiccup, the recovery is a
+ * hole. So the routes 404, and they say what to do about it: re-POST the
+ * manifest to `/api/agency/register`, which is a separate, explicit,
+ * first-write-wins call, and then retry. `lib/store.ts` already does exactly
+ * that on a 404 for both endpoints.
  */
 export async function ensureDemoApp(appId = "demo"): Promise<RegisteredApp> {
   const existing = getApp(appId);

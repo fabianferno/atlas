@@ -26,13 +26,43 @@
  * they only satisfy the confirmation check. Caps, allowlist, expiry and the
  * kill switch are read from the server-side registry and are unreachable from
  * here.
+ *
+ * WHY THIS ENDPOINT CAN 404 AN APP THAT IS DEFINITELY PUBLISHED, and why that
+ * 404 is the correct answer rather than a bug to paper over. The registry it
+ * reads is an in-memory `Map` on `globalThis` (`lib/agency/wallet.ts`), so it is
+ * scoped to ONE server process. On Vercel the `POST /api/agency/register` that
+ * seeded the app and the `POST /api/act` that follows it can land on different
+ * serverless instances, and the second instance has never heard of the app. In
+ * `pnpm dev` this never reproduces — one process — which is why it went
+ * undisclosed until now.
+ *
+ * The tempting repair is to let this route accept a manifest and provision from
+ * it on the spot. That is the one thing the list above refuses: a caller that can
+ * attach a policy to the request that spends is a caller that sets its own
+ * spending limit. Failing loudly is therefore the answer, and the 404 body now
+ * carries `registry` (`registryScope()`, with a per-process `instanceId`) and an
+ * explicit `recover` string, so the caller is told exactly what to do instead of
+ * guessing. `lib/store.ts` already does it: on a 404 it re-POSTs the manifest to
+ * `/api/agency/register` — a separate, explicit, first-write-wins call — and
+ * retries once.
+ *
+ * `demo` is the exception and it is not a special case, it is the rule working:
+ * its policy is a server-side constant, so `ensureDemoApp` can rebuild the exact
+ * grant on a cold instance with nothing taken from the caller.
  */
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { getJournal } from "@/lib/agency/journal";
 import { runAction } from "@/lib/agency/signer";
 import { runTriggers, type TriggerSignal } from "@/lib/agency/triggers";
-import { enforcementReport, ensureDemoApp, getApp, haltApp, resumeApp } from "@/lib/agency/wallet";
+import {
+  enforcementReport,
+  ensureDemoApp,
+  getApp,
+  haltApp,
+  registryScope,
+  resumeApp,
+} from "@/lib/agency/wallet";
 import type { AgencyProposedAction } from "@/lib/agency/policy";
 
 export const runtime = "nodejs";
@@ -70,6 +100,37 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status });
 }
 
+/**
+ * The "unknown mini app" 404, with the one thing it never used to carry: what
+ * the caller should do about it.
+ *
+ * It used to be a bare `{ ok: false, error: 'Unknown mini app "x"' }`, which
+ * reads as "you asked for something that does not exist" — and on a serverless
+ * deployment that is very often not what happened. What happened is that this
+ * instance is not the instance the app was registered on. THIS PROCESS CANNOT
+ * TELL THE TWO APART: from in here, an app id that was never registered and an
+ * app registered on a sibling instance are the same absence, and saying so is
+ * more useful than picking one. `registry.instanceId` is what lets a client that
+ * remembers the id it saw at register time make the distinction the server
+ * cannot.
+ */
+function unknownApp(appId: string, extra: Record<string, unknown> = {}): Response {
+  return json(
+    {
+      ok: false,
+      error: `Unknown mini app "${appId}"`,
+      recover:
+        "This server instance has no registration for that app. It cannot distinguish " +
+        "'never registered' from 'registered on another instance'. POST the manifest to " +
+        "/api/agency/register, then retry this call. A policy will never be read from this " +
+        "request body, which is why recovery has to be a separate, explicit call.",
+      registry: registryScope(),
+      ...extra,
+    },
+    404,
+  );
+}
+
 export async function POST(request: NextRequest): Promise<Response> {
   let raw: unknown;
   try {
@@ -88,9 +149,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (body.appId === "demo") await ensureDemoApp("demo");
 
   const app = getApp(body.appId);
-  if (!app) {
-    return json({ ok: false, error: `Unknown mini app "${body.appId}"` }, 404);
-  }
+  if (!app) return unknownApp(body.appId);
 
   const store = getJournal();
 
@@ -206,7 +265,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const appId = request.nextUrl.searchParams.get("appId") ?? "demo";
   if (appId === "demo") await ensureDemoApp("demo");
   const app = getApp(appId);
-  if (!app) return json({ ok: false, error: `Unknown mini app "${appId}"` }, 404);
+  if (!app) return unknownApp(appId);
 
   const store = getJournal();
   const entries = await store.list(appId);
@@ -226,6 +285,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     },
     /** Per-constraint: chain or server. Render this next to the spend meter. */
     enforcement: enforcementReport(app.wallet),
+    /**
+     * Where the policy printed below actually lives. Every field in `policy` is
+     * read out of a process-local Map, so a reader who takes this response as
+     * durable state is wrong in a way that only shows up in production.
+     */
+    registry: registryScope(),
     policy: {
       maxPerTxUsd: app.agency.policy.maxPerTxUsd,
       maxSpendUsd: app.agency.policy.maxSpendUsd,

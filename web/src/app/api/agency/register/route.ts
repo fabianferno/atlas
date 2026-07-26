@@ -23,6 +23,54 @@
  * re-registered with a different policy. Raising a cap requires the kill
  * switch or a server restart, so a hostile client cannot widen a live grant.
  *
+ * FIRST-WRITE-WINS USED TO MEAN "DISCARD THE WHOLE MANIFEST", AND THAT WAS TOO
+ * BROAD. The rule protects a policy; it was being applied to a query plan too.
+ * The cost showed up as a live break: this server was still holding a data plan
+ * from an older build of `lib/seed.ts` — `aave-v3-arbitrum@v0.4.1` /
+ * `map_reserve_updates`, a package name that has not existed in the repo for
+ * several commits — while the app page rendered the CORRECT package out of its
+ * own local manifest. `POST /api/stream {"appId":"aave-guard"}` answered 502
+ * `Failed to parse URL from aave-v3-arbitrum@v0.4.1`, and nothing anywhere said
+ * the two sides disagreed about what this app streams. The one feature in the
+ * product that opens a real Substreams subscription was broken by a stale
+ * registration and the failure was illegible.
+ *
+ * So the rule is now drawn at the actual security line, in
+ * `reconcileRegistration()` in `lib/agency/wallet.ts`:
+ *
+ *   - `agency` — tier, triggers, actions and the whole policy — is STILL
+ *     first-write-wins, byte for byte. A re-register cannot raise a cap, add an
+ *     allowlist entry, extend an expiry, flip `requireConfirm`/`killSwitch`, or
+ *     clear `halted`. That property is the reason this route exists in the shape
+ *     it does and it is unchanged.
+ *   - the metric half of the data plan (`sources`, `queries`, `variables`,
+ *     `schemas`, `networks`, `transport`) is ALSO still first-write-wins, because
+ *     those decide the number a trigger compares, and a client that could replace
+ *     them could make an autonomous app spend on command. Conservative on
+ *     purpose: refreshing them would fix a second stale-plan symptom and would
+ *     also be a new hole, so they stay stale AND REPORTED.
+ *   - `data.stream` and `intent` ARE refreshed. The stream package is a clock,
+ *     not a metric (see `agency/stream-runner.ts` and `agency/enrich.ts`): it
+ *     decides *when* a trigger re-evaluates, never *what* it compares.
+ *
+ * And whatever the split decides, the response now carries `divergence` — the
+ * exact list of fields where the posted manifest and this server disagree, plus
+ * a sentence a UI can render. A caller can no longer be silently wrong about
+ * what the server is running.
+ *
+ * ONE PROCESS, AND THE RESPONSE SAYS SO. The registry is an in-memory Map on
+ * `globalThis`. This deploys to Vercel, where the register call and the
+ * `/api/act` or `/api/stream` call after it can land on different serverless
+ * instances — and the second one has never seen the app, so it 404s "unknown
+ * mini app" mid-demo. Nothing disclosed that before; every response from this
+ * route now carries `registry` (`registryScope()`), including a per-process
+ * `instanceId`, so a client can tell "I am talking to a different instance" from
+ * "my app was never registered" — a distinction the server itself cannot make.
+ * The recovery is already wired in `lib/store.ts`: on a 404 it re-POSTs the
+ * manifest here and retries once. There is deliberately no database; see the
+ * comment on `registryScope()` for why persisting a client-supplied policy would
+ * be the wrong repair.
+ *
  * WHY THIS ALSO REPORTS. It used to answer with a flat `wallet` string, which
  * was the one field a UI could not safely render on its own: an address with no
  * chain and no enforcement site next to it invites the reader to assume the
@@ -51,7 +99,9 @@ import {
   enforcementReport,
   getApp,
   provisionWallet,
+  reconcileRegistration,
   registerApp,
+  registryScope,
   type MiniAppWallet,
 } from "@/lib/agency/wallet";
 
@@ -105,7 +155,15 @@ export async function POST(request: NextRequest): Promise<Response> {
   const { manifest } = parsed.data;
   const appId = manifest.name;
 
-  // First write wins. Re-registering would let a caller widen a live grant.
+  // First write wins for the policy. Re-registering would let a caller widen a
+  // live grant.
+  //
+  // It used to be first-write-wins for the ENTIRE manifest — this branch read
+  // nothing out of `manifest` at all and answered with the existing wallet, so a
+  // server holding a data plan from an older build kept serving it forever while
+  // the client rendered its own, newer one. `reconcileRegistration` now applies
+  // the narrow, non-policy refresh (the stream clock and the intent label) and
+  // returns the complete list of fields where the two copies still disagree.
   //
   // The response is the same shape as a fresh registration on purpose: a caller
   // that has to branch on `alreadyRegistered` to find out what signs would sooner
@@ -114,12 +172,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   // now in force is the one from the FIRST manifest, not the one just posted.
   const existing = getApp(appId);
   if (existing) {
+    const divergence = reconcileRegistration(appId, {
+      agency: manifest.agency,
+      data: manifest.data,
+      intent: manifest.intent,
+    });
     return json({
       ok: true,
       appId,
       alreadyRegistered: true,
       wallet: walletReport(existing.wallet),
       enforcement: enforcementReport(existing.wallet),
+      // Render `divergence.summary` when `divergence.ignored` is non-empty. It
+      // is the only signal that the manifest on screen is not the one running.
+      divergence,
+      registry: registryScope(),
     });
   }
 
@@ -147,6 +214,11 @@ export async function POST(request: NextRequest): Promise<Response> {
       alreadyRegistered: false,
       wallet: walletReport(wallet),
       enforcement: enforcementReport(wallet),
+      // Present on BOTH branches so a client reads one shape. A first
+      // registration cannot diverge from itself, and saying that explicitly is
+      // cheaper for the caller than an absent field it has to interpret.
+      divergence: { diverged: false, refreshed: [], ignored: [], summary: "" },
+      registry: registryScope(),
     });
   } catch (error) {
     // provisionWallet refuses mainnet and refuses an incompletely scoped
@@ -156,6 +228,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         ok: false,
         error: "Could not provision wallet",
         detail: error instanceof Error ? error.message : "unknown",
+        registry: registryScope(),
       },
       422,
     );
