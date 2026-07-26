@@ -118,8 +118,21 @@ export interface A2UIHints {
   accent?: "live" | "gain" | "loss" | "risk" | "spend";
   /** Field roles resolved by shape detection: category, time, metrics, etc. */
   fields?: Record<string, string | string[] | number | undefined>;
-  /** Unit for figures in this block. */
-  unit?: "usd" | "pct" | "count" | "token" | "ratio" | "none";
+  /**
+   * Unit for figures in this block.
+   *
+   * "eth" was added because Messari's NFT-marketplace family denominates in
+   * ether — `cumulativeTradeVolumeETH`, `creatorRevenueETH`,
+   * `marketplaceRevenueETH` are all live fields — and every one of them used to
+   * be drawn with a dollar sign. `components/brutal/format.ts` treats a unit it
+   * does not recognise as a literal suffix, which is exactly the behaviour
+   * wanted here, so this widening needs nothing on the renderer side.
+   *
+   * "token" is the deliberate absence of a denomination: a raw token amount in
+   * the token's own decimals, printed as a bare magnitude because that is all
+   * that can be backed.
+   */
+  unit?: "usd" | "eth" | "pct" | "count" | "token" | "ratio" | "none";
   /** Fraction digits for the primary figure. */
   precision?: number;
   /** Panel span on a 12-column grid. Renderer may clamp. */

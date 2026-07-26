@@ -35,6 +35,7 @@ import { writeFileSync } from "node:fs";
 import { compose } from "@/lib/kit/composer";
 import { fanOutDetailed } from "@/lib/kit/fanout";
 import { resolveSourcesDetailed } from "@/lib/kit/resolver";
+import { extractRequestedMetric } from "@/lib/kit/planner";
 import { isLive } from "@/lib/kit/gateway";
 // SEED_APPS_ALL, never SEED_APPS. `SEED_APPS` is now the *filtered* view — an app
 // with no live data in the snapshot is dropped from it rather than falling back to
@@ -80,6 +81,27 @@ export interface LiveSeedEntry {
   componentsUsed?: string[];
 }
 
+/**
+ * The plan is reconstructed from the manifest rather than re-planned, on purpose:
+ * the manifest's `queries`/`variables` are pinned so a run is reproducible without
+ * paying for inference again (prd.md §5, "Design notes"). That is right, and it
+ * left one hole.
+ *
+ * `requestedMetric` is the field that lets a panel say "you asked to rank by net
+ * APY; the standardized schema does not carry it, so this ranks by TVL instead".
+ * It is not stored on the manifest — it is derived from the QUESTION, and only
+ * the planner derives it. So a plan assembled here carried `null`, which means
+ * "nothing was asked for", and the sixteen bundled apps could never show that
+ * disclosure no matter how many times this ran. `yield-leaderboard` says "Rank
+ * stablecoin vaults by net APY" in its own intent and rendered a TVL ranking with
+ * nothing on screen reconciling the two.
+ *
+ * `extractRequestedMetric` is the planner's own deterministic reading — the same
+ * function the rules engine uses, not a second copy — so the answer here is the
+ * answer the live Studio path would give for the same sentence. It costs nothing
+ * and calls nothing. It returns `null` when the question names no metric or names
+ * more than one, and `null` continues to mean "not stated".
+ */
 function planOf(app: (typeof SEED_APPS_ALL)[number]): PlanResult {
   const m = app.manifest;
   return {
@@ -91,6 +113,7 @@ function planOf(app: (typeof SEED_APPS_ALL)[number]): PlanResult {
     tier: m.agency.tier,
     attestationRef: null,
     model: "seed-live",
+    requestedMetric: extractRequestedMetric(m.intent),
   };
 }
 

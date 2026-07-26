@@ -65,6 +65,18 @@ export const zComposeInput = z.object({
     queries: z.record(z.string(), z.string()).default({}),
     variables: z.record(z.string(), z.unknown()).default({}),
     tier: z.enum(AGENCY_TIERS),
+    // MUST be listed here. `z.object` strips unknown keys, so a plan that
+    // travelled POST /api/plan → POST /api/compose would arrive with the user's
+    // stated metric silently removed, and the composer would go back to
+    // answering whatever the data happened to contain. Defaults to null, which
+    // means "the question named no metric" — never a guess.
+    requestedMetric: z
+      .object({
+        phrase: z.string().min(1).max(60),
+        candidates: z.array(z.string().min(1).max(60)).min(1).max(6),
+      })
+      .nullable()
+      .default(null),
     attestationRef: z.string().nullable().default(null),
     model: z.string().default("unknown"),
   }),
@@ -110,12 +122,81 @@ function label(row: Row, field: string | undefined, fallback: string): string {
   return s.length > 0 ? s : fallback;
 }
 
+/**
+ * Split a field name into lowercase words. `totalValueLockedUSD` →
+ * ["total","value","locked","usd"]; `usdcBalance` → ["usdc","balance"].
+ *
+ * Word membership, not substring matching, is the whole point: `usdcBalance` is
+ * a raw USDC amount and must not be read as dollars just because the letters
+ * "usd" appear in it.
+ */
+function fieldWords(field: string): string[] {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w.toLowerCase());
+}
+
+/** Field names that are a ratio however their words parse. */
+const RATIO_NAME_RE = /(healthfactor|pricepershare|exchangerate|collateralratio|^ratio$|ltv|leverage)/i;
+
+/**
+ * The unit a figure is denominated in.
+ *
+ * ── What this used to do, and why it was wrong ───────────────────────────
+ * One regex — `/usd|tvl|volume|revenue|fees|balance|notional|marketcap|price/i`
+ * — returned "usd" on a substring hit. `balance` and `price` are both too
+ * loose to carry a currency symbol: Messari's `inputTokenBalance` and
+ * `outputTokenSupply` are RAW TOKEN AMOUNTS in the token's own decimals, so a
+ * vault holding ~$40k of WETH rendered `INPUT TOKEN BALANCE $26551393887T` in
+ * the data table. `volume` and `revenue` were wrong in a second way:
+ * `cumulativeTradeVolumeETH`, `creatorRevenueETH` and `marketplaceRevenueETH`
+ * are live NFT-marketplace fields denominated in ether, and every one of them
+ * was drawn with a dollar sign.
+ *
+ * ── The rule now ─────────────────────────────────────────────────────────
+ * Messari encodes denomination IN THE FIELD NAME and the suffix is the only
+ * thing that can be trusted: a dollar field ends in `USD`, an ether field ends
+ * in `ETH`. So only a field whose words actually contain "usd" gets a dollar
+ * sign. `outputTokenPriceUSD` is dollars and says so; `inputTokenBalance` is a
+ * token count and gets one; `dailyMinSalePrice` names no denomination at all,
+ * so it gets none rather than a `$` the schema cannot back.
+ *
+ * That last case is the governing rule applied to a unit hint: a figure that
+ * looks like a measurement in dollars, and is not, is exactly the thing this
+ * product promises never to render.
+ */
 function unitFor(field: string | undefined): A2UIHints["unit"] {
   if (!field) return "none";
-  if (/usd|tvl|volume|revenue|fees|balance|notional|marketcap|price/i.test(field)) return "usd";
-  if (/apy|apr|rate|pct|percent|share|utilization|utilisation/i.test(field)) return "pct";
-  if (/count|users|holders|transfers|swaps|trades|blocks/i.test(field)) return "count";
-  if (/healthfactor|ratio|ltv|leverage/i.test(field)) return "ratio";
+  const w = fieldWords(field);
+  const has = (word: string): boolean => w.includes(word);
+
+  // Denomination first — it outranks every other hint in the name.
+  // `outputTokenPriceUSD` contains "token" and is still dollars.
+  if (has("usd") || has("tvl")) return "usd";
+  // Only the `…ETH` suffix, which Messari uses for BigDecimal ether amounts.
+  // A field like `wethBalance` is deliberately NOT ether: raw token balances
+  // are in wei, and calling that "eth" would be wrong by eighteen decimals —
+  // the same class of mistake as the dollar sign this function just removed.
+  if (has("eth")) return "eth";
+
+  if (RATIO_NAME_RE.test(field)) return "ratio";
+  if (w.some((x) => /^(apy|apys|apr|aprs|rate|rates|pct|percent|percentage|utilization|utilisation|yield|dominance|allocation)$/.test(x))) {
+    return "pct";
+  }
+  // "share" alone is a fraction; "shares" is a token quantity (vault shares).
+  if (has("share")) return "pct";
+  if (w.some((x) => /^(count|counts|users|holders|traders|authors|transfers|swaps|trades|blocks|transactions|positions|height)$/.test(x))) {
+    return "count";
+  }
+  // Raw token quantities. A bare compact magnitude and nothing else — the
+  // renderer's "token" branch prints the number with no unit attached, which is
+  // the only honest thing to print for a figure whose decimals we do not know.
+  if (w.some((x) => /^(balance|balances|supply|amount|amounts|shares|principal|emissions|reserves)$/.test(x))) {
+    return "token";
+  }
   return "none";
 }
 
@@ -129,15 +210,134 @@ function unitFor(field: string | undefined): A2UIHints["unit"] {
 
 const MAX_ROWS = 200;
 
-function buildPayload(block: ShapeBlock): JsonValue {
+/* ────────────────────────────────────────────────────────────────────────
+ * Suspect rows — one decision, applied to every panel that shows a figure
+ *
+ * ── What this used to do, and why it was wrong ───────────────────────────
+ * `summaryOf` dropped `_suspect` rows from the headline and captioned it
+ * "20 row(s) with impossible values excluded", while the leaderboard directly
+ * beneath it went on ranking those same twenty rows at `$26101137179950`. The
+ * argument for the asymmetry was that a list lets the reader see the outlier
+ * and a scalar does not — true as far as it goes, but on screen the reader was
+ * told a number was impossible in one panel and then shown it as a rank in the
+ * next. Two panels contradicting each other is worse than either one alone.
+ *
+ * ── The rule now ─────────────────────────────────────────────────────────
+ * A row the fan-out flagged as impossible is excluded from every panel that
+ * presents a figure AS A MEASUREMENT — headline, leaderboard, chart, gauge —
+ * and the count and the reason are stated in that panel's own caption, so the
+ * disclosure is where the reader is looking rather than one panel away. The
+ * excluded rows are still carried in the payload under `suspect`, and they are
+ * still in the raw Rows table in full, because deleting them would replace one
+ * dishonest screen with a quieter one. Nothing is shortened silently.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+interface SuspectSplit {
+  /** Rows safe to present as a measurement. */
+  usable: Row[];
+  /** Rows the fan-out flagged. Kept, never deleted. */
+  excluded: Row[];
+  /** Distinct field names that failed the plausibility ceiling. */
+  fields: string[];
+}
+
+function splitSuspect(rows: Row[]): SuspectSplit {
+  const usable: Row[] = [];
+  const excluded: Row[] = [];
+  const fields = new Set<string>();
+  for (const r of rows) {
+    if ("_suspect" in r) {
+      excluded.push(r);
+      const flagged = r["_suspect"];
+      if (Array.isArray(flagged)) for (const f of flagged) fields.add(sanitizeKey(String(f)));
+    } else {
+      usable.push(r);
+    }
+  }
+  return { usable, excluded, fields: [...fields].slice(0, 4) };
+}
+
+/**
+ * The sentence a panel says about its own excluded rows. Empty when there are
+ * none — a disclosure that fires on every panel stops being read.
+ *
+ * `kept: true` is the raw table, which shows the flagged rows rather than
+ * dropping them and has to say the opposite thing.
+ */
+function suspectNote(split: SuspectSplit, total: number, kept = false): string {
+  const n = split.excluded.length;
+  if (n === 0) return "";
+  const where = split.fields.length > 0 ? ` (${split.fields.join(", ")})` : "";
+  const what = `${n} of ${total} row${total === 1 ? "" : "s"} report a USD value beyond any plausible magnitude${where}`;
+  // Deliberately panel-agnostic. An earlier draft said "excluded from the total
+  // above", which is false when the panel saying it IS the total.
+  return kept
+    ? ` ${what}; they are shown here unaltered and excluded from the panels above.`
+    : ` ${what} — excluded from this panel and from the total, and still listed in full in Rows below.`;
+}
+
+/**
+ * The sentence a panel says when it is built on a metric nobody asked for.
+ *
+ * Non-empty exactly when `block.metricGap` is set, which shapes.ts only does
+ * when the substitution is real. Option (b) of the honesty rule: never swap the
+ * metric silently — say what was asked, say why it is unavailable, say what was
+ * used instead.
+ */
+function metricGapNote(block: ShapeBlock): string {
+  const gap = block.metricGap;
+  if (!gap) return "";
+  const asked = sanitizeForPrompt(gap.requested, 60);
+  const why =
+    gap.kind === "absent"
+      ? "the standardized schema does not carry it for these entities"
+      : "these rows carry it, but not as a number this panel can rank on";
+  const instead = gap.using
+    ? `, so this panel uses ${humanize(gap.using)} instead`
+    : ", so this panel does not answer it";
+  return ` Asked for ${asked}: ${why}${instead}.`;
+}
+
+function buildPayload(block: ShapeBlock, split: SuspectSplit): JsonValue {
   const f = block.fields;
-  const rows = block.rows.slice(0, MAX_ROWS);
+  // Every shape below reads `rows`, so excluding once here is what makes the
+  // headline and the leaderboard agree by construction rather than by two
+  // filters that have to be kept in step.
+  const rows = split.usable.slice(0, MAX_ROWS);
+  const notes = `${suspectNote(split, block.rows.length)}${metricGapNote(block)}`;
   const base: Record<string, JsonValue> = {
     shape: block.shape,
     title: block.title,
-    reason: block.reason,
+    reason: `${block.reason}${notes}`,
     confidence: Math.round(block.confidence * 100) / 100,
-    rowCount: block.rows.length,
+    // The count of what is actually drawn. Reporting `block.rows.length` here
+    // while drawing fewer would be the silent shortening this whole section
+    // exists to prevent.
+    rowCount: rows.length,
+    ...(split.excluded.length > 0
+      ? {
+          suspectCount: split.excluded.length,
+          suspectFields: split.fields.slice(),
+          suspectNote: suspectNote(split, block.rows.length).trim(),
+          // Carried, not drawn. A catalog component that wants to render these
+          // as flagged has everything it needs; nothing ranks them.
+          suspect: split.excluded.slice(0, 20).map((r, i) => ({
+            label: label(r, f.category, `#${i + 1}`),
+            value: cell(r, f.value ?? f.primaryMetric),
+            fields: Array.isArray(r["_suspect"]) ? toJson(r["_suspect"]) : null,
+          })),
+        }
+      : {}),
+    ...(block.metricGap
+      ? {
+          metricGap: {
+            requested: sanitizeForPrompt(block.metricGap.requested, 60),
+            using: block.metricGap.using ? sanitizeKey(block.metricGap.using) : null,
+            kind: block.metricGap.kind,
+            note: metricGapNote(block).trim(),
+          },
+        }
+      : {}),
   };
 
   switch (block.shape) {
@@ -370,13 +570,19 @@ function buildPayload(block: ShapeBlock): JsonValue {
 
     case "rows_arbitrary_columns":
     default: {
-      const columns = [...new Set(rows.flatMap((r) => Object.keys(r)))].slice(0, 12);
+      // The table is the show-your-work surface, so it is the ONE panel that
+      // keeps the flagged rows: a reader told "20 rows were excluded" must be
+      // able to go and look at them. Its note says the opposite of the others'.
+      const all = block.rows.slice(0, MAX_ROWS);
+      const columns = [...new Set(all.flatMap((r) => Object.keys(r)))].slice(0, 12);
       return {
         ...base,
+        reason: `${block.reason}${suspectNote(split, block.rows.length, true)}${metricGapNote(block)}`,
+        rowCount: all.length,
         columns: columns.map(humanize),
         columnKeys: columns,
         units: columns.map((c) => unitFor(c) ?? "none"),
-        rows: rows.slice(0, 100).map((r) => columns.map((c) => cell(r, c))),
+        rows: all.slice(0, 100).map((r) => columns.map((c) => cell(r, c))),
       };
     }
   }
@@ -568,12 +774,21 @@ export const compose: Compose = async (
   /* ── Display: one component per detected shape ─────────────────────── */
   for (const block of blocks) {
     const id = uniqueId(`b-${block.key}`);
-    blockData[id] = buildPayload(block);
+    const split = splitSuspect(block.rows);
+    blockData[id] = buildPayload(block, split);
+    // The caption is what the renderer actually prints under the panel title,
+    // so it is where the two disclosures have to live. `label` is not: the
+    // narrative pass may replace it with a model-chosen name, and a disclosure
+    // a model can overwrite is not a disclosure.
+    const caption =
+      block.shape === "rows_arbitrary_columns"
+        ? `${block.reason}${suspectNote(split, block.rows.length, true)}${metricGapNote(block)}`
+        : `${block.reason}${suspectNote(split, block.rows.length)}${metricGapNote(block)}`;
     components.push({
       id,
       component: block.component,
       label: narrative.labels.get(block.key) ?? block.title,
-      caption: block.reason,
+      caption,
       data: bind(`/blocks/${id}`),
       tier,
       rationale: `${block.shape} → ${block.component} (confidence ${block.confidence.toFixed(2)})`,
@@ -617,13 +832,21 @@ export const compose: Compose = async (
   const rawRows = safeData.rows.length > 0 ? safeData.rows : blocks[0]?.rows ?? [];
   if (rawRows.length > 0 && !components.some((c) => c.component === "data_table")) {
     const id = uniqueId("raw-rows");
+    // This table keeps every row, flagged ones included — it is where a reader
+    // who was told "20 rows were excluded" goes to see the twenty. So it
+    // reports the count as a presence, not as a removal.
+    const rawSplit = splitSuspect(rawRows);
+    const rawNote = suspectNote(rawSplit, rawRows.length, true);
     const columns = [...new Set(rawRows.flatMap((r) => Object.keys(r)))].slice(0, 12);
     blockData[id] = {
       shape: "rows_arbitrary_columns",
       title: "Rows",
-      reason: "The result set the panels above were composed from.",
+      reason: `The result set the panels above were composed from.${rawNote}`,
       confidence: 1,
       rowCount: rawRows.length,
+      ...(rawSplit.excluded.length > 0
+        ? { suspectCount: rawSplit.excluded.length, suspectFields: rawSplit.fields.slice(), suspectNote: rawNote.trim() }
+        : {}),
       columns: columns.map(humanize),
       columnKeys: columns,
       units: columns.map((c) => unitFor(c) ?? "none"),
@@ -633,7 +856,7 @@ export const compose: Compose = async (
       id,
       component: "data_table",
       label: "Rows",
-      caption: `${rawRows.length} row${rawRows.length === 1 ? "" : "s"} from ${safeData.sourcesHealthy || "the"} source${safeData.sourcesHealthy === 1 ? "" : "s"}.`,
+      caption: `${rawRows.length} row${rawRows.length === 1 ? "" : "s"} from ${safeData.sourcesHealthy || "the"} source${safeData.sourcesHealthy === 1 ? "" : "s"}.${rawNote}`,
       data: bind(`/blocks/${id}`),
       tier,
       rationale: "Brutalism shows the structure: the raw result set stays on screen.",
@@ -887,17 +1110,21 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
   const metric = block.fields.primaryMetric ?? block.fields.value;
   if (!metric || block.rows.length < 2) return null;
 
-  // Suspect rows are excluded from the AGGREGATE, not from the table.
+  // Suspect rows are excluded from the AGGREGATE, and — since this pass — from
+  // every other panel that presents a figure as a measurement.
   //
-  // A sum is the one place a single broken upstream value destroys the whole
-  // figure: one SushiSwap row reporting 7.2e22 turned a $600M TVL headline into
-  // "$131685267736T" at the very top of the page. Ranking them last is enough for
-  // a list, where a reader can see the outlier sitting at the bottom; for a scalar
-  // there is nothing to see, just a wrong number. So they are dropped here and the
-  // caption says how many, because a quietly filtered total is its own lie.
-  const usable = block.rows.filter((r) => !("_suspect" in r));
-  const excluded = block.rows.length - usable.length;
-  const values = usable.map((r) => toNumber(r[metric])).filter((n): n is number => n !== null);
+  // A sum is where a single broken upstream value does the most damage: one
+  // SushiSwap row reporting 7.2e22 turned a $600M TVL headline into
+  // "$131685267736T" at the very top of the page. The old comment here argued
+  // that ranking a bad row last was enough for a list, because the reader can
+  // see the outlier sitting at the bottom. That argument was wrong in practice:
+  // this card said "20 row(s) with impossible values excluded" while the
+  // leaderboard immediately below it ranked those same twenty at
+  // $26101137179950 — the reader was told the number was impossible and then
+  // shown it as a rank. Both panels now filter through `splitSuspect`, so the
+  // counts cannot drift apart, and both say the same sentence.
+  const split = splitSuspect(block.rows);
+  const values = split.usable.map((r) => toNumber(r[metric])).filter((n): n is number => n !== null);
   if (values.length === 0) return null;
 
   const unit = unitFor(metric);
@@ -905,7 +1132,9 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
   // it again read as "Total Total Value Locked USD".
   const name = humanize(metric);
   const totalLabel = /^total\b/i.test(name) ? name : `Total ${name}`;
-  const excludedNote = excluded > 0 ? ` ${excluded} row(s) with impossible values excluded.` : "";
+  // Identical wording to the panels below, on purpose: two different sentences
+  // about the same twenty rows is how a reader ends up counting them twice.
+  const excludedNote = `${suspectNote(split, block.rows.length)}${metricGapNote(block)}`;
 
   const summable =
     block.shape === "categorical_ranked" ||
@@ -928,9 +1157,19 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
       payload: {
         shape: "scalar",
         title: totalLabel,
+        // Deliberately NOT also set as `sublabel`: metric_card renders
+        // `sublabel` inside the card and the renderer already prints `caption`
+        // beneath it, so carrying it twice would print the same disclosure
+        // twice in one panel and read as a bug rather than as a warning.
         reason: `Aggregate of the ranked metric.${excludedNote}`,
         confidence: 1,
         rowCount: values.length,
+        // Carried on the headline too, so a reader inspecting the data model
+        // finds the same number the leaderboard reports rather than having to
+        // infer it from a difference of two row counts.
+        ...(split.excluded.length > 0
+          ? { suspectCount: split.excluded.length, suspectFields: split.fields.slice() }
+          : {}),
         value: total,
         delta: null,
         label: totalLabel,
@@ -949,7 +1188,7 @@ function summaryOf(block: ShapeBlock | undefined): Headline | null {
     payload: {
       shape: "scalar_with_delta",
       title: `Latest ${name}`,
-      reason: "Most recent point of the series, with change over the window.",
+      reason: `Most recent point of the series, with change over the window.${excludedNote}`,
       confidence: 1,
       rowCount: values.length,
       value: last,

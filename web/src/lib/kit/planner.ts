@@ -30,7 +30,7 @@
  * point of the seam (prd.md §7).
  */
 import { z } from "zod";
-import type { Plan, PlanInput, PlanResult } from "@/lib/contracts/api";
+import type { Plan, PlanInput, PlanResult, RequestedMetric } from "@/lib/contracts/api";
 import type { AgencyTier, Network, SchemaFamily } from "@/lib/contracts/manifest";
 import { AGENCY_TIERS, NETWORKS, SCHEMA_FAMILIES } from "@/lib/contracts/manifest";
 import { chatJson, getInferenceConfig, sanitizeForPrompt, STUB_MODEL } from "./inference";
@@ -50,6 +50,12 @@ export const zPlanInput = z.object({
     .optional(),
 });
 
+/** The wire shape of `RequestedMetric`. Nullable, and `null` means "not stated". */
+export const zRequestedMetric = z.object({
+  phrase: z.string().min(1).max(60),
+  candidates: z.array(z.string().min(1).max(60)).min(1).max(6),
+});
+
 export const zPlanResult = z.object({
   intent: z.string(),
   schemas: z.array(z.enum(SCHEMA_FAMILIES)).min(1),
@@ -57,6 +63,11 @@ export const zPlanResult = z.object({
   queries: z.record(z.string(), z.string()),
   variables: z.record(z.string(), z.unknown()),
   tier: z.enum(AGENCY_TIERS),
+  // Defaults to null rather than being optional on the wire: a plan that
+  // travelled through a serializer must still be able to say "not stated"
+  // explicitly, because a missing key and a guess are indistinguishable to a
+  // reader and only one of them is honest.
+  requestedMetric: zRequestedMetric.nullable().default(null),
   attestationRef: z.string().nullable(),
   model: z.string(),
 });
@@ -131,9 +142,13 @@ export const SCHEMA_QUERIES: Record<SchemaFamily, SchemaQueries> = {
   },
 
   "dex-amm-extended@4.0.1": {
+    // `activeLiquidityUSD` is no longer aliased to `activeLiquidity`. Aliases
+    // that strip the `USD` suffix strip the denomination with it, and the
+    // denomination is what every downstream unit decision is made from — the
+    // same reason the perp template stopped aliasing `balanceUSD` to `balance`.
     rank: `query TopPoolsExtended($first: Int!) {
   liquidityPools(first: $first, orderBy: totalValueLockedUSD, orderDirection: desc) {
-    id name totalValueLockedUSD cumulativeVolumeUSD activeLiquidity: activeLiquidityUSD
+    id name totalValueLockedUSD cumulativeVolumeUSD activeLiquidityUSD
   }
 }`,
     timeseries: FINANCIALS("dailyVolumeUSD dailyTotalRevenueUSD"),
@@ -238,10 +253,11 @@ export const SCHEMA_QUERIES: Record<SchemaFamily, SchemaQueries> = {
   },
 
   "bridge@1.2.0": {
+    // Same reason as dex-amm-extended above: the `USD` suffix is the only place
+    // the denomination is written down, so it is not aliased away.
     rank: `query TopBridgePools($first: Int!) {
   pools(first: $first, orderBy: totalValueLockedUSD, orderDirection: desc) {
-    id name totalValueLockedUSD cumulativeVolumeIn: cumulativeVolumeInUSD
-    cumulativeVolumeOut: cumulativeVolumeOutUSD
+    id name totalValueLockedUSD cumulativeVolumeInUSD cumulativeVolumeOutUSD
   }
 }`,
     timeseries: FINANCIALS("dailyVolumeInUSD dailyVolumeOutUSD"),
@@ -273,9 +289,15 @@ export const SCHEMA_QUERIES: Record<SchemaFamily, SchemaQueries> = {
     id name totalValueLockedUSD openInterestUSD cumulativeVolumeUSD
   }
 }`,
+    // `balanceUSD` used to be aliased to `balance` for symmetry with the
+    // lending template. That alias was a lie about denomination: lending's
+    // `balance` is a RAW token amount and perp's `balanceUSD` is dollars, and
+    // downstream every unit decision is made from the column name. The alias is
+    // gone; `held_position` still finds it because its size regex matches
+    // `balance` as a substring.
     position: `query PerpPositions($account: String!, $first: Int!) {
   positions(first: $first, where: { account: $account, hashClosed: null }) {
-    id side balance: balanceUSD collateralBalanceUSD leverage
+    id side balanceUSD collateralBalanceUSD leverage
     realisedPnlUSD unrealisedPnlUSD liquidationPrice
   }
 }`,
@@ -484,6 +506,137 @@ function extractMinUsd(q: string): number {
   if (suffix === "m" || suffix === "mm") n *= 1_000_000;
   if (suffix === "b") n *= 1_000_000_000;
   return clamp(n, 1_000, 1_000_000_000);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * "…by what?" — the metric the question actually asked to be ranked by
+ *
+ * This exists because the composer used to pick the headline metric purely
+ * from the shape of what came back. Ask "rank stablecoin vaults by net APY"
+ * and the yield-aggregator rank template returns TVL, so the screen came out
+ * captioned "Ranked name by totalValueLockedUSD" — the right chart for the
+ * wrong question, with nothing on screen admitting the swap. `variables.orderBy`
+ * could not be used to catch it: the rules engine sets it to
+ * `totalValueLockedUSD` for every unmatched question, so a genuine request and
+ * a house default look identical downstream.
+ *
+ * The rule this table obeys: a phrase only becomes a request when the QUESTION
+ * says it. Nothing here infers a metric from the schema family, the template or
+ * the tier — an inference would be a guess, and the whole point of the field is
+ * that a non-null value is something the user asked for.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Question phrase → the column-name fragments that would satisfy it.
+ *
+ * Candidates are deliberately TIGHT. An earlier draft mapped "apy" to
+ * `["apy", "rate"]`, which would have let `fundingRate` satisfy a request for
+ * net APY — a silent substitution wearing a match's clothes, which is the exact
+ * failure this field was added to stop. Reporting a gap is always better than
+ * answering with a neighbouring metric.
+ */
+const METRIC_LEXICON: ReadonlyArray<[RegExp, string[]]> = [
+  [/\bnet apy\b|\bnet yield\b|\bapy\b|\bannual percentage yield\b/i, ["apy"]],
+  [/\bapr\b|\bannual percentage rate\b/i, ["apr"]],
+  [/\bfunding ?rate\b/i, ["fundingRate"]],
+  [/\bopen interest\b/i, ["openInterest"]],
+  [/\bhealth ?factor\b/i, ["healthFactor"]],
+  [/\butili[sz]ation\b/i, ["utilization", "utilisation"]],
+  [/\bfloor price\b/i, ["floorPrice"]],
+  [/\bmarket ?cap(italization)?\b/i, ["marketCap"]],
+  [/\btvl\b|\btotal value locked\b/i, ["totalValueLocked", "valueLocked", "tvl"]],
+  [/\bvolume\b/i, ["volume"]],
+  [/\brevenue\b/i, ["revenue"]],
+  [/\bfees?\b/i, ["fee"]],
+  [/\bltv\b|\bloan[- ]to[- ]value\b/i, ["ltv"]],
+  [/\bliquidity\b/i, ["liquidity"]],
+  [/\bleverage\b/i, ["leverage"]],
+  [/\bcollateral\b/i, ["collateral"]],
+  [/\b(borrows?|borrowing|debt)\b/i, ["borrow", "debt"]],
+  [/\bdeposits?\b/i, ["deposit"]],
+  [/\b(unique )?users\b/i, ["uniqueUsers", "users"]],
+  [/\btrade count\b|\btrades\b/i, ["tradeCount", "trades"]],
+  [/\bprice\b/i, ["price"]],
+];
+
+/**
+ * The "…by X" clause, if the question has one. Cut at the first word that
+ * starts a new phrase, because "by net APY across Arbitrum and Optimism" would
+ * otherwise hand the lexicon four words of geography to match against.
+ */
+const BY_CLAUSE =
+  /\b(?:rank(?:ed)?|sort(?:ed)?|order(?:ed)?|measured|scored|sorted)?\s*by\s+([^,.;?!]{2,60})/i;
+const CLAUSE_STOP = /\b(across|on|over|for|in|into|between|from|during|since|with|where|when|and|then|to)\b/i;
+
+function byClauseOf(question: string): string | null {
+  const m = question.match(BY_CLAUSE);
+  if (!m) return null;
+  const tail = m[1];
+  const stop = tail.search(CLAUSE_STOP);
+  const clause = (stop > 0 ? tail.slice(0, stop) : tail).trim();
+  return clause.length >= 2 ? clause : null;
+}
+
+/** Distinct candidate sets, so "net apy" and "apy" count as one request. */
+function lexiconHits(text: string): Array<{ match: string; candidates: string[] }> {
+  const seen = new Set<string>();
+  const hits: Array<{ match: string; candidates: string[] }> = [];
+  for (const [re, candidates] of METRIC_LEXICON) {
+    const m = text.match(re);
+    if (!m) continue;
+    const key = candidates.join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    hits.push({ match: m[0], candidates });
+  }
+  return hits;
+}
+
+/**
+ * What the question asked to rank by, or null when it did not say.
+ *
+ * Two passes, in this order:
+ *   1. an explicit "…by X" clause — the strongest possible statement of intent;
+ *   2. failing that, the whole question, but ONLY when exactly one distinct
+ *      metric is named. "Compare TVL and volume" names two, and picking one of
+ *      them would be the substitution this field exists to prevent, so it
+ *      returns null and the panel falls back to shape detection openly.
+ */
+export function extractRequestedMetric(question: string): RequestedMetric | null {
+  const clause = byClauseOf(question);
+  if (clause) {
+    const hits = lexiconHits(clause);
+    if (hits.length === 1) {
+      return { phrase: sanitizeForPrompt(clause, 60), candidates: hits[0].candidates };
+    }
+    if (hits.length > 1) {
+      // "by fees and volume" — the clause names two. Honest answer is "not
+      // stated unambiguously" rather than silently taking the first.
+      return null;
+    }
+  }
+
+  const hits = lexiconHits(question);
+  if (hits.length !== 1) return null;
+  return { phrase: sanitizeForPrompt(hits[0].match, 60), candidates: hits[0].candidates };
+}
+
+/**
+ * The model may also name the metric. It is accepted ONLY when the question
+ * corroborates it letter for letter.
+ *
+ * Without this check the field would carry a model guess — `metric: "net_apy"`
+ * is corroborated by "…by net APY", but a model that answers `"totalValueLockedUSD"`
+ * for a question that never mentions TVL is inventing a request, and a panel
+ * would then report an invented request back to the user as their own.
+ */
+function corroboratedModelMetric(metric: string | null | undefined, question: string): RequestedMetric | null {
+  if (typeof metric !== "string") return null;
+  const core = metric.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (core.length < 3) return null;
+  const asked = question.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!asked.includes(core)) return null;
+  return { phrase: sanitizeForPrompt(metric, 60), candidates: [metric, core] };
 }
 
 function dedupe<T>(xs: T[]): T[] {
@@ -779,6 +932,10 @@ export function planWithRules(input: PlanInput): PlanResult {
     queries,
     variables,
     tier,
+    // Read off the question's own words. Note this is NOT `variables.orderBy`,
+    // which is `totalValueLockedUSD` a few lines above for every question that
+    // did not name a metric — that default is the house's, not the user's.
+    requestedMetric: extractRequestedMetric(input.question),
     attestationRef: null,
     model: STUB_MODEL,
   };
@@ -921,6 +1078,12 @@ export const plan: Plan = async (input: PlanInput): Promise<PlanResult> => {
     queries: { ...modelQueries, ...(rules.variables._pattern !== "generic_fallback" ? rules.queries : {}) },
     variables,
     tier,
+    // Deterministic reading of the question first; the model's `metric` is only
+    // a fallback and only when the question corroborates it. Both branches can
+    // return null, and null here means the question named no metric — it is
+    // never "we could not tell, so here is our best guess".
+    requestedMetric:
+      rules.requestedMetric ?? corroboratedModelMetric(mp.metric, safeInput.question),
     attestationRef: outcome.attestationRef,
     model: outcome.model,
   };

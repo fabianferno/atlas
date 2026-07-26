@@ -21,7 +21,7 @@
  */
 import type { DataShape, DisplayComponent } from "@/lib/contracts/catalog";
 import { SHAPE_TO_COMPONENT } from "@/lib/contracts/catalog";
-import type { FanOutResult, PlanResult } from "@/lib/contracts/api";
+import type { FanOutResult, PlanResult, RequestedMetric } from "@/lib/contracts/api";
 import { sanitizeForPrompt, sanitizeKey } from "./inference";
 
 export type Row = Record<string, unknown>;
@@ -52,6 +52,8 @@ export type SemanticRole =
   | "time"
   | "identity"
   | "usd"
+  /** A RAW token amount in the token's own decimals. Never a currency. */
+  | "token"
   | "ratio"
   | "percent"
   | "count"
@@ -89,6 +91,15 @@ const NAME_HINTS: ReadonlyArray<[SemanticRole, RegExp]> = [
   ["delta", /(delta|change|diff|pctchange|percentchange|growth|_1d|_7d|_24h|chg)/i],
   ["ratio", /(healthfactor|utilization|utilisation|ltv|ratio|collateralratio|share|weight|dominance|allocation)/i],
   ["percent", /(apy|apr|rate|yield|pct|percent|fundingrate|interestrate)/i],
+  // Raw token quantities MUST be classified before the usd rule.
+  //
+  // `outputTokenSupply` matched the old usd rule on the substring "supply", and
+  // `inputTokenBalance` was one detector away from doing the same. That matters
+  // beyond labelling: `pickMetric` prefers a column whose semantic is "usd", so
+  // a raw token amount could be promoted to the headline metric of a whole
+  // screen. Messari denominates in the NAME — a dollar field ends in `USD` — so
+  // anything token-shaped without that suffix is a count of tokens, nothing more.
+  ["token", /^(?!.*usd).*(tokenbalance|tokenbalances|tokensupply|tokenamount|emissionsamount)/i],
   ["usd", /(usd|tvl|volume|revenue|fees|supply|borrow|deposit|withdraw|liquidity|marketcap|notional|balanceusd|valuelocked)/i],
   ["price", /(price|pricepershare|exchangerate|last)/i],
   ["count", /(count|txcount|users|holders|transfers|swaps|trades|positions|transactions|blocks)/i],
@@ -216,6 +227,27 @@ export interface FieldRoles {
   condition?: string;
 }
 
+/**
+ * The question asked for one metric and the panel is built on another.
+ *
+ * Present only when the substitution is real, so `metricGap !== null` is
+ * exactly the condition under which a panel MUST say what it did. Never
+ * resolved by picking a lookalike column — see `satisfiesRequest`.
+ */
+export interface MetricGap {
+  /** The user's own words for what they asked to rank by. */
+  requested: string;
+  /** What the panel is actually built on, or null when it has no metric. */
+  using: string | null;
+  /**
+   * "absent"   — no column in the result carries it. The standardized schema
+   *              does not model it for these entities.
+   * "unusable" — a column carries it but not as a rankable number (Messari's
+   *              yield `rates` is a list of InterestRate objects, for example).
+   */
+  kind: "absent" | "unusable";
+}
+
 export interface DetectedShape {
   shape: DataShape;
   component: DisplayComponent;
@@ -225,6 +257,8 @@ export interface DetectedShape {
   rows: Row[];
   /** Human-readable, shown as provenance: "why this component". */
   reason: string;
+  /** Non-null when the panel answers a different metric than the one asked for. */
+  metricGap: MetricGap | null;
 }
 
 interface Candidate {
@@ -244,6 +278,15 @@ export interface DetectContext {
   boolCols: ColumnProfile[];
   /** Metric the plan was about, if the planner named one. */
   preferredMetric: string | null;
+  /**
+   * The metric the QUESTION asked for, or null when it named none.
+   *
+   * Ranks above `preferredMetric` because `preferredMetric` comes from
+   * `variables.orderBy`, which the rules engine defaults to
+   * `totalValueLockedUSD` — indistinguishable from a real request. This one is
+   * only ever non-null because the user's own words said so.
+   */
+  requestedMetric: RequestedMetric | null;
   tier: PlanResult["tier"];
   /** True when the plan's query asked for an ordered top-N. */
   ranked: boolean;
@@ -255,8 +298,41 @@ type Detector = (ctx: DetectContext) => Candidate | null;
  * Helpers
  * ──────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Does this column answer what the question asked for?
+ *
+ * Provenance columns are never candidates — `_source` would satisfy a request
+ * for "source" and that is a subgraph id, not a measurement.
+ */
+export function satisfiesRequest(columnName: string, req: RequestedMetric): boolean {
+  if (columnName.startsWith("_")) return false;
+  const n = columnName.toLowerCase();
+  return req.candidates.some((c) => n.includes(c.toLowerCase()));
+}
+
+/**
+ * The metric a panel is built around.
+ *
+ * Order matters, and it is an order of *authority*, not of confidence:
+ *   1. what the question asked for, when the rows actually carry it — the only
+ *      entry here that reflects a stated human intent;
+ *   2. the plan's `orderBy`, which may be a real request or a house default;
+ *   3. a USD column, because that is the most legible default;
+ *   4. whatever came first.
+ *
+ * (1) used to be absent entirely, and that is why "rank vaults by net APY" came
+ * back ranked by `totalValueLockedUSD`: the composer only ever asked the data
+ * what it contained, never the question what it wanted. When (1) misses,
+ * `detectShape` records a `metricGap` so the panel says so out loud instead of
+ * quietly answering a different question.
+ */
 function pickMetric(ctx: DetectContext, metrics: ColumnProfile[]): string | undefined {
   if (metrics.length === 0) return undefined;
+  const req = ctx.requestedMetric;
+  if (req) {
+    const asked = metrics.find((m) => satisfiesRequest(m.name, req));
+    if (asked) return asked.name;
+  }
   if (ctx.preferredMetric) {
     const exact = metrics.find((m) => m.name.toLowerCase() === ctx.preferredMetric?.toLowerCase());
     if (exact) return exact.name;
@@ -265,8 +341,10 @@ function pickMetric(ctx: DetectContext, metrics: ColumnProfile[]): string | unde
     );
     if (partial) return partial.name;
   }
+  // A raw token balance is never a sensible default headline: it is a number in
+  // the token's own decimals, so `2.6e22` and `$40,020` describe the same vault.
   const usd = metrics.find((m) => m.semantic === "usd");
-  return (usd ?? metrics[0]).name;
+  return (usd ?? metrics.find((m) => m.semantic !== "token") ?? metrics[0]).name;
 }
 
 function byName(cols: ColumnProfile[], re: RegExp): ColumnProfile | undefined {
@@ -472,7 +550,12 @@ export const SHAPE_DETECTORS: Record<DataShape, Detector> = {
     if (ctx.rows.length !== 1) return null;
     const ratio =
       ctx.numeric.find((c) => c.semantic === "ratio") ??
-      ctx.numeric.find((c) => c.unitInterval && c.semantic !== "usd" && c.semantic !== "count");
+      // "token" joins the exclusions: a dust-sized raw token balance lands in
+      // [0,1] and would otherwise be drawn as a gauge with a 0..1 dial, which
+      // reads as a percentage of something.
+      ctx.numeric.find(
+        (c) => c.unitInterval && c.semantic !== "usd" && c.semantic !== "count" && c.semantic !== "token",
+      );
     if (!ratio) return null;
     const isHealth = /healthfactor/i.test(ratio.name);
     return {
@@ -755,6 +838,8 @@ void _shapeCoverage;
 export interface DetectOptions {
   /** Column name the plan cares about — gets the semantic accent. */
   preferredMetric?: string | null;
+  /** What the question asked to rank by. Null/absent means it named nothing. */
+  requestedMetric?: RequestedMetric | null;
   tier?: PlanResult["tier"];
   /** True when the query asked for an ordered top-N. */
   ranked?: boolean;
@@ -774,9 +859,30 @@ function buildContext(rows: Row[], opts: DetectOptions): DetectContext {
     timeCols: cols.filter((c) => c.kind === "time"),
     boolCols: cols.filter((c) => c.kind === "boolean"),
     preferredMetric: opts.preferredMetric ?? null,
+    requestedMetric: opts.requestedMetric ?? null,
     tier: opts.tier ?? "readonly",
     ranked: opts.ranked ?? false,
   };
+}
+
+/**
+ * Did the panel end up answering the question it was asked?
+ *
+ * Returns null when nothing was asked, or when the chosen metric satisfies the
+ * request. Otherwise it names the gap so the composer can put it on screen. The
+ * two kinds are distinguished because they are different admissions: "the
+ * standardized schema does not carry this" is a coverage statement about The
+ * Graph's Messari families; "it is here but not as a number" is about this
+ * result set.
+ */
+function metricGapFor(ctx: DetectContext, fields: FieldRoles): MetricGap | null {
+  const req = ctx.requestedMetric;
+  if (!req) return null;
+  const using = fields.primaryMetric ?? fields.value ?? null;
+  if (using && satisfiesRequest(using, req)) return null;
+
+  const carrying = ctx.cols.find((c) => satisfiesRequest(c.name, req));
+  return { requested: req.phrase, using, kind: carrying ? "unusable" : "absent" };
 }
 
 /** Classify one homogeneous set of rows. Never returns null. */
@@ -793,17 +899,20 @@ export function detectShape(rows: Row[], opts: DetectOptions = {}): DetectedShap
         fields: candidate.fields,
         rows: candidate.rows ?? rows,
         reason: candidate.reason,
+        metricGap: metricGapFor(ctx, candidate.fields),
       };
     }
   }
   const fallback = SHAPE_DETECTORS.rows_arbitrary_columns(ctx);
+  const fallbackFields = fallback?.fields ?? { metrics: [] };
   return {
     shape: "rows_arbitrary_columns",
     component: "data_table",
     confidence: fallback?.confidence ?? 0.2,
-    fields: fallback?.fields ?? { metrics: [] },
+    fields: fallbackFields,
     rows,
     reason: fallback?.reason ?? "Fallback.",
+    metricGap: metricGapFor(ctx, fallbackFields),
   };
 }
 
@@ -839,6 +948,9 @@ export interface ShapeBlock extends DetectedShape {
 export function detectShapes(data: FanOutResult, plan?: PlanResult): ShapeBlock[] {
   const opts: DetectOptions = {
     preferredMetric: typeof plan?.variables?.orderBy === "string" ? plan.variables.orderBy : null,
+    // Optional on the contract and nullable on the wire, so `?? null` is the
+    // whole of the compatibility story: an older plan simply asked for nothing.
+    requestedMetric: plan?.requestedMetric ?? null,
     tier: plan?.tier ?? "readonly",
     ranked: isRankedPlan(plan),
   };
@@ -885,6 +997,9 @@ export function detectShapes(data: FanOutResult, plan?: PlanResult): ShapeBlock[
       fields: { metrics: [] },
       rows: [],
       reason: "No source returned rows.",
+      // Nothing came back, so nothing was substituted. A gap here would be a
+      // claim about data that does not exist.
+      metricGap: null,
       key: "empty",
       group: "all",
       title: "No data",
