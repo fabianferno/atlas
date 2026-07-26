@@ -59,6 +59,7 @@ import {
   fmtDate,
   haltRemote,
   isArmed,
+  isRunStale,
   runApp,
   watchBlocks,
   useApp,
@@ -86,6 +87,9 @@ import { RailSections, TabbedSections, type AppSections } from "@/components/boa
 // re-derived here. A second copy of that test would drift, and the direction it
 // drifts is always towards claiming more. See `lib/schema-coverage.ts`.
 import { familiesWithNoLiveSource } from "@/lib/schema-coverage";
+
+/** One sentence, three renderings — a header line, a button, a page paragraph. */
+const UNPUBLISHED = "unpublished — no ENS subname issued";
 
 /**
  * A round trip and the app it was made for. `out: null` means still in flight.
@@ -164,6 +168,62 @@ export function AppRuntime({
   // re-derived here.
   const noLiveSource = useMemo(() => familiesWithNoLiveSource(board.apps), [board.apps]);
 
+  /**
+   * Opening an app whose numbers have gone stale re-queries it.
+   *
+   * THE HOLE THIS FILLS. `runApp` has done the honest thing since it was written
+   * — rebuild the plan from the manifest, fan out, re-health-check, re-compose,
+   * write back only what came back — and it had exactly one caller: the Run
+   * button. So the liveness was a capability the product HAD rather than one it
+   * SHOWED. Every bundled app opened onto `seed-live.generated.json`, measured at
+   * build time; every published app opened onto whatever its creating fan-out
+   * returned, however long ago that was. Both rendered with the same confidence
+   * as a query that had just landed, and the only thing separating them from one
+   * was a press nobody had a reason to make. A seed snapshot is scaffolding for
+   * the cold render — it is not the product flow, and it must not be what a
+   * reader is still looking at a minute later.
+   *
+   * WHY ONLY THIS APP. `AppRuntime` mounts for one app at a time — full-bleed on
+   * `/a/[name]`, one card in the drawer — so putting the refresh here means the
+   * board costs one fan-out per app a reader actually opens rather than sixteen
+   * on load. The deck's card faces still show snapshot figures until opened;
+   * `stats.sourcesHealthy` on a face is a summary, and re-measuring sixteen apps
+   * to redraw sixteen summaries nobody has looked at yet is a real cost paid for
+   * an imagined reading.
+   *
+   * WHY A REF RATHER THAN THE FRESHNESS TEST ALONE. A run that FAILS does not
+   * move `lastRunAt` — deliberately, so a failure cannot leave the previous run's
+   * numbers looking fresh. That makes the app permanently stale, and an effect
+   * that keyed only on staleness would re-fire on every subsequent render for as
+   * long as the gateway stayed down. One attempt per app per mount; the Run
+   * button is how you ask for another.
+   */
+  const refreshedFor = useRef<string | null>(null);
+  useEffect(() => {
+    // Nothing to judge until localStorage has been read — a published app is
+    // absent from `board.apps` until then, and treating absent as stale would
+    // fire a query for an app this browser may not even hold.
+    if (!app || refreshedFor.current === name) return;
+    refreshedFor.current = name;
+    if (!isRunStale(app)) return;
+
+    setRun({ app: name, auto: true, out: null });
+    let current = true;
+    void runApp(name)
+      // Same reason as `onRun`'s catch: `out: null` is "in flight", so an
+      // unexpected rejection has to clear the record rather than fill it in.
+      .catch(() => null)
+      .then((out) => {
+        // The guard is for the unmount, not for a name change: `run` carries its
+        // own app and the derived values above already refuse to show one app's
+        // outcome under another's name.
+        if (current) setRun(out ? { app: name, auto: true, out } : null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [app, name]);
+
   const [activeTab, setActiveTab] = useState<TabKey>("app");
   // Reset when the wheel flicks to a different app. Adjusting state during
   // render is the sanctioned pattern and avoids a frame of the previous app's
@@ -220,25 +280,24 @@ export function AppRuntime({
   const watchable = autonomous || tier === "monitor";
 
   async function onRun() {
-    setRunning(true);
-    // Clear the previous receipt first: leaving the last run's row numbers on
-    // screen while a new query is in flight reads as "these are current".
-    setRunOut(null);
-    try {
-      setRunOut(await runApp(m.name));
-    } finally {
-      setRunning(false);
-    }
+    // `out: null` clears the previous receipt as it marks the run in flight:
+    // leaving the last run's row numbers on screen while a new query is running
+    // reads as "these are current".
+    setRun({ app: m.name, auto: false, out: null });
+    // `runApp` reports failure by returning, not by throwing — every failure mode
+    // it knows about comes back as `ok: false` with the server's reason, and that
+    // is what the receipt renders. The catch is for the ones it does not know
+    // about. Since `out: null` is how this state says "in flight", a rejection
+    // has to clear the whole record rather than store a null outcome, or the
+    // spinner it leaves behind never resolves.
+    const out = await runApp(m.name).catch(() => null);
+    setRun(out ? { app: m.name, auto: false, out } : null);
   }
 
   async function onWatch() {
-    setWatching(true);
-    setWatchOut(null);
-    try {
-      setWatchOut(await watchBlocks(m));
-    } finally {
-      setWatching(false);
-    }
+    setWatch({ app: m.name, out: null });
+    const out = await watchBlocks(m).catch(() => null);
+    setWatch(out ? { app: m.name, out } : null);
   }
 
   const onBodyAction = (action: unknown) => {
@@ -342,9 +401,23 @@ export function AppRuntime({
                 <SponsorMark of="ens" size={13} />
                 {m.identity.ens}
               </p>
+            ) : variant === "drawer" ? (
+              /* The claim is also the way to fix it. Publish used to sit
+                 directly under this line; behind a tab it would be further from
+                 the sentence it answers than it was before, and the comment on
+                 AppPublishPanel is explicit that "why can I not publish this?"
+                 deserves an answer next to the claim. So the claim carries the
+                 reader there. */
+              <button
+                type="button"
+                onClick={() => setActiveTab("about")}
+                className="mono mt-1.5 block text-left text-[0.6875rem] text-[var(--muted-ink)] underline decoration-dotted"
+              >
+                {UNPUBLISHED}
+              </button>
             ) : (
               <p className="mono mt-1.5 text-[0.6875rem] text-[var(--muted-ink)]">
-                unpublished — no ENS subname issued
+                {UNPUBLISHED}
               </p>
             )}
             <p className="mt-2 max-w-[70ch] text-xs leading-snug text-[var(--muted-ink)]">{m.intent}</p>
@@ -383,7 +456,16 @@ export function AppRuntime({
             before they read a number out of it. */}
         {runOut || running || watchOut || watching ? (
           <div className="space-y-1 border-b border-hairline px-3 py-2 sm:px-4">
-            {running ? <Receipt tone="wait" text="querying deployments and re-composing…" /> : null}
+            {running ? (
+              <Receipt
+                tone="wait"
+                text={
+                  run?.auto
+                    ? "last measured too long ago — re-querying deployments and re-composing…"
+                    : "querying deployments and re-composing…"
+                }
+              />
+            ) : null}
             {!running && runOut ? <Receipt {...runReceipt(runOut)} /> : null}
             {watching ? (
               <Receipt tone="wait" text="subscribed — consuming 3 blocks, then returning…" />
