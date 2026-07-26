@@ -253,27 +253,104 @@ Track note: this is a **Classic ("From Scratch")** submission. Event work begins
 
 ---
 
-### The Graph — $15,000 across 3 tracks
+### The Graph — $15,000
 
-**Track 1 — Best AI Tooling for The Graph.** The reusable artifacts, not the app:
+**How are you using this Protocol / API?**
 
-| Artifact | Permalink |
-|---|---|
-| MCP server (5 tools, stateless Streamable HTTP) | [`web/src/app/api/mcp/route.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/app/api/mcp/route.ts) |
-| Agent SKILL (`SKILL.md`, with honest-reading guidance) | [`SKILL.md`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/SKILL.md) |
-| Standardized-schema registry (96 entries, 86 verified) | [`web/src/lib/kit/sources.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/sources.ts) |
-| Coverage oracle — "does The Graph cover this at all?" | [`web/src/lib/coverage/`](https://github.com/fabianferno/atlas/tree/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/coverage) |
-| x402 payment client, hand-rolled over the 402 challenge | [`web/src/lib/kit/gateway.ts#L233`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/gateway.ts#L233) |
-
-One-line client config, no install:
-
-```jsonc
-{ "mcpServers": { "atlas": { "type": "http", "url": "https://atlas-mini-apps.vercel.app/api/mcp" } } }
+```
+Atlas turns a plain-English question into a live mini app, and The Graph is the
+only data source underneath it. Three Graph products are composed: Standardized
+Subgraphs (a 96-entry registry, 86 verified deployment IDs across 11 schema
+families and 4 networks), Substreams (a real gRPC subscription on
+arb-one.streamingfast.io that drives per-block trigger evaluation), and x402
+(keyless per-query payment implemented against the live 402 challenge). The key
+move is that we resolve a *schema family* rather than a subgraph id, so one
+question fans out at every healthy deployment across two or more families and
+two or more networks and merges the results — a question nobody anticipated
+still resolves. A representative run: 18 sources queried, 13 healthy, 5 dead
+skipped by health check, 74 rows in 2.8s for $0.0014. All 16 mini apps in the
+registry are built by that pipeline on live data, not by hand.
 ```
 
-Qualification: reusable tooling ✅ · live data from a Graph provider ✅ · open source with README + SKILL.md ✅ · public repo ✅ · demo video _pending_. The distinguishing property is that the MCP is *schema-layered*, not subgraph-layered — `list_schemas` tells an agent what is queryable before it commits to a question, and `query_graph` fans one question across every healthy deployment of the matching families. The SKILL also teaches the agent to report `sources.skipped` and `_suspect` rows honestly instead of smoothing them over, which is the part that makes tooling trustworthy rather than merely convenient.
+**Link to the line of code where the tech is used**
 
-**Track 2 — Best AI Use Case of The Graph.** The whole product: an agent that reasons over live Graph data and then acts on it under a policy. Deployment IDs queried in the reference run, as the track asks for explicitly:
+Paste this one — it is the fan-out itself, which is what makes this composition rather than a single query:
+
+```
+https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/fanout.ts#L348
+```
+
+Supporting links, if a second field allows them:
+
+| What | Link |
+|---|---|
+| The literal gateway call (and the x402 branch) | [`gateway.ts#L156-L166`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/gateway.ts#L156-L166) |
+| x402: parse the 402 challenge, sign EIP-3009 | [`gateway.ts#L233`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/gateway.ts#L233) |
+| Substreams gRPC subscription + cursor + undo handling | [`substreams.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/substreams.ts) |
+| Standardized-schema registry, 86 verified deployment IDs | [`sources.ts#L90`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/sources.ts#L90) |
+| Health check before spend (2s timeout, 90s TTL) | [`sources.ts#L316`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/sources.ts#L316) |
+| MCP server, 5 tools | [`api/mcp/route.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/app/api/mcp/route.ts) |
+| Agent SKILL | [`SKILL.md`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/SKILL.md) |
+
+**How easy is it to use the API / Protocol? (1–10)**
+
+```
+7
+```
+
+Querying the gateway is as easy as it gets — an API key and a GraphQL POST, and x402 was a genuinely small protocol to implement by hand. The three points come off for things that are missing rather than broken: no machine-readable index of standardized deployments, no health signal on them, and no per-family record of which fields actually exist.
+
+**Additional feedback for the Sponsor**
+
+```
+Standardized Subgraphs need a machine-readable index, and it needs a health
+signal. Assembling 96 entries by hand (family, version, network, protocol,
+deployment id) was the most fragile artifact in our repo, and ~28% of those
+deployments are dead at any given moment with nothing in Explorer telling you
+which. We had to build health-checking with a 2s timeout and a 90s TTL before
+the product could be honest about what answered. This is the single highest-
+leverage thing you could ship for AI tooling: every agent that wants cross-
+protocol reach is currently rebuilding this same file.
+
+The schema is standardized; the field set is not. nft-marketplace@2.1.0
+denominates in ETH — cumulativeTradeVolumeUSD does not exist on Marketplace, and
+asking for it is a hard error that returns zero rows for the entire family. We
+found four such deviations the hard way, each one costing a debugging cycle
+where the symptom (empty result) pointed nowhere near the cause. Publishing
+"fields actually present, per family, per version" would remove that whole class
+of bug.
+
+Standardization guarantees shape, not sanity. SushiSwap on Arbitrum reports a
+TVL of 7.2e22; Camelot V2 reports 4.1e17. 14 of 74 rows tripped our plausibility
+check on a routine two-family fan-out, and the default sort put the worst one at
+the top of the leaderboard. We now flag anything over $1T as _suspect, rank it
+last and never drop it — but every consumer is independently inventing this
+heuristic. A convention, or a quality flag in the index, would be worth a lot.
+
+The Substreams free tier's 2 concurrent streams is below the demo threshold. A
+second subscribing app hits resource_exhausted immediately, which means an app
+that subscribes cannot be demonstrated alongside a verification script during a
+hackathon. We render the refusal honestly instead of faking success, but 3-4
+concurrent streams would have let us demo the thing we built.
+
+x402 is well documented and pleasant to implement — the 402 challenge plus one
+EIP-3009 signature is a small, clean protocol. What's missing is a testnet
+facilitator. We implemented the entire path and could not exercise it, because
+exercising it means spending real USDC on Base mainnet. A testnet mode would
+convert a lot of "implemented" into "verified" across a hackathon.
+
+Subgraph MCP is the gap we couldn't close, and it's a shape mismatch rather than
+a quality problem. We point GRAPH_MCP_URL at subgraphs.mcp.thegraph.com/sse and
+never call it, because resolving a *schema* and resolving a *subgraph* are
+different questions and the MCP answers the second. A schema-level tool
+(list_standard_schemas -> deployments per network, with health) would have made
+our entire sources.ts unnecessary, which is the best possible outcome for us.
+```
+
+**Track coverage** (supporting detail, not a form field)
+
+- **Track 1, Best AI Tooling** — the reusable artifacts: the MCP server (5 tools, stateless Streamable HTTP), `SKILL.md`, the standardized-schema registry, the coverage oracle that answers "does The Graph cover this at all?", and the hand-rolled x402 client. One-line client config, no install: `{ "mcpServers": { "atlas": { "type": "http", "url": "https://atlas-mini-apps.vercel.app/api/mcp" } } }`. The distinguishing property is that the MCP is schema-layered rather than subgraph-layered, and the SKILL teaches the consuming agent to report `sources.skipped` and `_suspect` rows honestly instead of smoothing them over.
+- **Track 2, Best AI Use Case** — the product: an agent that reasons over live Graph data and then acts on it under a policy. Deployment IDs queried in the reference run, which this track asks for explicitly:
 
 ```
 4xyasjQeREe7PxnF6wVdobZvCw5mhoHZq3T7guRpuNPf  lending-cdp@3.1.0       arbitrum-one  aave-v3
@@ -290,36 +367,94 @@ EgnS9YE1avupkvCNj9fHnJxppfEmNNywYJtghqiu2pd9  dex-amm-extended@4.0.1  optimism  
 3oHCddbQGTi42kPZBwyGzD2JzZR33zK2MwXtxAerNJy2  dex-amm-extended@4.0.1  arbitrum-one  sushiswap-v3
 ```
 
-Substreams endpoint: `arb-one.streamingfast.io` (`map_block_meta`, one tick per block, cursor-resumed). Gateway: `gateway.thegraph.com` by API key, plus the x402 route `/api/x402/subgraphs/id/<id>`. All 16 seed apps are built by the real pipeline and re-measured by [`scripts/seed-live.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/scripts/seed-live.ts) — no mocked or static data anywhere in the registry. Bonus criterion (a reusable SKILL or MCP server) is satisfied by Track 1's artifacts.
+Substreams endpoint: `arb-one.streamingfast.io` (`map_block_meta`, one tick per block, cursor-resumed). Gateway: `gateway.thegraph.com` by API key, plus the x402 route `/api/x402/subgraphs/id/<id>`. Re-measured by [`scripts/seed-live.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/scripts/seed-live.ts) — no mocked or static data in the registry.
 
-**Track 3 — Best Use of Composable or Standardized Graph Products.** This is the strongest fit. Two Graph products are composed *and* the work sits on a standardized schema:
-
-- **11 schema families declared, 9 with live deployments**, across 4 networks — `lending-cdp@3.1.0`, `dex-amm@1.3.2`, `dex-amm-extended@4.0.1`, `perp-futures@1.3.4`, `bridge@1.2.0`, `yield-aggregator@1.3.1`, `options@1.3.2`, `nft-marketplace@2.1.0`, `generic@3.0.0`.
-- **Every question fans out across ≥2 families and ≥2 networks and merges.** Querying one subgraph with no composition explicitly does not qualify, which is exactly why the fan-out is the product rather than a feature of it: [`fanout.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/fanout.ts).
-- **Subgraphs are composed with Substreams**: the subgraph fan-out establishes the metric, the Substreams subscription drives per-block re-evaluation of the trigger over it.
-- Standards leverage is visible in the demo, not just the code: the app shows which deployments answered of how many were queried, and names the ones that were skipped.
-
-Four undocumented schema deviations were found and worked around the hard way (see feedback below) — that is what building on a standard actually costs, and it is written up rather than hidden.
-
-**Feedback for The Graph**
-
-- **Standardized Subgraphs need a health signal in the index.** ~28% of the deployments we registered are dead at any given moment, and nothing in Explorer or the docs tells you which. We had to build health-checking with a 2s timeout and a 90s TTL before the product could be honest. A `hasIndexingErrors` / last-block field in a machine-readable standardized-deployment index would remove that work for everyone.
-- **There is no machine-readable index of standardized deployments at all.** Assembling 96 entries (family, version, network, protocol, deployment id) was manual and is the single most fragile artifact in the repo. This is the highest-leverage thing you could ship for AI tooling — every agent that wants cross-protocol reach has to rebuild it.
-- **The schema is standardized; the field set is not.** `nft-marketplace@2.1.0` denominates in ETH — `cumulativeTradeVolumeUSD` does not exist on `Marketplace`, and asking for it is a hard error that returns zero rows for the entire family. We found four such deviations. Publishing per-family "fields that are actually present, per version" would have saved a day.
-- **Standardization guarantees shape, not sanity.** SushiSwap on Arbitrum reports a TVL of `7.2e22`. We flag values above $1T as `_suspect`, rank them last and never drop them — but a standard that says nothing about plausibility means every consumer independently invents this heuristic. Worth a convention.
-- **The Substreams free tier's 2 concurrent streams is below the demo threshold.** A second subscribing app hits `resource_exhausted` immediately, which means an app that *subscribes* cannot be shown working alongside a verification script during a hackathon. We render the refusal honestly rather than faking success, but 3–4 concurrent streams would have let the product demo the thing it was built for.
-- **x402 is well documented and pleasant to implement by hand** — the 402 challenge plus one EIP-3009 signature is genuinely a small protocol. What's missing is a **testnet facilitator**: we implemented the whole path and could not exercise it, because exercising it means spending real USDC on Base mainnet. A testnet mode would convert a lot of "implemented" into "verified" across this hackathon.
-- **Subgraph MCP discovery is the gap we couldn't close.** We point `GRAPH_MCP_URL` at `subgraphs.mcp.thegraph.com/sse` and never call it, because resolving *schemas* and resolving *subgraphs* are different questions and the MCP answers the second. A schema-level tool (`list_standard_schemas` → deployments per network) would have made our whole `sources.ts` unnecessary, which is the best possible outcome.
+- **Track 3, Best Use of Composable or Standardized Products** — the strongest fit. 11 schema families declared and 9 with live deployments across 4 networks; every question fans out across ≥2 families and ≥2 networks and merges; subgraphs are composed *with* Substreams (the fan-out establishes the metric, the subscription re-evaluates the trigger over it per block). Standards leverage is visible in the demo, not only the code: the app shows which deployments answered of how many were queried, and names the ones skipped.
 
 ---
 
-### 0G — $15,000 across 3 tracks
+### 0G — $15,000
 
-**Track 1 — Best AI Product on 0G** (claimed). Working, demoable product at https://atlas-mini-apps.vercel.app, with inference on 0G Private Computer and an Agentic ID minted per published app.
+**How are you using this Protocol / API?**
 
-Shared submission requirements:
+```
+0G does the inference and the identity. Every query plan and every generated UI
+is produced by a model call on 0G Private Computer (router-api.0g.ai/v1, model
+0gm-1.0-35b-a3b), pinned to `verified` routing so an attestation actually exists.
+Each published mini app is minted as an Agentic ID — a real ERC-7857 V2
+implementation, not a shaped-alike one — and registered in our MiniAppRegistry
+on 0G Galileo, both deployed by us. Proof of inference is a chain rather than a
+screenshot: the TEE run returns a request id, that becomes
+manifest.provenance.attestationRef, its keccak256 is written onchain as
+MiniAppRegistry.attestationHash and bound to both the token and the ENS name, so
+anyone can verify the app was planned by attested compute without trusting our
+UI.
+```
 
-| Requirement | Answer |
+**Link to the line of code where the tech is used**
+
+Paste this one — it is where the 0G Private Computer client is built and `verified` trust mode is pinned:
+
+```
+https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/inference.ts#L235-L245
+```
+
+Supporting links:
+
+| What | Link |
+|---|---|
+| `ZEROG_DEFAULT_TRUST_MODE = "verified"` and why | [`inference.ts#L54`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/inference.ts#L54) |
+| Attestation extracted and lifted into provenance | [`inference.ts#L343`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/inference.ts#L343) |
+| ERC-7857 contract | [`contracts/src/AgenticId.sol`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/contracts/src/AgenticId.sol) |
+| Mint + register, with the fork-lineage fallback | [`agentic-id.ts#L884`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/agentic-id.ts#L884) |
+| Mutual verification read back off 0G | [`agentic-id.ts#L1014`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/agentic-id.ts#L1014) |
+
+**How easy is it to use the API / Protocol? (1–10)**
+
+```
+5
+```
+
+The OpenAI-compatible router makes inference nearly free to adopt — that part is a 10. The rating comes down because the defaults are wrong for the thing the prize asks you to prove: `Standard` trust mode can return no attestation at all, the Galileo gas floor rejects Foundry's default estimate with an unhelpful error, and the ERC-7857 reference verifier ships stubs that look like an implementation.
+
+**Additional feedback for the Sponsor**
+
+```
+Make `verified` routing the loud default in the docs. The router's Standard trust
+mode spans unverified community channels, which means verify_tee can come back
+with no attestation at all — and a team would happily ship believing they had TEE
+inference. We pin `verified` explicitly. For a track whose extra qualification is
+literally "proof of 0G Compute", this is the single most important sentence in
+your documentation, and right now it is easy to miss entirely.
+
+Put --priority-gas-price 2gwei in the Galileo quickstart. The chain enforces a
+2 gwei floor and rejects forge's default estimate outright, with an error that
+does not point at the fix. Every Foundry team hits this in their first ten
+minutes, and it reads like a broken RPC rather than a policy.
+
+The ERC-7857 reference verifier ships stubs, and that is a hazard rather than a
+gap. verifyPreimage returns true for any blob and the TEE check is a // TODO.
+Someone will deploy that, demo it, and believe the proof means something — the
+current shape reads as a reference implementation. Either make the stubs revert
+by default with a clear message, or ship them under a Mock… name.
+
+Pin a canonical ERC-7857 interface and publish test vectors. We implemented the
+V2 eip-7857-draft interface your docs link to, including AES-256-GCM with
+dataHash = keccak256(ciphertext), receiver binding, stale-metadata rejection and
+single-use 48-byte nonces — but we had to decide several of those semantics
+ourselves. A conformance suite would let teams *prove* they implement 7857
+instead of asserting it, and would separate real implementations from
+shaped-alike ones at judging time, which is presumably what you want.
+
+The Private Computer / Compute naming split costs time under pressure.
+pc.0g.ai, router-api.0g.ai, "0G Compute" and "Private Computer" took longer to
+disambiguate than they should have. One page mapping product name -> endpoint ->
+what attestation you get would fix it.
+```
+
+**Track coverage** (supporting detail, not a form field)
+
+| Shared requirement | Answer |
 |---|---|
 | Project name + short description | Atlas — describe an onchain app, get an agent with a UI, a wallet, and an ENS name |
 | Contract deployments (0G Galileo, chain 16602) | `AgenticId` [`0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0`](https://chainscan-galileo.0g.ai/address/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0) · `MiniAppRegistry` [`0x093319DbD3c21b037Cb21199e468D3E15A748dA8`](https://chainscan-galileo.0g.ai/address/0x093319DbD3c21b037Cb21199e468D3E15A748dA8) · `AgenticIdVerifier` [`0x708aE7041986B6AdB399f395d8f1b9f41034aaD3`](https://chainscan-galileo.0g.ai/address/0x708aE7041986B6AdB399f395d8f1b9f41034aaD3) |
@@ -328,60 +463,125 @@ Shared submission requirements:
 | 0G features / SDKs used | 0G Private Computer (`router-api.0g.ai/v1`, `0gm-1.0-35b-a3b`, `verified` routing) · 0G Chain (Galileo) · Agentic ID (ERC-7857 V2 draft) |
 | Team + contact | Fabian Ferno, solo · Telegram [@fabianferno](https://t.me/fabianferno) · X [@fabianferno](https://x.com/fabianferno) · hello@fabianferno.com |
 
-Extra qualification for Track 1:
-
-- **Proof of 0G Compute for inference** — not a screenshot, a chain: TEE run (`tee_verified: true`) → request id → `manifest.provenance.attestationRef` `0g://f1ade7e8-e9ca-4fb2-b5c9-79cd400e3195` → `keccak256` `0xa651240d…52f1` → `MiniAppRegistry.attestationHash`, onchain, bound to both the token and the name. Anyone can verify that without trusting our UI. Code: [`inference.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/kit/inference.ts).
-- **Minted Agentic ID on the 0G explorer** — [token 10 on `AgenticId`](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=10), the token behind `atlas-market-guard.atlas-apps.eth`. A published fork is [token 13](https://chainscan-galileo.0g.ai/tx/0x02f178c0717ac8898691630175ff0f78a42d2e598eb4ed2f06dd282e3c2885b1), which mutually verifies.
-
-**Track 2 — Best Infrastructure & Tooling on 0G** (secondary; the same partner selection covers it). The kit — `web/src/lib/{kit,contracts,agency,identity}` — is a working framework for TEE-planned, policy-gated, Agentic-ID-bound agents, and all 16 seed apps are working examples built with it. Honest caveat: it is not extracted to npm, and the track explicitly wants the builder layer, so Track 1 is the stronger claim. The architecture diagrams above cover Compute, Chain and Agentic ID as the track recommends; 0G Storage is not used (encrypted memory goes to the configured content store — the token commits to `keccak256(ciphertext)` either way, so it is a transport swap).
-
-**Track 3 — Keep Building on 0G.** Not claimed. Continuity-only, and this project started at the event.
-
-**Feedback for 0G**
-
-- **`verified` routing needs to be the loud default in the docs.** The router's `Standard` trust mode spans unverified community channels, which means `verify_tee` can come back with *no attestation at all* — and a hackathon project would happily ship believing it had TEE inference. We pin `verified` explicitly. This is the single most important sentence for a track whose extra qualification is "proof of 0G Compute", and it is currently easy to miss.
-- **`--priority-gas-price 2gwei` should be in the Galileo quickstart.** The chain enforces a 2 gwei floor and rejects forge's default estimate outright, with an error that does not point at the fix. Every Foundry team will hit this in their first ten minutes.
-- **The ERC-7857 reference verifier ships stubs, and that is a hazard.** `verifyPreimage` returns `true` for any blob and the TEE check is a `// TODO`. Someone will deploy that to a testnet, demo it, and believe the proof means something. Either make the stubs revert by default with a clear message, or ship them under a `Mock…` name — the current shape reads as a reference implementation.
-- **Pin a canonical ERC-7857 interface with test vectors.** We implemented the V2 `eip-7857-draft` interface the docs link to, including AES-256-GCM `dataHash = keccak256(ciphertext)`, receiver binding, stale-metadata rejection and single-use nonces — but we had to decide several of those semantics ourselves. A conformance test suite would let teams prove "we implement 7857" instead of asserting it, and would separate real implementations from shaped-alike ones at judging time.
-- **The Private Computer / Compute naming split is confusing under time pressure.** `pc.0g.ai`, `router-api.0g.ai`, "0G Compute" and "Private Computer" took longer to disambiguate than they should have. One page mapping product name → endpoint → what attestation you get would fix it.
+- **Track 1, Best AI Product** (primary claim). Working, demoable product with inference on 0G Private Computer and an Agentic ID per published app. Minted Agentic ID on the explorer: [token 10](https://chainscan-galileo.0g.ai/token/0xeB2872c5472185c901b7C20C4619e0Fd8Ac2C3B0?a=10), behind `atlas-market-guard.atlas-apps.eth`. A published *fork* is [token 13](https://chainscan-galileo.0g.ai/tx/0x02f178c0717ac8898691630175ff0f78a42d2e598eb4ed2f06dd282e3c2885b1), which also mutually verifies. Attestation chain: `0g://f1ade7e8-e9ca-4fb2-b5c9-79cd400e3195` → `keccak256` `0xa651240d…52f1` → `MiniAppRegistry.attestationHash`.
+- **Track 2, Best Infrastructure & Tooling** (secondary; the same partner selection covers it). The kit — `web/src/lib/{kit,contracts,agency,identity}` — is a working framework for TEE-planned, policy-gated, Agentic-ID-bound agents, and all 16 seed apps are working examples built with it. Honest caveat: it is not extracted to npm and the track explicitly wants the builder layer, so Track 1 is the stronger claim. The architecture diagrams above cover Compute, Chain and Agentic ID as the track recommends. 0G Storage is not used — encrypted memory goes to the configured content store, and the token commits to `keccak256(ciphertext)` either way, so that is a transport swap rather than a missing property.
+- **Track 3, Keep Building** — not claimed. Continuity-only, and this project started at the event.
 
 ---
 
-### ENS — $5,000 across 3 tracks
+### ENS — $5,000
 
-Common requirement: functional demo, no hard-coded values. `GET /api/resolve/<label>` hits Sepolia on every call, and `/registry` resolves live on every mount — including rendering *missing* records as absent rather than inventing them (`aave-health-guard` has no `addr` record and the UI says so). Video/live link ✅. Booth presentation Sunday morning is noted.
+**How are you using this Protocol / API?**
 
-**Track 1 — Most Creative Use of ENS.** The creative claim is narrow and defensible: **a subname is the thing you verify before you fund an autonomous agent.**
+```
+An ENS subname is the thing you verify before you fund an autonomous agent, and
+that is the whole integration rather than a label on it. atlas-apps.eth is
+registered and wrapped on Sepolia and issues a subname per mini app, carrying
+addr (the address a stranger would fund), contenthash (the manifest saying what
+the agent is allowed to do), and both draft agent ENSIPs implemented properly:
+ENSIP-26 agent-context and agent-endpoint[web|mcp], and the ENSIP-25
+agent-registration[<erc7930>][<agentId>] binding, with the ERC-7930 encoding
+verified against ENSIP-25's own worked example. The name and the onchain identity
+verify each other in both directions — the ENS record asserts the Agentic ID, the
+registry on 0G asserts the name, and the token stores the name it was minted
+against — so resolving returns mutuallyVerified: true only when all three agree,
+read off chain on every call and never assumed. Resolving a name also hands you
+the MCP endpoint to talk to, so an agent that knows the name knows how to call
+the app, not just where to send money.
+```
 
-- `addr` is what a stranger funds. `contenthash` is the manifest that says what the agent is allowed to do. `agent-registration` is the onchain identity that says who minted it. A name is therefore not a label on the app — it *is* the safety surface, and Atlas treats a `mutuallyVerified: false` result as a reason to warn rather than a cosmetic badge (the SKILL instructs consuming agents to do the same).
-- The `contenthash` → manifest path is verified **without our server in it at all**: read `contenthash` off Sepolia, fetch the CID from ipfs.io, parse the bytes. That's the only version of the claim worth making.
-- Forking strips `identity`, `policy.wallet` and `provenance`, so a fork inherits zero spending authority from its parent and gets its own name and token — lineage without inherited money.
+**Link to the line of code where the tech is used**
 
-**Track 2 — Best ENS Integration for AI Agents** (strongest fit). A subname registry for a fleet of agents, with both draft agent ENSIPs implemented rather than approximated:
+Paste this one — it is the subname issuance plus the resolver multicall that writes every record, in the order that actually works on Sepolia:
 
-| Record | Standard | Code |
-|---|---|---|
-| `agent-context` (YAML capability description) | ENSIP-26 | [`ens.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/ens.ts) |
-| `agent-endpoint[web]`, `agent-endpoint[mcp]` | ENSIP-26 | same |
-| `agent-registration[<erc7930>][<agentId>]` | ENSIP-25 | same, ERC-7930 encoding verified against ENSIP-25's own worked example |
-| `addr`, `contenthash`, `url`, `description`, `avatar` | ENSIP-1/5/7/9 | same |
+```
+https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/ens.ts#L1214
+```
 
-Discoverability is the point: resolving a name gives you the MCP endpoint to talk to, so an agent that knows a name knows how to *call* the app, not just where to send funds. Eight subnames issued under `atlas-apps.eth`; resolution, records and the two-directional verification are all read live from Sepolia and 0G Galileo. Demo name: `atlas-market-guard.atlas-apps.eth`.
+Supporting links:
 
-**Track 3 — Best ENS Continuity Integration.** Not claimed (Continuity-only).
+| What | Link |
+|---|---|
+| ENSIP-25 record key builder (ERC-7930 encoded) | [`ens.ts#L145`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/ens.ts#L145) |
+| ENSIP-26 `agent-endpoint[<protocol>]` key | [`ens.ts#L164`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/ens.ts#L164) |
+| Where the agent records are assembled per app | [`ens.ts#L465`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/lib/identity/ens.ts#L465) |
+| Live resolve endpoint (hits Sepolia every call) | [`api/resolve/[name]/route.ts`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/web/src/app/api/resolve/%5Bname%5D/route.ts) |
+| The Sepolia registration path that actually works | [`contracts/deployments/ens-sepolia.json`](https://github.com/fabianferno/atlas/blob/003cb559cdd9de3edef598b27c65fdaeda2031f3/contracts/deployments/ens-sepolia.json) |
 
-**Feedback for ENS**
+**How easy is it to use the API / Protocol? (1–10)**
 
-- **Sepolia registration does not work the documented way, and it fails silently.** `ETHRegistrarController` is not an authorised controller on Sepolia, so `register()` reverts while `available()` still returns `true` — the two most obvious calls disagree, and nothing tells you why. The path that works is `TestnetV1PremigrationRegistrar` (`0xdf60C561Ca35AD3C89D24BbA854654b1c3477078`), free, one transaction, `data: []`. This cost the most time of anything in the build. One paragraph in the testnet docs would fix it permanently.
-- **The name then comes back unwrapped**, so `NameWrapper.setSubnodeRecord` reverts `Unauthorised` until you `setApprovalForAll` + `wrapETH2LD`. Anyone following the subname-issuance guide on Sepolia hits this immediately after the previous problem.
-- **viem's `getEnsResolver` returns a non-resolver on Sepolia.** For one of our names it answers `0x422484c2…`, where every `addr` / `text` / `contenthash` call reverts, while the registry's own `resolver(node)` answers `0xE99638b4…`, which holds the records. We ask the registry first and keep UniversalResolver second for wildcard/CCIP. Worth either a viem fix or a documented caveat, because the failure looks like "your records were never written".
-- **ENSIP-25 should fix the `agentId` encoding.** The spec says registry-defined *string* and does not settle decimal vs hex; every published example (the ENSIP's own `167`, the blog's `42`) is decimal, so decimal is the de-facto convention. Say so — otherwise two implementations write different record keys for the same token and neither is wrong.
-- **ENSIP-26's `agent-context` has no recommended body format**, which is defensible for a draft but means every agent consuming it writes a bespoke parser. We used YAML. Even a non-normative "here is a shape that works" example would make these records machine-readable across projects, which is the whole point of putting agent capability in a text record.
-- **Reading and writing should be documented as separately gated.** Our own bug — read paths degraded to mock without a *write* key, so a public deployment resolved nothing while dev machines worked perfectly — is our fault, but it's a shape that repeats. A "you need only an RPC to read; you need a signer only to write" line in the integration guide would prevent a whole class of "works on my machine" ENS integrations.
+```
+4
+```
+
+Mainnet-shaped ENS is clean and the record model is exactly right for agent identity. The rating is low because the *testnet* path is broken relative to the docs: `register()` reverts on Sepolia while `available()` returns true, the name comes back unwrapped so subname issuance reverts `Unauthorised`, and viem's `getEnsResolver` returns a resolver whose every call reverts. Each of those presents as "your integration is wrong" rather than "the testnet differs", and together they were the single largest time sink of the build.
+
+**Additional feedback for the Sponsor**
+
+```
+Sepolia registration does not work the documented way, and it fails silently.
+ETHRegistrarController is not an authorised controller on Sepolia, so register()
+reverts while available() still returns true — the two most obvious calls
+disagree and nothing tells you why. The path that works is
+TestnetV1PremigrationRegistrar (0xdf60C561Ca35AD3C89D24BbA854654b1c3477078),
+free, one transaction, data: []. This cost us more time than anything else in
+the build. One paragraph in the testnet docs would fix it permanently for
+everyone.
+
+The name then comes back unwrapped, so NameWrapper.setSubnodeRecord reverts
+Unauthorised until you setApprovalForAll + wrapETH2LD. Anyone following the
+subname-issuance guide on Sepolia hits this immediately after the previous
+problem, so the two compound into a day.
+
+viem's getEnsResolver returns a non-resolver on Sepolia. For one of our names it
+answers 0x422484c2…, where every addr / text / contenthash call reverts, while
+the registry's own resolver(node) answers 0xE99638b4…, which holds the records.
+We ask the registry first and keep UniversalResolver second for wildcard/CCIP
+names. This deserves either a viem fix or a documented caveat, because the
+failure mode looks exactly like "your records were never written" — we nearly
+re-published a name over it.
+
+ENSIP-25 should fix the agentId encoding. The spec says registry-defined
+*string* and does not settle decimal vs hex; every published example (the
+ENSIP's own 167, the ENS blog's 42) is decimal, so decimal is the de-facto
+convention. Say so normatively — otherwise two implementations write different
+record keys for the same token and neither of them is wrong, which defeats the
+point of a standard key.
+
+ENSIP-26's agent-context has no recommended body format. That is defensible for
+a draft, but it means every agent consuming the record writes a bespoke parser.
+We used YAML. Even a non-normative "here is a shape that works" example would
+make these records machine-readable across projects, which is the entire reason
+to put agent capability in a text record rather than in a README.
+
+Document reading and writing as separately gated. Our own bug — read paths
+degraded to mock without a *write* key, so the public deployment resolved
+nothing while every dev machine worked perfectly — was our fault, but it is a
+shape that will repeat. One line in the integration guide ("you need only an RPC
+to read; you need a signer only to write") would prevent a whole class of
+works-on-my-machine ENS integrations from shipping broken.
+```
+
+**Track coverage** (supporting detail, not a form field)
+
+Common requirement: functional demo, no hard-coded values. `GET /api/resolve/<label>` hits Sepolia on every call and `/registry` resolves live on every mount — including rendering *missing* records as absent rather than inventing them (`aave-health-guard` has no `addr` record and the UI says so). Booth presentation Sunday morning is noted.
+
+- **Track 1, Most Creative Use of ENS.** The creative claim is narrow and defensible: a subname is the safety surface for an agent that can spend. `addr` is what you fund, `contenthash` is what it's allowed to do, `agent-registration` is who minted it — and a `mutuallyVerified: false` result is treated as a reason to warn, not a cosmetic badge (the SKILL instructs consuming agents to do the same). The contenthash → manifest path is verified with **our server not in it at all**: read `contenthash` off Sepolia, fetch the CID from ipfs.io, parse the bytes. Forking strips `identity`, `policy.wallet` and `provenance`, so a fork inherits zero spending authority from its parent — lineage without inherited money.
+- **Track 2, Best ENS Integration for AI Agents** (strongest fit). A subname registry for a fleet of agents with both draft agent ENSIPs implemented rather than approximated:
+
+| Record | Standard |
+|---|---|
+| `agent-context` (YAML capability description) | ENSIP-26 |
+| `agent-endpoint[web]`, `agent-endpoint[mcp]` | ENSIP-26 |
+| `agent-registration[<erc7930>][<agentId>]` | ENSIP-25 |
+| `addr`, `contenthash`, `url`, `description`, `avatar` | ENSIP-1/5/7/9 |
+
+Eight subnames issued under `atlas-apps.eth`; resolution, records and two-directional verification are all read live from Sepolia and 0G Galileo. Demo name: `atlas-market-guard.atlas-apps.eth`.
+
+- **Track 3, Best ENS Continuity Integration** — not claimed (Continuity-only).
 
 ---
 
 ## Pending before submission closes
 
 - Record the demo video (2–4 min for The Graph, under 3 min for 0G).
-- Push `docs/diagrams/` so the three images in the Description render from raw.githubusercontent.com.
