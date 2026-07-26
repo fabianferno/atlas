@@ -61,6 +61,7 @@ import { ArmedLamp, Fig, Label, SectionHead, TierTag, panelClass } from "@/compo
 import { AppGlyph } from "@/components/board/app-glyph";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { score } from "@/components/registry/ratings";
+import { NO_LIVE_SOURCE, familiesWithNoLiveSource } from "@/lib/schema-coverage";
 import { cn } from "@/lib/utils";
 
 /**
@@ -72,6 +73,7 @@ import { cn } from "@/lib/utils";
  * `createdAt`.
  */
 type Sort = "forks" | "runs" | "rating" | "new";
+
 
 const SORTS: { key: Sort; label: string }[] = [
   { key: "forks", label: "Most forked" },
@@ -115,38 +117,17 @@ export function RegistryGrid() {
   );
 
   /**
-   * Families that are DECLARED by some app but have no healthy deployment behind
-   * them anywhere in the loaded set.
+   * The label the select carries, and now the card chips too.
    *
-   * §13 verified that two standardized families — `dex-aggregator@1.0.2` and
-   * `network@1.2.0` — have zero deployments on any network, and three seed apps
-   * declare one of them as a second family. That declaration is not a mistake: the
-   * resolver answers with an explicit `PLACEHOLDER-*` source marked
-   * `healthy: false`, the app page renders it "dead, skipped", and §13 argues that
-   * showing what the health check skipped *is* the Track 3 point ("a demo where
-   * everything is always green never teaches the audience what problem the health
-   * check solves").
-   *
-   * What was wrong is only this select. An unqualified option implies the registry
-   * can filter to apps with data in that family, and it never can — every match
-   * would be an app whose only source for it is a placeholder. So the option is
-   * labelled rather than removed: the honest claim is nine families, not eleven,
-   * and this is where a reader would otherwise count eleven.
-   *
-   * Derived from the loaded manifests, never a hardcoded family list — a family
-   * that gains a deployment loses the label on its own.
+   * An unqualified option implies the registry can filter to apps with data in
+   * that family, and it never can — every match would be an app whose only source
+   * for it is a placeholder. So the option is labelled rather than removed: the
+   * honest claim is nine families, not eleven, and this is where a reader would
+   * otherwise count eleven. The rule itself is `familiesWithNoLiveSource` in
+   * `lib/schema-coverage.ts`, shared with the app page so the two cannot answer
+   * the same question differently; see its header for why it lives there.
    */
-  const familiesWithNoLiveSource = useMemo(() => {
-    const declared = new Set<string>();
-    const healthy = new Set<string>();
-    for (const a of apps) {
-      for (const f of a.manifest.data.schemas) declared.add(f);
-      for (const src of a.manifest.data.sources) {
-        if (src.healthy) healthy.add(src.schema);
-      }
-    }
-    return new Set([...declared].filter((f) => !healthy.has(f)));
-  }, [apps]);
+  const noLiveSource = useMemo(() => familiesWithNoLiveSource(apps), [apps]);
   const categories = useMemo(
     () => Array.from(new Set(apps.map((a) => a.manifest.category))).sort(),
     [apps],
@@ -257,8 +238,8 @@ export function RegistryGrid() {
             render={(v) =>
               v === "all"
                 ? "Any schema"
-                : familiesWithNoLiveSource.has(v)
-                  ? `${v} — no live deployment`
+                : noLiveSource.has(v)
+                  ? `${v} — ${NO_LIVE_SOURCE}`
                   : v
             }
           />
@@ -308,7 +289,16 @@ export function RegistryGrid() {
         />
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((app, i) => (
-            <RegistryCard key={app.manifest.name} app={app} index={i} onFork={() => setForking(app)} />
+            <RegistryCard
+              key={app.manifest.name}
+              app={app}
+              index={i}
+              /* Passed down rather than recomputed per card: the answer is a
+                 property of the whole loaded set, and sixteen cards each deriving
+                 it from `apps` would be sixteen chances to pass a different list. */
+              noLiveSource={noLiveSource}
+              onFork={() => setForking(app)}
+            />
           ))}
         </div>
         {filtered.length === 0 ? (
@@ -323,7 +313,18 @@ export function RegistryGrid() {
   );
 }
 
-function RegistryCard({ app, index, onFork }: { app: MiniApp; index: number; onFork: () => void }) {
+function RegistryCard({
+  app,
+  index,
+  noLiveSource,
+  onFork,
+}: {
+  app: MiniApp;
+  index: number;
+  /** Families with nothing healthy behind them anywhere — see the export. */
+  noLiveSource: Set<string>;
+  onFork: () => void;
+}) {
   const m = app.manifest;
   const tier = m.agency.tier;
   const s = score(app);
@@ -396,11 +397,39 @@ function RegistryCard({ app, index, onFork }: { app: MiniApp; index: number; onF
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <TierTag tier={tier} />
-          {m.data.schemas.slice(0, 2).map((sch) => (
-            <span key={sch} className="mono text-[0.5625rem] uppercase tracking-[0.06em] text-[var(--muted-ink)]">
-              {sch}
-            </span>
-          ))}
+          {/*
+            A DECLARED FAMILY IS NOT A DATA SOURCE, and this row used to print the
+            two as one thing. `m.data.schemas` is what the app ASKED for;
+            `m.data.sources` is what the health check ANSWERED. For
+            `dex-aggregator@1.0.2` and `network@1.2.0` the answer is nothing —
+            §13 checked 86 deployment ids and found neither family deployed on any
+            network — so three of these cards were presenting a family as coverage
+            while the only qualification on the page sat inside a closed select.
+
+            The declaration stays; it is the honest record of the request, and the
+            select derives its own label from it. What changes is that the chip now
+            carries the answer beside the ask, in the same words the select uses.
+          */}
+          {m.data.schemas.slice(0, 2).map((sch) => {
+            const dead = noLiveSource.has(sch);
+            return (
+              <span
+                key={sch}
+                className={cn(
+                  "mono text-[0.5625rem] uppercase tracking-[0.06em]",
+                  dead ? "text-loss" : "text-[var(--muted-ink)]",
+                )}
+                title={
+                  dead
+                    ? "This app declares this standardized family, and no deployment for it is healthy anywhere in this browser's set — the resolver answers with a placeholder marked dead and the fan-out skips it."
+                    : undefined
+                }
+              >
+                {sch}
+                {dead ? ` — ${NO_LIVE_SOURCE}` : ""}
+              </span>
+            );
+          })}
         </div>
 
         {/*

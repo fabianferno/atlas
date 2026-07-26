@@ -18,9 +18,12 @@ import "./journal.test";
 import "./signer.test";
 import "./triggers.test";
 import "./session.test";
+import "./register.test";
+import "./chains.test";
 import "./stream-runner.test";
 import "../kit/shapes.test";
 import "../kit/substreams-leak.test";
+import "../ratings.test";
 import "../coverage/registry.test";
 import "../coverage/gap.test";
 

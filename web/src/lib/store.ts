@@ -13,6 +13,13 @@
  * `/api/act`. There is no local simulation of any of those: if the round trip
  * fails, the failure is what gets journalled.
  *
+ * The same rule now covers what the board says about the READER. `localRuns`
+ * below is this browser's own record of the runs it performed, and it exists
+ * because `stats.runs` could not answer that question honestly: it opens at a
+ * seeded figure on every bundled app, so anything asking "have you run this"
+ * against it was reading `seed.ts` and reporting it as the visitor's history.
+ * `runApp` is the only writer, on the success branch only.
+ *
  * `forkApp()` is still purely local, and that is now correct rather than a gap.
  * It strips `identity`, `agency.policy.wallet` and `provenance` (prd.md §5,
  * "non-negotiable") and stops there; `publishExisting()` is the step that takes
@@ -49,9 +56,53 @@ import {
 } from "@/lib/seed";
 
 const STORAGE_KEY = "atlas.board";
-// Bump whenever the persisted SHAPE changes. Seed *content* is handled by
-// `LIVE_SEED_AT` below, which needs no bump.
-const STORAGE_VERSION = 6;
+/*
+ * Bump whenever the persisted SHAPE changes — and, as of 7, whenever seed
+ * content changes for a reason the SNAPSHOT does not know about.
+ *
+ * The old rule ("seed content is handled by `LIVE_SEED_AT`, which needs no
+ * bump") is true only for content that comes FROM the snapshot. `SEED_STAMP`
+ * below is `seed-live.generated.json`'s `generatedAt`, so it moves when the
+ * measurements move — and it does not move when someone edits `seed.ts` by hand.
+ *
+ * 6 → 7 is exactly that case: `perp-deleverage` shed a fabricated
+ * `forkedFrom: "aave-guard@1.0.0"`, every seed app shed its hand-written
+ * `running` flag, and `lastRunAt` became the snapshot's real probe time. None of
+ * it touched the generated file, so a browser that had already loaded the board
+ * would have gone on rendering "fork of aave-guard@1.0.0" from `localStorage`
+ * indefinitely — a corrected fabrication that stays on screen for everyone who
+ * saw the old one is not corrected. Bumping discards the stored board.
+ *
+ * The cost is real and accepted: a bump throws away apps the user published in
+ * this browser, which the stale-seed merge below is careful to preserve. There
+ * is no shared index to restore them from. Taken anyway, because the alternative
+ * is leaving a fabricated lineage on the machine of anyone who visited before
+ * the fix.
+ *
+ * ── NOT BUMPED FOR `localRuns`, AND HERE IS THE ARGUMENT ─────────────────────
+ * The `localRuns` map added below is a new key in the persisted blob, so the
+ * shape did change. It is deliberately NOT a bump, for two reasons that have to
+ * hold together:
+ *
+ *   1. It reads correctly when absent. A browser holding a v7 blob written
+ *      before this field existed hydrates `localRuns: {}` — "this browser has
+ *      run nothing" — which is the SAFE direction. The failure mode is that
+ *      someone who really ran an app before this landed has their next rating
+ *      weighted 1× instead of 3×: an under-claim, and one they fix by pressing
+ *      Run once. The defect being fixed here is the opposite direction, a
+ *      3× weight and an on-screen "you ran this" for someone who never did,
+ *      and THAT is the kind that needs the stored copy destroyed.
+ *   2. A bump throws away apps the user published in this browser, permanently
+ *      and with no index to restore them from. 6 → 7 paid that price to stop a
+ *      fabricated lineage rendering; paying it again so that a returning
+ *      visitor's rating weight is right on the first press rather than the
+ *      second is not the same trade.
+ *
+ * The rule that decides it, stated so the next field does not have to re-derive
+ * it: bump when a stale blob would keep ASSERTING something untrue; do not bump
+ * when a stale blob merely lacks something and degrades to "we do not know".
+ */
+const STORAGE_VERSION = 7;
 const LEDGER_MAX = 220;
 
 /**
@@ -75,6 +126,34 @@ export interface BoardState {
   halted: boolean;
   wallet: string | null;
   hydrated: boolean;
+  /**
+   * How many times THIS BROWSER has really run each app, keyed by app name.
+   * Written only by `runApp`, and only on a fan-out + compose round trip that
+   * came back. Absent key means zero, which means "not by anyone here".
+   *
+   * WHY THIS IS NOT `stats.runs`. `stats.runs` is a DISPLAY total: it opens at a
+   * seeded figure on every bundled app (`aave-guard` 1,204, `health-factor-watch`
+   * 5,120 — invented texture, named as such in prd.md §14 #1a) and `runApp` adds
+   * to it. The rating panel used to ask `app.stats.runs > 0` to decide whether the
+   * visitor had run the app, so on a fresh board it told every visitor "you ran
+   * this — counts 3×" on the strength of a constant in `seed.ts`. Two separate
+   * wrongs: it asserted an event in the reader's own history that did not happen,
+   * and §12 weights a rating 3× on whether **the rater** ran it, so it also
+   * mis-weighted a real person's real rating using seed data.
+   *
+   * A total cannot answer "did YOU run it", because a seeded base and a measured
+   * increment are added into the same integer and nothing can pull them apart
+   * afterwards. So the two facts are stored apart. The seeded total stays seeded,
+   * stays displayed, and stays labelled; this is the browser's own record and is
+   * the ONLY thing allowed to mean "you ran this".
+   *
+   * Kept OUTSIDE `apps` on purpose. The stale-seed merge below replaces every
+   * seed app wholesale when the snapshot is regenerated, so a field hanging off
+   * `MiniApp` would silently forget a run this browser genuinely performed just
+   * because `pnpm seed:live` was re-run. What this browser did is not seed
+   * content and must not be discarded with it.
+   */
+  localRuns: Record<string, number>;
 }
 
 const SEED_STATE: BoardState = {
@@ -83,6 +162,10 @@ const SEED_STATE: BoardState = {
   halted: false,
   wallet: null,
   hydrated: false,
+  // Zero runs on the server snapshot, which is also the truth on first paint:
+  // SSR has no browser history to speak for. The panel therefore renders
+  // "you have not run this" on both sides of hydration and nothing flashes.
+  localRuns: {},
 };
 
 let state: BoardState = SEED_STATE;
@@ -116,6 +199,10 @@ function persist(): void {
         apps: state.apps,
         ledger: state.ledger.slice(-LEDGER_MAX),
         halted: state.halted,
+        // Persisted, because "have I run this" must survive a reload — a
+        // visitor who ran an app, reloaded, and then rated it is still someone
+        // who ran it. Small and bounded: one integer per app ever run here.
+        localRuns: state.localRuns,
         // `wallet` is NOT persisted. Privy restores its own session on load and
         // `PrivyWalletBridge` re-publishes the address once it is actually
         // authenticated. Writing it here would mean a reload paints a connected
@@ -125,6 +212,28 @@ function persist(): void {
   } catch {
     // Private browsing, quota, or a disabled store. Non-fatal by design.
   }
+}
+
+/**
+ * `localRuns` as read back off disk, with anything that is not a positive run
+ * count discarded.
+ *
+ * Paranoid on purpose. This map is the sole evidence behind an on-screen
+ * sentence about the reader's own history and behind a 3× weight on their
+ * rating, and `localStorage` is a string a user (or an older build, or another
+ * tab) can put anything into. A `NaN`, a `-1` or a `{"x": true}` must not be
+ * able to become "you ran this": anything unrecognisable is dropped, so the
+ * worst a corrupt blob can do is under-report.
+ */
+function sanitizeLocalRuns(raw: unknown): Record<string, number> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [name, count] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof count === "number" && Number.isFinite(count) && count > 0) {
+      out[name] = Math.floor(count);
+    }
+  }
+  return out;
 }
 
 let hydrateStarted = false;
@@ -150,6 +259,16 @@ function hydrateOnce(): void {
           halted: Boolean(parsed.halted),
           // No `wallet` — see persist(). Any address left by an older build is
           // ignored rather than restored.
+          //
+          // `localRuns` is restored regardless of `stale`, unlike `ledger` and
+          // unlike the seed half of `apps`. Re-measuring the seed set says
+          // nothing about what this browser did: a run that happened still
+          // happened after `pnpm seed:live` runs again. Absent or malformed
+          // reads as `{}` — "we have no record of you running anything" — which
+          // is the honest answer when the record is missing, and costs a
+          // returning visitor one 1×-weighted rating rather than granting a 3×
+          // one nothing backs.
+          localRuns: sanitizeLocalRuns(parsed.localRuns),
         };
       }
     }
@@ -165,6 +284,20 @@ export function useBoard(): BoardState {
     hydrateOnce();
   }, []);
   return snap;
+}
+
+/**
+ * The board as it stands, outside React.
+ *
+ * `useBoard` is the path for components and stays the path for components. This
+ * exists for callers that are not rendering — today, the rating-weight tests in
+ * `lib/ratings.test.ts`, which have to assert what `rateApp` actually stored and
+ * cannot mount a hook to find out. Read-only by convention: the returned object
+ * is the live snapshot, and every writer in this file replaces it rather than
+ * mutating it, so holding one is safe as long as nothing writes through it.
+ */
+export function boardSnapshot(): BoardState {
+  return state;
 }
 
 export function useApp(name: string): MiniApp | undefined {
@@ -1471,6 +1604,13 @@ export async function runApp(name: string): Promise<RunOutcome> {
           : a,
       ),
       ledger: [...state.ledger, line(name, "QUERY", message, { ok: true })].slice(-LEDGER_MAX),
+      // The browser's own record of the run, kept apart from `stats.runs`.
+      // `stats.runs` above is seeded base + measured increments folded into one
+      // integer, which is fine for a display total and useless for the question
+      // "did the person at this keyboard run it" — see `BoardState.localRuns`.
+      // Written here and nowhere else, on the same success branch that bumps the
+      // counter, so the two can never disagree about a run that really happened.
+      localRuns: { ...state.localRuns, [name]: (state.localRuns[name] ?? 0) + 1 },
     });
 
     return {
@@ -1484,8 +1624,11 @@ export async function runApp(name: string): Promise<RunOutcome> {
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    // A failed run journals the failure. It does not bump `runs`, does not touch
-    // `lastRunAt`, and does not leave the previous run's numbers looking fresh.
+    // A failed run journals the failure. It does not bump `runs`, does not
+    // record a local run, does not touch `lastRunAt`, and does not leave the
+    // previous run's numbers looking fresh. Pressing Run and getting an error is
+    // not "you ran this app" for rating-weight purposes either — the round trip
+    // is the whole evidence, and it did not come back.
     set({
       ledger: [
         ...state.ledger,
@@ -1496,13 +1639,32 @@ export async function runApp(name: string): Promise<RunOutcome> {
   }
 }
 
-export function rateApp(name: string, score: "up" | "down", text: string, ranIt: boolean, rater: string): void {
+/**
+ * Post a rating. `ranIt` is DERIVED HERE and is not a parameter any more.
+ *
+ * It used to be one, and the only caller (`components/registry/ratings.tsx`)
+ * computed it as `app.stats.runs > 0` — the seeded display total — so on a fresh
+ * board every bundled app recorded the visitor's brand-new review with
+ * `ranIt: true` and `score()` weighted it 3×. The stored `Review` therefore
+ * carried a claim about a run that never happened, which outlives the panel that
+ * made it: the review persists, and a later reader has no way to tell it apart
+ * from one somebody earned.
+ *
+ * A caller cannot be trusted with this field because a caller cannot see the
+ * evidence — `localRuns` is the evidence, `runApp` is its only writer, and both
+ * live here. So the store answers the question itself and there is no argument
+ * left for a call site to get wrong. If some future surface needs to post a
+ * rating, it gets the same answer for free.
+ */
+export function rateApp(name: string, score: "up" | "down", text: string, rater: string): void {
   const review: Review = {
     id: `rev-${Date.now()}`,
     rater,
     score,
     text,
-    ranIt,
+    // "Has this browser completed a real fan-out against this app", nothing
+    // else. Not the seeded counter, not `lastRunAt`, not the tier.
+    ranIt: ranHere(state, name),
     at: new Date().toISOString(),
   };
   set({
@@ -1560,6 +1722,27 @@ export function setWallet(address: string | null): void {
  * Derived views
  * ------------------------------------------------------------------ */
 
+/**
+ * How many times this browser has really run `name`. Zero for every app on a
+ * fresh board, INCLUDING the bundled ones that display four-figure run counts —
+ * that number is seeded texture (prd.md §14 #1a) and is not a record of anything
+ * the reader did.
+ *
+ * Read this, never `stats.runs`, whenever the sentence on screen or the weight
+ * in a calculation is about the visitor. `stats.runs` is the right thing to
+ * *display* as the app's lifetime total and the wrong thing to interrogate about
+ * a person; the two questions were conflated in `ratings.tsx` and the panel
+ * ended up telling first-time visitors they had run the app.
+ */
+export function localRunCount(board: BoardState, name: string): number {
+  return board.localRuns[name] ?? 0;
+}
+
+/** True when this browser has completed at least one real run of `name`. */
+export function ranHere(board: BoardState, name: string): boolean {
+  return localRunCount(board, name) > 0;
+}
+
 export function myApps(board: BoardState): MiniApp[] {
   return board.apps
     .filter((a) => a.mine)
@@ -1587,9 +1770,38 @@ export function myApps(board: BoardState): MiniApp[] {
  * This matters beyond wording: §10 stakes the whole Substreams argument on
  * per-block evaluation beating polling, and spending that argument's credibility
  * on a lamp is a bad trade.
+ *
+ * ── THE PUBLISHED CLAUSE, AND WHY IT WAS MISSING FOR A WHOLE RELEASE ─────────
+ * Everything above was written, and then the function did not implement it. It
+ * checked `running`, the tier and the kill switch — three of the four — and the
+ * word "published" appeared only in the prose. `MiniApp.running` was meanwhile a
+ * hand-written constant on eight of the sixteen seed apps, so the top bar's
+ * headline read "8 ARMED", behind a lamp, on a board where all sixteen cards say
+ * "unpublished — no ENS subname issued" and `identity.ens` is null on every one.
+ *
+ * That is the same defect as the fabricated ledger ticker deleted just above and
+ * the derived ENS names nulled in `seed.ts`: a number the system cannot back,
+ * rendered in the position a measurement would occupy. It survived the pass that
+ * killed both because a doc comment stating the correct definition reads, to
+ * anyone skimming, as if the code enforced it.
+ *
+ * `identity.ens` is the check because it is the fact the rest of the chain hangs
+ * off. The publish path (`lib/identity/publish.ts`) issues the subname, pins the
+ * manifest and mints the Agentic ID together, and `/api/agency/register` is what
+ * gives the server a signer for the app at all — so a null name means no
+ * registration, and no registration means nothing on any server would act if a
+ * trigger fired, whatever this browser's flags say. It also degrades correctly on
+ * its own: a LOCAL publish (`offline`, the publish request failed) comes back
+ * with `ens: null`, and that app is honestly not armed either. `running` stays in
+ * the conjunction as the owner's on/off switch — necessary, never sufficient.
+ *
+ * ZERO IS THE EXPECTED ANSWER on a fresh board, and it is the correct one. Do not
+ * reach for a friendlier number: `top-bar.tsx` drops the lamp entirely at zero
+ * rather than lighting one over an armed count of none.
  */
 export function isArmed(app: MiniApp): boolean {
   return (
+    app.manifest.identity.ens !== null &&
     app.running &&
     app.manifest.agency.tier !== "readonly" &&
     !app.manifest.agency.policy.halted

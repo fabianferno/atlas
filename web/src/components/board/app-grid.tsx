@@ -9,6 +9,22 @@
  * card face is the obvious shape for a future registry grid. Noted rather than
  * left to look load-bearing.
  *
+ * UNREACHABLE, MEASURED RATHER THAN ASSUMED — and this is the sentence to re-check
+ * before trusting it. As of this pass the only import of anything in this file
+ * anywhere in `src/` is `import { TierLegend } from "@/components/board/app-grid"`
+ * in `app/page.tsx`; nothing imports `AppGrid` or `AppCard`, and no route mounts
+ * them. So the file is live and the grid in it is not, which is an easy thing to
+ * misread in either direction: a reader who sees the file imported assumes the
+ * grid renders, and an agent doing an audit of on-screen claims can skip the file
+ * entirely on the grounds that it is dead. Both are wrong, hence this note and
+ * hence the denominator below being fixed anyway.
+ *
+ * The honest disposition is deletion of `AppGrid`/`AppCard` with `TierLegend`
+ * moved to `chrome.tsx` beside `ArmedLamp` and `SectionHead`, which is where its
+ * only consumer would look for it. Not done here: `TierLegend` is mounted by
+ * `app/page.tsx` and `chrome.tsx` is another agent's file, so the move is a
+ * handoff rather than something to do behind their back.
+ *
  * This is where Rule 1 pays off: scan fifteen cards and depth tells you which
  * ones hold wallets before you have read a single word. (Depth, not border
  * weight — §6's banner records that the shipped skin re-expressed Rule 1 as
@@ -25,12 +41,38 @@ export function AppGrid() {
   const board = useBoard();
   const apps = myApps(board);
   const counts = tierCounts(board);
+  /*
+   * THE DENOMINATOR, which this heading did not have either.
+   *
+   * `AppDeck` carried the identical bug and was fixed first: the note read
+   * `5 autonomous · 4 monitor · 4 read only` — thirteen apps — with nothing
+   * saying it was a subset. `myApps()` filters on `mine`, three seed apps carry
+   * `mine: false` (`bridge-outflow-watch`, `perp-oi-board`, `nft-volume-eth`),
+   * and `/registry` shows all sixteen. A count presented as complete when it is a
+   * subset is the small end of the same family as an invented figure.
+   *
+   * Fixed here too even though nothing mounts this component (see the header),
+   * and fixed by copying `app-deck.tsx`'s expression word for word rather than
+   * writing a second phrasing of the same fact. The reason is not that the string
+   * is on screen — it is not — but that this file is kept as the shape a future
+   * grid would start from, and the shape must not carry the defect. If it is
+   * revived with its own wording, the product ends up stating one fact two ways.
+   *
+   * `board.apps.length`, not `SEED_DECLARED_COUNT`: the right denominator is what
+   * this browser can actually show you, and `SEED_DECLARED_COUNT` counts apps the
+   * live snapshot may have DROPPED, which are on no surface at all.
+   */
+  const total = board.apps.length;
 
   return (
     <section>
       <SectionHead
         title="Your mini apps"
-        note={`${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`}
+        note={
+          apps.length === total
+            ? `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
+            : `${apps.length} of ${total} in this browser · ${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
+        }
         right={
           <Link href="/registry" className="mono text-[0.6875rem] uppercase tracking-[0.08em] underline underline-offset-2">
             Registry

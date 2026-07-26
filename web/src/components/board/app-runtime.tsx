@@ -28,6 +28,15 @@
  *   - Let a fixture answer look like a gateway answer, or a failed call look
  *     like a quiet one. Both Run and Watch report what the server returned,
  *     including `live: false` and every distinct failure shape.
+ *   - Render a declared schema family as though it were a resolved source.
+ *     `data.schemas` is the request, `data.sources` is the answer, and two of the
+ *     families the seeds declare have no deployment anywhere (§13). The Data plan
+ *     marks them in place, using the registry's rule rather than a second copy.
+ *   - Drop a disagreement the server reported. `/api/agency/register` answers
+ *     with `divergence` — the fields where this page's manifest and the running
+ *     one differ — and that response was being parsed and discarded, which is how
+ *     a stale Substreams package stayed on screen while the server streamed a
+ *     different, deleted one.
  *
  * It also renders the thing §7 asked for and nothing displayed: per-constraint
  * enforcement — chain or server — straight from `enforcementReport()`, whose
@@ -50,7 +59,13 @@ import type { Manifest } from "@/lib/contracts/manifest";
 // point of importing it rather than restating the shape is that if the server's
 // report grows a constraint, this file stops compiling instead of quietly
 // rendering six of seven.
-import type { EnforcementReport, EnforcementSite, WalletKind } from "@/lib/agency/wallet";
+import type {
+  EnforcementReport,
+  EnforcementSite,
+  PlanDivergence,
+  RegistryScope,
+  WalletKind,
+} from "@/lib/agency/wallet";
 import {
   dispatchAction,
   fmtDate,
@@ -72,6 +87,11 @@ import { TradeLog } from "@/components/board/ledger";
 import { ArmedLamp, Fig, Label, LiveDot, SectionHead, TierTag, panelClass } from "@/components/board/chrome";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { Ratings } from "@/components/registry/ratings";
+// One rule for "this family has nothing live behind it", shared with the
+// registry's schema select — the control prd.md §14 #7 cites — rather than
+// re-derived here. A second copy of that test would drift, and the direction it
+// drifts is always towards claiming more. See `lib/schema-coverage.ts`.
+import { NO_LIVE_SOURCE, familiesWithNoLiveSource } from "@/lib/schema-coverage";
 import { cn } from "@/lib/utils";
 
 /**
@@ -115,6 +135,31 @@ function useStreamMode(): { mode: "substreams" | "interval"; reason: string } | 
  * Same discipline as `useStreamMode` above: null while unknown, null on failure,
  * and the caller renders nothing rather than a guess. An unreachable server is
  * not evidence about an address.
+ *
+ * IT CARRIES TWO MORE BLOCKS NOW, AND BOTH WERE ARRIVING AND BEING DISCARDED.
+ * The response has always been read as `Partial<SignerFacts>`, so a field this
+ * type did not name was parsed and dropped on the floor:
+ *
+ *   `divergence` — the exact list of fields where the manifest this page is
+ *   rendering and the manifest the server is RUNNING disagree. The registry is
+ *   first-write-wins, so a re-register keeps the policy and the metric half of
+ *   the data plan it was first given. That is the correct security rule and it
+ *   has a cost: this server once held `aave-v3-arbitrum@v0.4.1` — a Substreams
+ *   package that had not existed in the repo for several commits — while this
+ *   page rendered the current one out of local state, and `Watch 3 blocks`
+ *   failed with `Failed to parse URL from aave-v3-arbitrum@v0.4.1` with nothing
+ *   anywhere saying the two sides disagreed. The server now answers with the
+ *   disagreement. A non-empty `ignored` means *your copy is not what runs*, and
+ *   this file's own header forbids letting a failure look like a quiet success.
+ *
+ *   `registry` — where the registration lives. It is an in-memory Map on one
+ *   server process, so it does not survive a redeploy or a second serverless
+ *   instance. See the disclosure line under the enforcement block for why that
+ *   is on this page at all.
+ *
+ * Both are typed from `lib/agency/wallet.ts` rather than restated here, for the
+ * same reason `EnforcementReport` is: if the server's answer grows a field, this
+ * file should stop compiling rather than quietly render an older shape.
  */
 interface SignerFacts {
   wallet: {
@@ -127,6 +172,16 @@ interface SignerFacts {
     permissionId?: string;
   };
   enforcement: EnforcementReport;
+  /*
+   * Optional, and not because the route is unreliable — it returns both on every
+   * branch, including the 422. Optional because the alternative is to synthesise
+   * `{ diverged: false, ignored: [] }` when a response arrives without them, and
+   * that is a *reading* — it says the server agrees with this page, which is the
+   * one thing an absent field cannot tell you. Missing means unknown, and unknown
+   * renders as nothing.
+   */
+  divergence?: PlanDivergence;
+  registry?: RegistryScope;
 }
 
 function useSigner(manifest: Manifest | null): SignerFacts | null {
@@ -157,7 +212,17 @@ function useSigner(manifest: Manifest | null): SignerFacts | null {
         // session) arrives as ok:false with no wallet. That is a correct
         // failure and it is NOT an address — stay silent.
         if (!body?.ok || !body.wallet || !body.enforcement) return;
-        setState({ wallet: body.wallet, enforcement: body.enforcement });
+        // `divergence` and `registry` ride along verbatim. They used to be
+        // dropped here — this callback only ever lifted `wallet` and
+        // `enforcement` out of the body — which is how a server running a
+        // different manifest than the one on screen stayed invisible while the
+        // sentence naming the difference sat unread in the response.
+        setState({
+          wallet: body.wallet,
+          enforcement: body.enforcement,
+          divergence: body.divergence,
+          registry: body.registry,
+        });
       })
       .catch(() => {
         // Let the next mount try again. A dropped request is not a fact.
@@ -224,6 +289,12 @@ export function AppRuntime({ name }: { name: string }) {
     () => board.ledger.filter((l) => l.app === name),
     [board.ledger, name],
   );
+
+  // Which declared schema families have nothing healthy behind them, asked of the
+  // whole loaded set exactly as the registry's schema select asks it. The Data
+  // plan panel below marks them; see the import note for why the rule is not
+  // re-derived here.
+  const noLiveSource = useMemo(() => familiesWithNoLiveSource(board.apps), [board.apps]);
 
   // Autonomous seed apps carry a fixture body (display only). Compose it into a
   // real A2UI document so the renderer draws the full action surface — the same
@@ -524,8 +595,78 @@ export function AppRuntime({ name }: { name: string }) {
               title="Data plan"
               note={`${app.stats.sourcesHealthy} of ${app.stats.sourcesQueried} deployments live · probed ${fmtDate(app.lastRunAt)}`}
             />
+            {/*
+              THE SERVER MAY NOT BE RUNNING THIS MANIFEST, and until now nothing
+              said so. `/api/agency/register` is first-write-wins for the policy
+              and for the metric half of the data plan — correct, since a
+              re-registration that could replace `sources` could change the number
+              a trigger compares and so raise what an app spends — but the
+              consequence is that the rows directly below this line can describe a
+              plan the server discarded. That is exactly how `aave-guard` came to
+              stream `aave-v3-arbitrum@v0.4.1`, a package removed from the repo
+              commits earlier: the page rendered the current one, the server held
+              the old one, and the only symptom was a 502 from `Watch 3 blocks`.
+
+              Rendered from `divergence.ignored`, not `divergence.diverged` — a
+              REFRESHED field is now in agreement and there is nothing to warn
+              about; only a refused one means the reader is looking at something
+              that is not what runs. `--loss` and the same placement idiom as
+              `walletClaimConflict` below, which is the same shape of problem: the
+              manifest says one thing, the server does another, and the server wins.
+
+              `summary` verbatim. It names its own fields and its own reason, and
+              paraphrasing a server's account of what it refused is how a UI ends
+              up describing a policy refusal as a data refresh.
+
+              KNOWN GAP, stated rather than papered over: `useSigner` only fires
+              for the autonomous tier — a read-only app has no wallet to ask about
+              — so a monitor or read-only app with a stale server registration
+              gets no banner here. The server would still answer with the
+              divergence; nothing asks it. Closing that means registering every
+              tier, which provisions signers for apps that will never sign, so it
+              is a deliberate hole and not an oversight. The tier that can SPEND on
+              a stale plan is the one covered.
+            */}
+            {signer?.divergence && signer.divergence.ignored.length > 0 ? (
+              <p className="mt-2 text-[0.6875rem] leading-snug text-loss">
+                {signer.divergence.summary}
+              </p>
+            ) : null}
+
             <dl className="cells mt-2">
-              <KV k="Schemas" v={m.data.schemas.join(" · ")} />
+              {/*
+                DECLARED, NOT RESOLVED. This row was `m.data.schemas.join(" · ")`
+                — a bare list, which reads as "these are my data sources". It is
+                not: `data.schemas` is what the app ASKED for and `data.sources`,
+                three rows down, is what the health check ANSWERED. For
+                `dex-aggregator@1.0.2` and `network@1.2.0` the answer is nothing at
+                all — prd.md §13 checked 86 deployment ids and found neither family
+                deployed on any network — so the Sources list below correctly said
+                "dead, skipped" while the line above it presented the family
+                unqualified. Two panels, one contradiction, and §13's rule is that
+                the qualification goes where the claim is.
+
+                The declaration itself stays and must: it is the honest record of
+                the request, the resolver's explicit placeholder is what makes the
+                skip visible, and the registry derives its filter label from these
+                same declarations.
+              */}
+              <KV
+                k="Schemas"
+                v={
+                  <span className="inline-flex flex-wrap justify-end gap-x-1.5">
+                    {m.data.schemas.map((f, i) => (
+                      <span key={f}>
+                        {i > 0 ? <span className="text-[var(--muted-ink)]">· </span> : null}
+                        {f}
+                        {noLiveSource.has(f) ? (
+                          <span className="text-loss"> — {NO_LIVE_SOURCE}</span>
+                        ) : null}
+                      </span>
+                    ))}
+                  </span>
+                }
+              />
               <KV k="Networks" v={m.data.networks.join(" · ")} />
               {/* The manifest DECLARES a transport; it does not prove one was
                   used. `X402_PRIVATE_KEY` is unset in this build (prd.md §14 row
@@ -682,6 +823,32 @@ export function AppRuntime({ name }: { name: string }) {
                       </li>
                     ))}
                   </ul>
+                  {/*
+                    WHERE THAT ENFORCEMENT LIVES — one line, and deliberately one.
+                    Every limit listed above is held in an in-memory Map on
+                    `globalThis` in a single server process (`registryScope()` in
+                    `lib/agency/wallet.ts`). On the deployed build a register call
+                    and the `/api/act` or `/api/stream` call after it can land on
+                    different serverless instances, and the second has never seen
+                    this app. It belongs on this page because this panel is the
+                    product's strongest safety claim and a reader is entitled to
+                    know it is not durable; it stays to one mono line because the
+                    per-constraint block above is the more important disclosure and
+                    a paragraph here would outweigh it.
+
+                    The recovery clause is not aspirational: `dispatchAction` and
+                    `watchBlocks` in `store.ts` both re-POST the manifest on a 404
+                    and retry once. Nothing here claims the state survives — it
+                    does not, and `durable: false` on the wire says so.
+                  */}
+                  {signer.registry ? (
+                    <p className="mono mt-2 text-[0.625rem] leading-snug text-[var(--muted-ink)]">
+                      held in one server process · instance {signer.registry.instanceId} ·{" "}
+                      {fmtNum(signer.registry.registeredApps)} app(s) — not durable: a redeploy or a
+                      second serverless instance loses this registration, and the board re-posts the
+                      manifest and retries once when that happens
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
               <div className="mt-2">
@@ -830,7 +997,15 @@ function KV({
   href,
 }: {
   k: string;
-  v: string;
+  /*
+   * A node, not just a string. It was `string`, and that is why the Schemas row
+   * above was a `join(" · ")` — the only rendering the type allowed. A row whose
+   * value contains one part that is measured and one part that is a declaration
+   * with nothing behind it cannot be coloured as a single fact, and flattening it
+   * to one grey string is what let a dead family read like a live source. Callers
+   * that pass a plain string are unaffected.
+   */
+  v: React.ReactNode;
   mono?: boolean;
   accent?: "live" | "gain" | "loss" | "risk" | "spend";
   /** Only pass this when the destination is known to exist. */

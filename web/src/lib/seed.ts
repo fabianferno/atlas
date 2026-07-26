@@ -201,8 +201,26 @@ export interface Review {
   score: "up" | "down";
   text: string;
   /**
-   * Weighted higher — a rater who actually ran the app. Real feature:
+   * Weighted 3× — a rater who actually ran the app. Real feature:
    * `RAN_IT_WEIGHT` in `components/registry/ratings.tsx`.
+   *
+   * ON THE SEEDED REVIEWS BELOW, eleven of which set this true. That is part of
+   * the same invention as the handle above it and the sentence beside it, and it
+   * is allowed on §12's own terms — an invented rater holding an invented opinion
+   * may be described as having run the thing they are opining about. What is NOT
+   * allowed is a reader mistaking one of these for a person, so every one of them
+   * is labelled `seeded` at the point of display (`SEEDED_REVIEW_IDS` at the foot
+   * of this file, rendered as a tag on each row). Note that three of them are
+   * signed `anon` rather than `.eth`, so "the .eth ones are the fake ones" was
+   * never a rule a reader could apply on their own.
+   *
+   * ON A REVIEW THE VISITOR POSTS, this field is derived by `rateApp` in
+   * `store.ts` from `localRuns` — this browser's own completed fan-outs — and by
+   * nothing else. It used to be computed at the call site as `stats.runs > 0`,
+   * i.e. from the seeded counter three lines up in this very file, so a first
+   * visitor's genuine review was stored asserting a run they never made and
+   * weighted 3× for it. Never reintroduce a path where a display total can
+   * answer this question.
    */
   ranIt: boolean;
   at: string;
@@ -215,14 +233,33 @@ export interface MiniApp {
   /** On my board, versus browsed in the registry. */
   mine: boolean;
   /**
-   * ARMED — published, not halted, and it would act if a trigger fired.
+   * SWITCHED ON — the owner has this configuration enabled. It is ONE of the four
+   * conditions `isArmed()` in `store.ts` requires, and on its own it means
+   * nothing. Never read it directly to decide what to render.
    *
-   * This used to read "subscribed to a stream right now", which nothing backed:
+   * TWO corrections live in this field, and the second is the interesting one.
+   *
+   * It first read "subscribed to a stream right now", which nothing backed:
    * `POST /api/stream` is the only call that opens a Substreams subscription and
    * it had no caller anywhere in the product, so ten seed apps asserted ten open
-   * subscriptions on the strength of a boolean literal in this file. Read it
-   * through `isArmed()` in `store.ts`, which also excludes the readonly tier and
-   * a tripped kill switch.
+   * subscriptions on the strength of a boolean literal in this file. That was
+   * fixed by re-documenting the field as "ARMED — published, not halted, and it
+   * would act if a trigger fired".
+   *
+   * THE REWRITE KEPT THE OLD DATA. `isArmed()` never actually checked published,
+   * eight seed apps below still carried a hand-written `running: true`, and
+   * `identity.ens` is null on all sixteen — so the top bar read "8 ARMED" behind
+   * a lamp on a board where nothing was published, nothing was registered
+   * server-side, and nothing could act. A boolean literal asserting standing
+   * spending authority is the same class of fabrication as the deleted ledger
+   * ticker; it just wore a flag's clothes instead of a figure's, which is why it
+   * survived a pass that deleted the ticker.
+   *
+   * So no seed app sets this any more — `build()` writes `false` and `SeedInput`
+   * has no field for it — and `isArmed()` asks the manifest whether a name was
+   * really issued rather than trusting this flag to have meant it. The only
+   * writers left are `publishApp`, `setHalted` and `setAppHalted` in `store.ts`,
+   * each of which runs off something that actually happened in this browser.
    *
    * A subscription is bounded and lives for the seconds `watchBlocks()` runs, so
    * nothing on the client can hold "live" as state — which is why there is no
@@ -247,9 +284,13 @@ export interface LedgerLine extends JournalEntry {
 export const SEED_EPOCH = Date.parse("2026-07-26T09:41:00.000Z");
 export const SEED_NOW = new Date(SEED_EPOCH).toISOString();
 
-function ago(minutes: number): string {
-  return new Date(SEED_EPOCH - minutes * 60_000).toISOString();
-}
+// `ago(minutes)` used to live here. Its only two callers were `updatedAt` and
+// `lastRunAt` in `build()`, both keyed off the seed `running` flag — "edited two
+// minutes ago, probed one minute ago" for an app that was switched on, "ninety"
+// and "three hundred and forty" for one that was not. Both were invented recency
+// dressed as freshness, and `lastRunAt` in particular renders as "probed <date>"
+// under a panel of measured deployment counts. Deleted along with the flag; the
+// two fields now carry values that are either true or measured. See `build()`.
 function daysAgo(days: number): string {
   return new Date(SEED_EPOCH - days * 86_400_000).toISOString();
 }
@@ -325,7 +366,26 @@ interface SeedInput {
   stream?: { package: string; module: string } | null;
   author: string;
   mine: boolean;
-  running: boolean;
+  /*
+   * There is no `running` field, on purpose, and it is the newest of the
+   * deliberate omissions here.
+   *
+   * Eight of the sixteen apps below used to set `running: true`. `isArmed()` in
+   * `store.ts` read that flag, the top bar counted it, and the home screen's
+   * headline number was therefore "8 armed" — a count of standing spending
+   * authority, on a board where every app renders "unpublished — no ENS subname
+   * issued" and `identity.ens` is null on all sixteen. Nothing was published,
+   * nothing was registered with the server, and so nothing held authority to act;
+   * the 8 came from this file and from nowhere else.
+   *
+   * It is the same defect as the fabricated ledger ticker and the derived ENS
+   * names, and it outlived both because a boolean does not look like a claim the
+   * way a dollar figure does. It is one: on screen it is a lamp and a count.
+   *
+   * `build()` writes `false`, `publishApp` sets it when a publish really returns,
+   * and `isArmed()` no longer trusts it alone — see `MiniApp.running`. Do not
+   * re-add this field to seed an app "on"; publishing is what arms an app.
+   */
   /**
    * `valueTransactedUsd`, `spentUsd` and `earnedUsd` are deliberately not
    * accepted. A seed app has moved no money, so there is no figure to seed and
@@ -364,7 +424,28 @@ interface SeedInput {
   triggers?: Manifest["agency"]["triggers"];
   createdDaysAgo: number;
   priceUsd?: number;
-  forkedFrom?: string;
+  /*
+   * No `forkedFrom` either, and this one was a live fabrication until this pass.
+   *
+   * `perpDeleverage` carried `forkedFrom: "aave-guard@1.0.0"`, which rendered on
+   * its registry card as "by vega.eth · fork of aave-guard@1.0.0". That fork
+   * never happened — and it does not even survive being read: a perp-futures
+   * deleverage guard is not a fork of a lending guard, so the lineage was not
+   * merely unrecorded, it was implausible on its face.
+   *
+   * §12's line is what decides it. A made-up opinion about a real feature is set
+   * dressing; a made-up EVENT is a data claim. A fork is an event — §12 makes
+   * fork-and-remix the flywheel and the credit story, §14 #13a spent a whole row
+   * on making onchain lineage verifiable through `registerFork`, and
+   * `identity/publish.ts` reads `manifest.forkedFrom` to decide what parent key
+   * to assert to the 0G registry. So a hand-written lineage here is a claim about
+   * the chain, in the same family as the ENS names and the Agentic IDs that were
+   * nulled in the same `build()` below.
+   *
+   * Nulled rather than kept behind a nicer string: `forkApp` in `store.ts` writes
+   * a real `forkedFrom` when someone really forks, and that is the only way one
+   * should ever appear.
+   */
 }
 
 function build(s: SeedInput): MiniApp {
@@ -457,17 +538,33 @@ function build(s: SeedInput): MiniApp {
     },
     author: s.author,
     appVersion: "1.0.0",
-    forkedFrom: s.forkedFrom ?? null,
+    // Always null — see the note on `SeedInput`. A fork is an event, and no seed
+    // app is the result of one.
+    forkedFrom: null,
     pricing: s.priceUsd ? { x402: { enabled: true, priceUsd: s.priceUsd } } : null,
     createdAt: daysAgo(s.createdDaysAgo),
-    updatedAt: ago(s.running ? 2 : 90),
+    // Same instant as `createdAt`, which is the true statement about a seed app:
+    // it was written once and nobody has edited it since. This used to be
+    // `ago(running ? 2 : 90)` — "edited two minutes ago" for the eight apps that
+    // asserted `running`, which was recency invented out of a flag that was
+    // itself invented.
+    updatedAt: daysAgo(s.createdDaysAgo),
   };
 
   return {
     manifest,
     mine: s.mine,
-    running: s.running,
-    lastRunAt: s.running ? ago(1) : ago(340),
+    // Always false. `SeedInput` has no field for it and the long note there says
+    // why: a seed app has no issued name and no server-side registration, so it
+    // holds no standing authority to act and must not be counted as armed.
+    running: false,
+    // Placeholder only in the sense that it is always replaced: `withLiveData`
+    // overwrites it with the snapshot's own `generatedAt`, which is when the
+    // deployments behind this app were really probed. It matters because
+    // `app-runtime.tsx` renders this as "probed <date>" directly beneath the
+    // measured `N of M deployments live`. The old value was `ago(running ? 1 :
+    // 340)` — a probe time derived from a boolean, sitting under real counts.
+    lastRunAt: daysAgo(s.createdDaysAgo),
     // Always empty — see the note on `SeedInput`. The trade log is a receipt
     // surface; it fills when the app really runs, really receives a block, or
     // really dispatches an action.
@@ -516,7 +613,6 @@ const dexVolumeArb = build({
   networks: ["arbitrum-one"],
   author: "fabianferno.eth",
   mine: true,
-  running: false,
   createdDaysAgo: 12,
   priceUsd: 0.02,
   stats: { runs: 1842, forks: 37, thumbsUp: 96, thumbsDown: 4, sourcesQueried: 31, sourcesHealthy: 27, costPerRunUsd: 0.012 },
@@ -537,7 +633,6 @@ const tvlCrosschain = build({
   networks: ["arbitrum-one", "optimism", "base"],
   author: "fabianferno.eth",
   mine: true,
-  running: false,
   createdDaysAgo: 9,
   priceUsd: 0.05,
   stats: { runs: 934, forks: 21, thumbsUp: 58, thumbsDown: 2, sourcesQueried: 44, sourcesHealthy: 38, costPerRunUsd: 0.031 },
@@ -557,7 +652,6 @@ const bridgeFlows = build({
   networks: ["arbitrum-one", "mainnet"],
   author: "0xdegen.eth",
   mine: true,
-  running: false,
   createdDaysAgo: 20,
   priceUsd: 0.02,
   stats: { runs: 611, forks: 14, thumbsUp: 41, thumbsDown: 3, sourcesQueried: 18, sourcesHealthy: 16 },
@@ -574,7 +668,6 @@ const perpOiBoard = build({
   networks: ["arbitrum-one"],
   author: "vega.eth",
   mine: false,
-  running: false,
   createdDaysAgo: 16,
   stats: { runs: 388, forks: 9, thumbsUp: 27, thumbsDown: 1 },
 });
@@ -596,7 +689,6 @@ const nftVolumeEth = build({
   networks: ["mainnet"],
   author: "mara.eth",
   mine: false,
-  running: false,
   createdDaysAgo: 26,
   stats: { runs: 176, forks: 3, thumbsUp: 11, thumbsDown: 4 },
 });
@@ -612,7 +704,6 @@ const yieldLeaderboard = build({
   networks: ["arbitrum-one", "optimism"],
   author: "fabianferno.eth",
   mine: true,
-  running: false,
   createdDaysAgo: 7,
   priceUsd: 0.03,
   stats: { runs: 722, forks: 44, thumbsUp: 63, thumbsDown: 2, sourcesQueried: 22, sourcesHealthy: 19 },
@@ -700,7 +791,6 @@ const healthFactorWatch = build({
   actions: { notify: { kind: "notify", params: { channel: "board" }, label: "Alert me" } },
   author: "fabianferno.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 11,
   priceUsd: 0.05,
   stats: { runs: 5120, forks: 62, thumbsUp: 128, thumbsDown: 5, sourcesQueried: 12, sourcesHealthy: 11, costPerRunUsd: 0.008 },
@@ -715,6 +805,47 @@ const healthFactorWatch = build({
 // stream payload as `block.amountUsd`, which nothing verifies. Cumulative venue
 // volume IS returned, and "flow is picking up on the venues I watch" is the same
 // instinct expressed as a fact this app can actually read.
+//
+/* ------------------------------------------------------------------ *
+ * THE DEAD FAMILIES — `dex-aggregator@1.0.2` and `network@1.2.0`. Read this
+ * before "cleaning up" the `schemas` line below, or the one on `copy-trader-arb`
+ * or `gas-rebate-claimer`. Those three declarations are the ONLY reason two
+ * disclosures elsewhere in the product render at all, and deleting them is a
+ * silent regression that looks like tidying.
+ *
+ * THE FACT: prd.md §13 audited every declared family and found these two have
+ * ZERO standardized deployments on any network. So `resolveSources` answers a
+ * declaration of either with a single explicit `PLACEHOLDER-<family>-<network>`
+ * source marked `healthy: false` — verified in `kit/seed-live.generated.json`:
+ * `PLACEHOLDER-dex-aggregator-arbitrum-one` here and on `copy-trader-arb`,
+ * `PLACEHOLDER-network-optimism` on `gas-rebate-claimer`. Nothing is queried
+ * against them, no row comes back from them, and no trigger names their prefix.
+ *
+ * SO WHY KEEP THEM. The obvious fix is to drop the family and shrink the
+ * manifest to what really answers. It was considered and rejected, because a
+ * declaration is not a measurement: `data.schemas` is what the app ASKS for, and
+ * `data.sources` is what the health check ANSWERED. The answer is already on
+ * screen and already negative — the app page's Sources list renders that
+ * placeholder row in `--loss` with the literal words "dead, skipped", and
+ * `/registry`'s schema select labels the family "— no live deployment" off
+ * `familiesWithNoLiveSource`, which it derives from exactly these declarations
+ * (`registry-grid.tsx` says so at length). Drop the declarations and that set
+ * goes empty, the label never renders, and prd.md §14 #7 — a checked hard
+ * requirement that cites the label as its evidence — loses part of what earned
+ * its tick. That is deleting a disclosure to tidy a manifest, and §13's own
+ * argument is that a demo where everything is green never shows what the health
+ * check is for.
+ *
+ * WHAT IS STILL WRONG, AND IS NOT FIXABLE FROM THIS FILE: `app-runtime.tsx`'s
+ * data plan renders `<KV k="Schemas" v={m.data.schemas.join(" · ")} />` — a bare
+ * join, so "generic@3.0.0 · network@1.2.0" reads as two families this app is
+ * getting data from, with the contradiction three rows below it in the Sources
+ * list rather than at the point of display. Same for the family chips on the
+ * registry card. Both files are owned elsewhere; handed off in the report rather
+ * than edited here. The rule they need is the one `/registry`'s select already
+ * follows: mark a declared family with no healthy source, do not silently list
+ * it beside the ones that answered.
+ * ------------------------------------------------------------------ */
 const whaleAlertArb = build({
   name: "whale-alert-arb",
   title: "Volume milestones — Arbitrum DEXs",
@@ -733,7 +864,6 @@ const whaleAlertArb = build({
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "0xdegen.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 5,
   priceUsd: 0.02,
   stats: { runs: 3011, forks: 28, thumbsUp: 74, thumbsDown: 6, sourcesQueried: 14, sourcesHealthy: 13, costPerRunUsd: 0.009 },
@@ -765,7 +895,6 @@ const fundingDivergence = build({
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "vega.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 14,
   priceUsd: 0.08,
   stats: { runs: 1420, forks: 19, thumbsUp: 52, thumbsDown: 3, sourcesQueried: 9, sourcesHealthy: 8 },
@@ -797,7 +926,6 @@ const staleOracleWatch = build({
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "kaia.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 18,
   stats: { runs: 806, forks: 7, thumbsUp: 24, thumbsDown: 1 },
 });
@@ -841,7 +969,6 @@ const bridgeOutflowWatch = build({
   actions: { notify: { kind: "notify", params: {}, label: "Alert me" } },
   author: "mara.eth",
   mine: false,
-  running: false,
   createdDaysAgo: 22,
   stats: { runs: 402, forks: 11, thumbsUp: 18, thumbsDown: 2 },
 });
@@ -894,7 +1021,6 @@ const aaveGuard = build({
   },
   author: "fabianferno.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 3,
   priceUsd: 0.05,
   stats: {
@@ -930,6 +1056,10 @@ const copyTraderArb = build({
   category: "trading",
   tags: ["copy-trading", "dex", "autonomous"],
   tier: "autonomous",
+  // `dex-aggregator@1.0.2` has no deployment anywhere and resolves to one
+  // `healthy: false` placeholder — kept deliberately, not overlooked. The full
+  // argument is the block above `whale-alert-arb`; the trigger below reads
+  // `dex_amm.*`, never `dex.*`, so nothing here depends on it answering.
   schemas: ["dex-amm@1.3.2", "dex-aggregator@1.0.2"],
   networks: ["arbitrum-one"],
   stream: { package: SEED_SPKG, module: SEED_STREAM_MODULE },
@@ -953,7 +1083,6 @@ const copyTraderArb = build({
   },
   author: "0xdegen.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 6,
   priceUsd: 0.1,
   stats: { runs: 942, forks: 51, thumbsUp: 87, thumbsDown: 11, sourcesQueried: 8, sourcesHealthy: 8, costPerRunUsd: 0.011 },
@@ -995,7 +1124,6 @@ const yieldRotator = build({
   },
   author: "kaia.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 15,
   priceUsd: 0.15,
   stats: { runs: 288, forks: 34, thumbsUp: 61, thumbsDown: 4, sourcesQueried: 22, sourcesHealthy: 19 },
@@ -1039,12 +1167,18 @@ const perpDeleverage = build({
   },
   author: "vega.eth",
   mine: true,
-  running: false,
   createdDaysAgo: 10,
   priceUsd: 0.1,
-  forkedFrom: "aave-guard@1.0.0",
   stats: { runs: 164, forks: 12, thumbsUp: 22, thumbsDown: 2, sourcesQueried: 6, sourcesHealthy: 6 },
-  reviews: [{ id: "r14", rater: "0xdegen.eth", score: "up", text: "Aave-guard's shape with a different trigger, and forkedFrom says so on the card. A fork inheriting nothing spendable is the right default.", ranIt: true, at: daysAgo(6) }],
+  // The review text was cut back with the `forkedFrom` above it. It opened
+  // "Aave-guard's shape with a different trigger, and forkedFrom says so on the
+  // card" — a reviewer testifying to a fork that never happened, which is a
+  // fabricated event wearing a rating's clothes (§14 #1a's exact phrase, and the
+  // reason the seeded reviews were rewritten once already). What survives is an
+  // opinion about a feature that genuinely exists: `forkManifest` really does
+  // strip the wallet, the identity and the spending authority, and `forkApp`
+  // really does say what it cleared.
+  reviews: [{ id: "r14", rater: "0xdegen.eth", score: "up", text: "A fork inheriting nothing spendable is the right default. I want the copy to start with no authority, not with the parent's.", ranIt: true, at: daysAgo(6) }],
 });
 
 // "My rebates" is a per-account balance and `claimableUsd` never existed in the
@@ -1057,6 +1191,12 @@ const perpDeleverage = build({
 // sources healthy on Optimism), so `network.*` resolves to nothing and a condition
 // naming it would fail closed forever — the exact trap being removed here. Checked
 // by running the fan-out, not by reading the schema list.
+//
+// And the declaration STAYS despite that: §13 found `network@1.2.0` has zero
+// deployments on any network, the resolver answers with an explicit
+// `PLACEHOLDER-network-optimism` marked `healthy: false`, and two surfaces render
+// that refusal. See the block above `whale-alert-arb` for why removing it would
+// delete a disclosure rather than a claim.
 const gasRebate = build({
   name: "gas-rebate-claimer",
   title: "Rebate claimer — Optimism",
@@ -1088,7 +1228,6 @@ const gasRebate = build({
   },
   author: "mara.eth",
   mine: true,
-  running: true,
   createdDaysAgo: 4,
   priceUsd: 0.02,
   stats: { runs: 96, forks: 5, thumbsUp: 14, thumbsDown: 0, sourcesQueried: 4, sourcesHealthy: 4 },
@@ -1188,6 +1327,13 @@ function withLiveData(app: MiniApp): MiniApp | null {
 
   return {
     ...app,
+    // When the deployments behind this app were really probed. `app-runtime.tsx`
+    // prints it as "probed <date>" underneath the measured `N of M deployments
+    // live`, so it has to come from the same measurement those counts came from.
+    // It used to be `ago(running ? 1 : 340)` from `build()` — a probe timestamp
+    // computed from a hand-written boolean, sitting immediately below two real
+    // numbers and reading exactly as real as they are.
+    lastRunAt: entry.generatedAt,
     manifest: {
       ...app.manifest,
       data: {
@@ -1227,9 +1373,14 @@ function withLiveData(app: MiniApp): MiniApp | null {
  * dropped, therefore never re-measured, therefore dropped forever — a
  * lock-in where a transient rate limit permanently shrinks the registry.
  *
- * NOTE FOR WHOEVER OWNS `scripts/seed-live.ts`: it currently imports `SEED_APPS`
- * (line ~153). That needs to become `SEED_APPS_ALL` or the recovery path above
- * is closed. Not changed here because this agent owns only `seed.ts`.
+ * HISTORY, because this note used to describe a live defect and outlived it:
+ * `scripts/seed-live.ts` did import `SEED_APPS`, which closed the recovery path
+ * above — one transient failure and the app was never re-measured again. Fixed
+ * in 422ec45 ("Measure every declared seed app, not just the ones already
+ * live"), and the generator now reads this list. The note is kept as history
+ * rather than deleted because the trap is easy to reintroduce: `SEED_APPS` is
+ * the shorter name and the one every renderer imports, so it is the one a hand
+ * reaches for. It is the wrong one HERE and only here.
  */
 export const SEED_APPS_ALL: readonly MiniApp[] = [
   // autonomous first — the board sorts by tier and this is the payoff row
@@ -1252,6 +1403,38 @@ export const SEED_APPS_ALL: readonly MiniApp[] = [
   perpOiBoard,
   nftVolumeEth,
 ];
+
+/**
+ * Every review id this file invents, so a renderer can mark each seeded row as
+ * seeded WITHOUT storing a flag on the review.
+ *
+ * Derived from `SEED_APPS_ALL` rather than written out, so it cannot fall behind
+ * the reviews themselves; and read from CODE rather than from the persisted
+ * board, which is the point. A browser that loaded the board before this existed
+ * has the old unflagged reviews sitting in `localStorage`, and adding a `seeded`
+ * field to the `Review` records would have left those rows unlabelled until the
+ * storage version was bumped — a bump that discards apps the user published here
+ * (see `STORAGE_VERSION` in `store.ts`). Deriving the set costs nothing and is
+ * correct for stale and fresh boards alike.
+ *
+ * WHY LABEL EACH ROW AT ALL, given the panel already carries a note. Because the
+ * note could not name them accurately: it said "every review signed with an .eth
+ * handle", and `r5`, `r10` and `r12` are signed `anon`. A disclosure that misses
+ * three of fourteen teaches the reader a rule that does not hold, which is worse
+ * than the general statement it replaced. Per-row is the only version that is
+ * exactly true.
+ *
+ * Ids are unique across the whole seed set (`r1`…`r14`) and a posted review is
+ * `rev-<epoch>`, so a real review can never collide into this set.
+ */
+export const SEEDED_REVIEW_IDS: ReadonlySet<string> = new Set(
+  SEED_APPS_ALL.flatMap((a) => a.reviews.map((r) => r.id)),
+);
+
+/** True for a review this file invented; false for one a visitor posted. */
+export function isSeededReview(id: string): boolean {
+  return SEEDED_REVIEW_IDS.has(id);
+}
 
 /**
  * The registry, and it contains only apps the pipeline actually measured.

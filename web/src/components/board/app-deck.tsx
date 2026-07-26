@@ -37,6 +37,33 @@ export function AppDeck() {
   const board = useBoard();
   const apps = useMemo(() => myApps(board), [board]);
   const counts = tierCounts(board);
+  /*
+   * THE DENOMINATOR, which this heading did not have.
+   *
+   * The note read `5 autonomous · 4 monitor · 4 read only` — thirteen apps, and
+   * no way to tell that from all of them. It is not: three seed apps carry
+   * `mine: false` (`bridge-outflow-watch`, `perp-oi-board`, `nft-volume-eth`),
+   * `myApps()` filters on `mine`, and the wheel below renders 13 of the 16 this
+   * browser holds. The snapshot measured 16 of 16 and `/registry` shows all 16,
+   * so the first screen of the product was quietly the only surface that
+   * disagreed, with nothing on it saying so.
+   *
+   * That is a smaller sin than an invented figure and the same family: a count
+   * presented as complete when it is a subset. The fix is a denominator, not a
+   * disclaimer — `13 of 16 here` states the subset and names where the other
+   * three are, and the Registry link is already sitting at the other end of this
+   * heading. If someone forks or publishes, both numbers move together.
+   *
+   * `board.apps.length` rather than `SEED_DECLARED_COUNT` from `seed.ts` on
+   * purpose. The right denominator is what this browser can actually show you —
+   * seed apps that survived the live overlay, plus anything published or forked
+   * here. `SEED_DECLARED_COUNT` counts apps the snapshot may have DROPPED for
+   * want of live data, which are on no surface at all; pointing at the Registry
+   * with a number that includes them would send a reader looking for cards that
+   * do not exist. Coverage of the seed set is `LIVE_SEED_COUNT`/`SEED_DROPPED`'s
+   * job and belongs next to the registry's own audit, not in a board heading.
+   */
+  const total = board.apps.length;
 
   // The centered card (wheel highlight) and the opened card (drawer). Kept
   // separate on purpose: scrolling moves the highlight, only a click opens.
@@ -121,7 +148,11 @@ export function AppDeck() {
           <SectionHead
             as="h1"
             title="Your mini apps"
-            note={`${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`}
+            note={
+              apps.length === total
+                ? `${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
+                : `${apps.length} of ${total} in this browser · ${counts.autonomous} autonomous · ${counts.monitor} monitor · ${counts.readonly} read only`
+            }
             right={
               <Link
                 href="/registry"

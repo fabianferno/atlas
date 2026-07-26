@@ -16,6 +16,12 @@
  * note:
  *   ARMED   a count of configurations that would act if a trigger fired. True,
  *           checkable, and the interesting one for the autonomous tier.
+ *           "Checkable" was aspirational until this pass: `isArmed` did not check
+ *           published, so this bar read "8 ARMED" off eight hand-written booleans
+ *           in `seed.ts` while every app under it said "unpublished". The
+ *           definition is now enforced in the predicate, the honest count on a
+ *           fresh board is 0, and the zero state below drops the lamp rather than
+ *           lighting one over nothing.
  *   STREAM  read from `GET /api/stream`, never asserted. And read *precisely*:
  *           `mode: "substreams"` means a token is present, i.e. **capable of**
  *           per-block evaluation. It does not mean anything is subscribed, and
@@ -108,7 +114,32 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
               </span>
             ) : (
               <>
-                <ArmedLamp label={`${armed} armed`} labelClassName="text-[0.6875rem]" />
+                {/*
+                  ZERO GETS NO LAMP. `armedCount` reads 0 on a fresh board and
+                  that is the true answer — `isArmed` now requires an issued ENS
+                  name (store.ts), and no seed app has one, so none of them holds
+                  standing authority to act.
+
+                  It read "8 ARMED" behind a lit lamp until this pass. The 8 came
+                  from a hand-written `running: true` on eight seed apps and
+                  nothing else; the same sixteen cards below it all say
+                  "unpublished — no ENS subname issued". A lamp is the loudest
+                  mark in the system after `--live`, and lighting one over a count
+                  of none would just move the overstatement rather than remove it
+                  — so at zero the lamp is dropped and the row states the reason
+                  in muted ink. Publish an app and the lamp comes back, counting
+                  something real.
+                */}
+                {armed > 0 ? (
+                  <ArmedLamp label={`${armed} armed`} labelClassName="text-[0.6875rem]" />
+                ) : (
+                  <span
+                    className="mono whitespace-nowrap text-[0.6875rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]"
+                    title="Armed means published, not halted, and holding standing authority to act if a trigger fires. Nothing on this board is published — no ENS subname has been issued — so nothing is armed."
+                  >
+                    nothing armed
+                  </span>
+                )}
                 {/*
                   The qualification, and the point of the whole re-cut: a token
                   being present is a capability, not a subscription. Hidden below
