@@ -64,13 +64,18 @@ common "yield once you hit the end" fix has no end to yield at.
 decides this before any handler runs, so no engaged-state trick reaches it — a
 vertical swipe over the wheel on a phone can never scroll the page.
 
-**Fix: `touch-action: pan-y` on coarse pointers.** Vertical swipe scrolls the
+**Fix: `touch-action: pan-y`, unconditionally.** Vertical swipe scrolls the
 page; the wheel is driven by tapping a card, which centers and opens it. Phones
 lose drag-to-turn. That is the accepted trade: trapping page scroll under the
 primary content is a worse failure than losing one gesture on a surface where a
 list is normally tapped anyway.
 
-Fine pointers keep `touch-action: none` and keep drag.
+No pointer media query is needed. `touch-action` governs touch and pen input
+only — it has no effect on mouse input, and `wheel` events are not subject to it
+at all. So a mouse keeps drag-to-turn and the engaged-state wheel behaviour of
+§2.1 unchanged, while a touch drag is panned by the browser and reaches the
+wheel as a `pointercancel`, which `onPointerCancel={handlePointerEnd}` already
+handles.
 
 ### 2.3 The globe is fixed to the viewport and mis-aligned already
 
