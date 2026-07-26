@@ -416,9 +416,11 @@ function displayHalf(doc: unknown): { components: A2UIComponent[]; blocks: Recor
  * Two inputs, one output. A fixture body (`UiDoc`) is converted block by block.
  * An already-composed A2UI document keeps its display components and has its
  * action surface rebuilt — see `displayHalf` for why the composed one is not
- * trusted. Either way an autonomous app ends up with the policy badge, the
- * bounded amount input, the allowlist picker, the action button, the journal and
- * the kill switch, all sourced from `manifest.agency`.
+ * trusted. Either way an autonomous app ends up with the bounded amount input,
+ * the allowlist picker and the action button, all sourced from
+ * `manifest.agency` — but not the policy badge, the journal or the kill
+ * switch, which `appendAutonomous` deliberately leaves out; see the block
+ * comment above it for why.
  */
 export function seedToA2ui(
   manifest: Manifest,

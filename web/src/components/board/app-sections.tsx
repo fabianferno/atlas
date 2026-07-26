@@ -24,11 +24,50 @@ import { cn } from "@/lib/utils";
 
 export interface AppSections {
   app: ReactNode;
-  data: ReactNode;
+  publish: ReactNode;
+  dataPlan: ReactNode;
   /** Null for every tier but autonomous — there is no wallet to describe. */
-  safety: ReactNode | null;
-  activity: ReactNode;
-  about: ReactNode;
+  permissions: ReactNode | null;
+  ratings: ReactNode;
+  /** Null unless the tier is autonomous or monitor — nothing to log otherwise. */
+  tradeLog: ReactNode | null;
+  provenance: ReactNode;
+  usage: ReactNode;
+}
+
+/**
+ * Which pieces make up each tab body, in the order `TabbedSections` composes
+ * them today: App = `app`; Data = `dataPlan`; Safety = `permissions`; Activity =
+ * `tradeLog` then `usage`; About = `publish` then `provenance` then `ratings`.
+ * A free function rather than a method so `RailSections` never has to import
+ * it — the two layouts arrange these fine-grained members independently, and
+ * that independence is the fix for the bug where `RailSections` once reused
+ * this grouping and silently reordered the page.
+ */
+function tabBody(sections: AppSections, key: TabKey): ReactNode {
+  switch (key) {
+    case "app":
+      return sections.app;
+    case "data":
+      return sections.dataPlan;
+    case "safety":
+      return sections.permissions;
+    case "activity":
+      return (
+        <>
+          {sections.tradeLog}
+          {sections.usage}
+        </>
+      );
+    case "about":
+      return (
+        <>
+          {sections.publish}
+          {sections.provenance}
+          {sections.ratings}
+        </>
+      );
+  }
 }
 
 /**
@@ -52,16 +91,21 @@ export function TabbedSections({
   const tabs = tabsFor(tier);
   const base = useId();
 
-  // Arrow keys move between tabs. This does not fight the option wheel beside
-  // the drawer: the wheel's own arrow handling is an `onKeyDown` on its focused
-  // element (`option-wheel.tsx`, role="listbox", tabIndex={0}), not a document
-  // listener, so the two can never both be focused.
+  // Arrow keys move between tabs, Home/End jump to the first/last. This does
+  // not fight the option wheel beside the drawer: the wheel's own arrow
+  // handling is an `onKeyDown` on its focused element (`option-wheel.tsx`,
+  // role="listbox", tabIndex={0}), not a document listener, so the two can
+  // never both be focused.
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!delta) return;
-    e.preventDefault();
     const i = tabs.findIndex((t) => t.key === activeTab);
-    const next = tabs[(i + delta + tabs.length) % tabs.length];
+    let nextIndex: number;
+    if (e.key === "ArrowRight") nextIndex = (i + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") nextIndex = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    const next = tabs[nextIndex];
     onTabChange(next.key);
     document.getElementById(`${base}-tab-${next.key}`)?.focus();
   };
@@ -106,15 +150,31 @@ export function TabbedSections({
         </p>
       ) : null}
 
-      <div
-        role="tabpanel"
-        id={`${base}-panel-${activeTab}`}
-        aria-labelledby={`${base}-tab-${activeTab}`}
-        tabIndex={0}
-        className="space-y-4 pt-3 outline-none"
-      >
-        {sections[activeTab]}
-      </div>
+      {/* All five panels render, always — only the inactive ones carry
+          `hidden`. `aria-controls` on each tab above points at a panel id that
+          must exist in the DOM for assistive tech to resolve it; rendering
+          only the active panel left four of five tabs pointing at nothing.
+          `hidden` also keeps a panel's scroll position intact across tab
+          switches, since it is never unmounted. `tabIndex={-1}` on the hidden
+          ones keeps only the active panel in the tab order — `hidden` already
+          does this in browsers that honour it, but the explicit index does
+          not depend on that. */}
+      {tabs.map((t) => {
+        const active = t.key === activeTab;
+        return (
+          <div
+            key={t.key}
+            role="tabpanel"
+            id={`${base}-panel-${t.key}`}
+            aria-labelledby={`${base}-tab-${t.key}`}
+            hidden={!active}
+            tabIndex={active ? 0 : -1}
+            className="space-y-4 pt-3 outline-none"
+          >
+            {tabBody(sections, t.key)}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -123,6 +183,14 @@ export function TabbedSections({
  * The full-page route. The 380px rail, unchanged — this is the width it was
  * measured for, and the `@4xl` split is container-relative so it answers about
  * this element rather than the window.
+ *
+ * `AppSections` hands both layouts the same fine-grained members precisely so
+ * this one can arrange them in the ORIGINAL page order rather than inheriting
+ * whatever grouping the tabs want: left column is `publish`, `dataPlan`,
+ * `permissions`, `ratings`; aside is `tradeLog`, `provenance`, `usage`. That
+ * order is what `app-runtime.tsx` rendered before this refactor, and it must
+ * stay exactly that — a shared tab-shaped bundle here once let a change made
+ * for the drawer silently reorder this page too.
  *
  * It renders the rail ONLY, not `sections.app`. On the page the composed body
  * lives inside the tier panel with the strip and the header, and the rail sits
@@ -134,11 +202,16 @@ export function RailSections({ sections }: { sections: AppSections }) {
   return (
     <div className="mt-4 grid grid-cols-1 gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
       <div className="min-w-0 space-y-4">
-        {sections.about}
-        {sections.data}
-        {sections.safety}
+        {sections.publish}
+        {sections.dataPlan}
+        {sections.permissions}
+        {sections.ratings}
       </div>
-      <aside className="min-w-0 space-y-4">{sections.activity}</aside>
+      <aside className="min-w-0 space-y-4">
+        {sections.tradeLog}
+        {sections.provenance}
+        {sections.usage}
+      </aside>
     </div>
   );
 }

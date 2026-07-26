@@ -8,7 +8,9 @@
  * which deployments are live, what the policy allows, what it has done.
  *
  * For the autonomous tier the policy strip, the kill switch and the trade log
- * are always present — the renderer enforces that, not the composer.
+ * are always present — the HOST enforces that now, by rendering them itself
+ * in its own chrome and declaring so to the renderer via `providedByHost`, not
+ * the renderer enforcing it on the composer's behalf.
  *
  * WHAT THIS FILE IS NOT ALLOWED TO DO, because it did all of it and each one was
  * a different way of asserting something the system could not back:
@@ -56,7 +58,6 @@ import { HOST_PROVIDED, seamLine, type TabKey } from "@/lib/app-view";
 import { seedToA2ui } from "@/lib/kit/seed-to-a2ui";
 import {
   dispatchAction,
-  fmtDate,
   haltRemote,
   isArmed,
   isRunStale,
@@ -355,28 +356,36 @@ export function AppRuntime({
       <AppBody
         doc={bodyDoc ?? m.ui}
         animate
-        providedByHost={HOST_PROVIDED}
+        providedByHost={autonomous ? HOST_PROVIDED : []}
         policy={policy}
         spentUsd={app.stats.spentUsd}
         journal={journal}
         onAction={onBodyAction}
       />
     ),
-    data: <DataPlanPanel app={app} signer={signer} stream={stream} noLiveSource={noLiveSource} />,
-    safety: autonomous ? <PermissionsPanel app={app} signer={signer} /> : null,
-    activity: (
-      <>
-        {watchable ? <TradeLog appName={m.name} /> : null}
-        <UsagePanel app={app} />
-      </>
-    ),
-    about: (
-      <>
-        <AppPublishPanel app={app} />
-        <ProvenancePanel m={m} explorerBase={explorerBase} />
-        <Ratings appName={m.name} />
-      </>
-    ),
+    /* PUBLISH — the step that was unreachable from here.
+       `publishApp` mints a new board entry and its only caller was the
+       Studio's bar, which hangs off a freshly described draft. So a fork
+       could be created, refined and run, and never named: no ENS subname,
+       no manifest CID, no Agentic ID, ever. prd.md §12 calls fork-and-remix
+       the flywheel and states the loop as "fork → refine → publish under
+       your own name", and §8 makes the name the thing a human verifies
+       BEFORE funding a mini app — so the missing leg was the safety story's
+       last step, not a convenience.
+
+       In the drawer it lives in the About tab. The header directly above
+       says "unpublished — no ENS subname issued"; the control that changes
+       that belongs next to the claim, not in a rail below the fold. It
+       renders in every state, disabled with the reason when it cannot
+       apply, because "why can I not publish this?" is a question worth
+       answering in words. */
+    publish: <AppPublishPanel app={app} />,
+    dataPlan: <DataPlanPanel app={app} signer={signer} stream={stream} noLiveSource={noLiveSource} />,
+    permissions: autonomous ? <PermissionsPanel app={app} signer={signer} /> : null,
+    ratings: <Ratings appName={m.name} />,
+    tradeLog: watchable ? <TradeLog appName={m.name} /> : null,
+    provenance: <ProvenancePanel m={m} explorerBase={explorerBase} />,
+    usage: <UsagePanel app={app} />,
   };
 
   return (
