@@ -152,8 +152,17 @@ export function PublishedStrip({ className }: { className?: string }) {
   const [catalog, setCatalog] = useState<CatalogState>({ phase: "loading" });
 
   /* Results are keyed by name, so a row that has not landed yet needs no
-     stored placeholder — absence IS the loading state. */
-  const [rows, setRows] = useState<ReadonlyMap<string, RowState>>(new Map());
+     stored placeholder — absence IS the loading state.
+     `key` stamps the map with the name set it was built for. `catalog`
+     settling a second time (a retry affordance, say) must not let a name
+     that appears in both sets render its previous resolution instead of
+     restarting in `loading` — that is the exact staleness this rewrite
+     exists to remove, so a map from a superseded set is discarded rather
+     than merged into. */
+  const [rows, setRows] = useState<{ key: string; map: ReadonlyMap<string, RowState> }>({
+    key: "",
+    map: new Map(),
+  });
   const [chain, setChain] = useState<ChainRef | null>(null);
 
   /* The 0G explorer base and the Agentic ID contract, asked of the server
@@ -226,18 +235,23 @@ export function PublishedStrip({ className }: { className?: string }) {
   useEffect(() => {
     if (nameKey === "") return;
     const controller = new AbortController();
+    const key = nameKey;
 
     /* Independent lookups, each landing on its own. One slow name must not
        hold the others back, and one dead name must not blank the strip.
-       `rows` is not reset here: `nameKey` only ever moves from "" (nothing
-       registered yet) to the one list the registry returned, so there is no
-       stale entry from a previous set to clear — and clearing synchronously
-       inside an effect is itself the pattern this repo's lint config flags. */
-    for (const name of nameKey.split(",")) {
+       `rows` is not reset here — clearing synchronously inside an effect is
+       the pattern this repo's lint config flags — but `settle` writes through
+       `key`, so a result landing for a superseded name set starts a fresh map
+       instead of merging into the old one. */
+    for (const name of key.split(",")) {
       void (async () => {
         const settle = (state: RowState) => {
           if (controller.signal.aborted) return;
-          setRows((prev) => new Map(prev).set(name, state));
+          setRows((prev) =>
+            prev.key === key
+              ? { key, map: new Map(prev.map).set(name, state) }
+              : { key, map: new Map([[name, state]]) },
+          );
         };
         try {
           const res = await fetch(`/api/resolve/${encodeURIComponent(name)}`, {
@@ -268,7 +282,8 @@ export function PublishedStrip({ className }: { className?: string }) {
     return () => controller.abort();
   }, [nameKey]);
 
-  const states = names.map((name) => rows.get(name) ?? { phase: "loading" as const });
+  const landed = rows.key === nameKey ? rows.map : null;
+  const states = names.map((name) => landed?.get(name) ?? { phase: "loading" as const });
   const pending = states.filter((s) => s.phase === "loading").length;
   const resolved = states.filter((s) => s.phase === "resolved").length;
 
