@@ -18,27 +18,55 @@
   "approveNameWrapper": "0xaac889bd9598c56d435a3f501d1effce041686aa4bb5be50f84d9cb3f71f5ed3",
   "wrapETH2LD": "0xef8cb4998fe3a4a83fb6cf8719d8ef6f1ae46ab247a722f412c05ddecb7cc26b"
  },
- "issuedSubnamesNote": "Re-issued under atlas-apps.eth by replaying each record set from the original *.graphminis.eth subname (scripts/ens-reissue-subnames.ts). The graphmini.* text keys were renamed to atlas.*, graphmini/2 -> atlas/2 in agent-context, and the ENSIP-25 agent-registration attestation preserved. `tx` is the final setRecords multicall that wrote the complete 10-key record set. UPDATED 2026-07-26: this list was stale \u2014 it omitted atlas-market-guard, which is the name prd.md \u00a714 #13 cites and the only one that is mutually verified in both directions. A deployment record that omits the flagship is worse than no record, because it gets trusted. Both additions below were confirmed by reading the records back off Sepolia via GET /api/resolve/<label>; their `tx` is null because they were not written by scripts/ens-reissue-subnames.ts and the issuing hash was not captured at the time \u2014 the namehash and the live records are the verifiable facts, and a fabricated tx hash would be worse than an honest null.",
+ "issuedSubnamesNote": "Re-issued under atlas-apps.eth by replaying each record set from the original *.graphminis.eth subname (scripts/ens-reissue-subnames.ts). The graphmini.* text keys were renamed to atlas.*, graphmini/2 -> atlas/2 in agent-context, and the ENSIP-25 agent-registration attestation preserved. `tx` is the final setRecords multicall that wrote the complete 10-key record set. UPDATED 2026-07-26: this list was stale \u2014 it omitted atlas-market-guard, which is the name prd.md \u00a714 #13 cites and the only one that is mutually verified in both directions. A deployment record that omits the flagship is worse than no record, because it gets trusted. Both additions below were confirmed by reading the records back off Sepolia via GET /api/resolve/<label>; their `tx` is null because they were not written by scripts/ens-reissue-subnames.ts and the issuing hash was not captured at the time \u2014 the namehash and the live records are the verifiable facts, and a fabricated tx hash would be worse than an honest null. UPDATED AGAIN 2026-07-26: THIS FILE IS NO LONGER ANYTHING'S SOURCE OF TRUTH. It is a record of what was done and why. The live answer to \"which names are published\" is GET /api/registry/published, which enumerates MiniAppRegistry.totalApps()/page() on 0G and filters to the configured parent; the Registry page reads that route on every mount. This list existed as a de facto source of truth and drifted twice \u2014 it omitted the flagship once, and it disagreed with the contract by two entries when the enumeration route was built. A hand-maintained list of onchain facts drifts; that is the whole reason the route exists.",
  "issuedSubnames": [
   {
    "name": "aave-health-guard.atlas-apps.eth",
    "node": "0x5fc45832c661f90f9b1adbe1f68ba4f7ecd5946a7e14a4fca7a8f9497e2fac90",
-   "tx": "0x5eacb88d00984a5fe13e35026cde761c5cf299288ab472e4d3f01408fbd74e55"
+   "tx": "0x5eacb88d00984a5fe13e35026cde761c5cf299288ab472e4d3f01408fbd74e55",
+   "republished": {
+    "on": "2026-07-26",
+    "tokenId": 17,
+    "manifestCid": "bafkreiawuqonj7a53eyb7pzyewywokidamw6x32ct7ryxenafxoqozhtd4",
+    "ensTx": "0x16971e11829e4016f924c84f735cc50b5cdb4a60cb8fa884e3085a73f1e0c36a",
+    "mintTx": "0xe0bea826a4fea0b5dbe30a8a738e10f276a7955b51cd76c90b59e0d3c25e75e3",
+    "registryTx": "0xeb1a429f9f9a8f24dbae48c55ccdaf878d19e6ae0b2dac1f5c59dd5e447dcb5f",
+    "note": "Its bytes were lost to IPFS_MODE=local and its old token (5) is bound to aave-health-guard.graphminis.eth, so neither the manifest nor the binding could be repaired in place. Re-published through scripts/publish-under-parent.ts: new pin, new token, new registry entry under the current parent. This name had never carried an addr record; it does now. Read back via GET /api/resolve/aave-health-guard — addr set, manifest fetches, mutuallyVerified true."
+   }
   },
   {
    "name": "wallet-bound-guard.atlas-apps.eth",
    "node": "0xbb261ab58f1be19b1b8d0cf38e269186c544521dc44bb8d029b3631f89912951",
-   "tx": "0x1f48af90e9ddd2a6c188ae3e1f9e6ff1baa5d53693f2689bb32c3e3f2ded77ce"
+   "tx": "0x1f48af90e9ddd2a6c188ae3e1f9e6ff1baa5d53693f2689bb32c3e3f2ded77ce",
+   "republished": {
+    "on": "2026-07-26",
+    "tokenId": 15,
+    "manifestCid": "bafkreifgk3aiy4z6daiidpn4dqvknr5jlp73d5rijcqm2psmpjr47stcoy",
+    "ensTx": "0xc0263dac78976de0561f56f9af83efeebe2cd0b7433272ee2483ae9f08a11c41",
+    "mintTx": "0xaa560848679e7a1040b79b9e6e72de90eb63795082db5e67bbf4045edcd15468",
+    "registryTx": "0xe12a9880d23428c25580691c761346089360b4b83604b0e38137a3ac96f81861",
+    "note": "Same situation and same remedy as aave-health-guard. Old token 6 remains bound to wallet-bound-guard.graphminis.eth. Read back: manifest fetches, mutuallyVerified true."
+   }
   },
   {
    "name": "attested-market-guard.atlas-apps.eth",
    "node": "0xe5584be28b0138bfce86280f119ca2738dd351b75fc2c9809427a149ff3006cb",
-   "tx": "0xea0077bf6befeaa1fa054bf1b0fd809fd24e1b0d75c20a6806a60e9260703a49"
+   "tx": "0xea0077bf6befeaa1fa054bf1b0fd809fd24e1b0d75c20a6806a60e9260703a49",
+   "republished": {
+    "on": "2026-07-26",
+    "tokenId": 14,
+    "manifestCid": "bafkreigdoxwuzjo4y2ebofjqkvbdsz6slwfuw3hg4wgwua7ovy4cywh6au",
+    "ensTx": "0x81d808f9b5381457b9f5a0d419d5bb0b89bd379b0ee801e5c08cfa7a1972542d",
+    "mintTx": "0x40811d93b39686925cbb992b6c0de29655feb81e35c6ecde64bb87daaf2d5592",
+    "registryTx": "0xa6aeea3f9c1dd8deb08b68f7911c241e49245186369d460a3239d56b36b7e3b3",
+    "note": "Same situation and same remedy as aave-health-guard. Old token 7 remains bound to attested-market-guard.graphminis.eth. Read back: manifest fetches, mutuallyVerified true."
+   }
   },
   {
    "name": "durable-market-guard.atlas-apps.eth",
    "node": "0x6b61071809b055a6dac080f3dbceaa44bc9bce827a497eff5e81ce37c8ec2f5a",
-   "tx": "0x753dc9f60284ebd8845e17ba5ffc2bfcfb45e2e8b776a8299e1ec673aa5b97c7"
+   "tx": "0x753dc9f60284ebd8845e17ba5ffc2bfcfb45e2e8b776a8299e1ec673aa5b97c7",
+   "note": "NOT re-published, and therefore still one-sided. Its manifest fetches, so it was outside the 2026-07-26 re-publish, which covered only the three names whose bytes were lost. But its Agentic ID (token 8) is registered as durable-market-guard.graphminis.eth, so registryAssertsName and tokenAssertsName are both false and mutuallyVerified reads false. Confirmed by GET /api/resolve/durable-market-guard. Consequence: it does not appear on the Registry page's Published names strip, which enumerates MiniAppRegistry under the current parent. That is correct — it is not registered under this parent — but it is a name in the same condition the three re-published names were in, and re-publishing it would close it the same way."
   },
   {
    "name": "atlas-market-guard.atlas-apps.eth",
@@ -63,6 +91,12 @@
    "node": null,
    "tx": null,
    "note": "Issued 2026-07-26 to verify that fix. Agentic ID token 13, CID bafkreihjc5hp7t2gozbianry7bzloazq7j75umllzpafq7pwebpjny2oj4, registry tx 0x02f178c0717ac8898691630175ff0f78a42d2e598eb4ed2f06dd282e3c2885b1. Same situation as aave-guard-fork \u2014 a fork of an unpublished parent \u2014 but the registration now succeeds without the lineage link instead of failing whole: ensAssertsToken, registryAssertsName and tokenAssertsName all true, mutuallyVerified TRUE, manifest fetches. The skipped onchain attribution is reported in the publish warnings rather than inferred."
+  },
+  {
+   "name": "task3-verify-app.atlas-apps.eth",
+   "node": null,
+   "tx": null,
+   "note": "JUNK, recorded rather than hidden. Agentic ID token 16. Published 2026-07-26 by a verification run while implementing the Published names strip \u2014 an agent needed a name to check the page against and published a real one. It is fully valid state under this parent, so the strip enumerates it and it appears on the Registry page beside the real apps. Nothing is wrong with the record; what is wrong is that a throwaway name now exists onchain and cannot be unpublished, because the token\u2192name binding is immutable. Left here so the next reader knows what it is rather than assuming it is a demo app."
   }
  ],
  "verifiedSubname": {
@@ -72,24 +106,31 @@
   "mutuallyVerified": true
  },
  "manifestAvailability": {
-  "note": "Whether each name's contenthash still resolves, checked 2026-07-26 against ipfs.io \u2014 a gateway that is not ours. The three unavailable names were published while IPFS_MODE=local, whose content store (web/.atlas/, gitignored) was the only provider of their bytes. Those bytes are gone, so ipfs.io returns 504 and permanently will: a CID is the hash of its bytes, so regenerating the manifest yields a different CID that no longer matches the chain. Unrecoverable by pinning; only a re-publish would fix it. IPFS_MODE is now pinata, so this cannot recur. scripts/pin-backfill.ts --verify pinned the 8 documents whose bytes survived, 8/8 read back from ipfs.io.",
+  "note": "RESOLVED 2026-07-26. Three names had a contenthash whose bytes were gone: they were published while IPFS_MODE=local, whose content store (web/.atlas/, gitignored) was the only provider, so ipfs.io returned 504 permanently \u2014 a CID is the hash of its bytes, so regenerating the manifest yields a different CID that no longer matches the chain. Unrecoverable by pinning, which is why they were re-published instead. IMPORTANT, and the reason this is not called a restoration: the original manifests are gone for good. scripts/publish-under-parent.ts regenerates a plan from an intent through the real planner, so what those three names now carry is a FRESH plan for the same intent, not the document they used to point at. IPFS_MODE is now pinata so the loss cannot recur. Note also that a freshly pinned CID takes minutes to become retrievable through ipfs.io even though Pinata serves it immediately \u2014 a 504 on a new publish is propagation, not loss, and the two look identical for the first few minutes.",
+  "contenthashSetButBytesLost": [],
+  "resolvesNote": "Every name issued under this parent was read back through GET /api/resolve/<label> on 2026-07-26: addr set, manifest fetched, and \u2014 for the seven registered under the current parent \u2014 mutuallyVerified true. This list is a snapshot and is not what anything reads: the live answer is GET /api/registry/published, which enumerates MiniAppRegistry.",
   "resolves": [
    "atlas-market-guard.atlas-apps.eth",
    "durable-market-guard.atlas-apps.eth",
    "rebalance-arbitrum-dex.atlas-apps.eth",
    "aave-guard-fork.atlas-apps.eth",
-   "lineage-fallback-probe.atlas-apps.eth"
-  ],
-  "contenthashSetButBytesLost": [
+   "lineage-fallback-probe.atlas-apps.eth",
    "attested-market-guard.atlas-apps.eth",
    "wallet-bound-guard.atlas-apps.eth",
-   "aave-health-guard.atlas-apps.eth"
+   "aave-health-guard.atlas-apps.eth",
+   "task3-verify-app.atlas-apps.eth"
   ]
  },
+ "orphanedTokens": {
+  "note": "Agentic ID tokens that are still minted and still owned, but which no live ENS name asserts any more. Tokens 5, 6 and 7 were bound to aave-health-guard, wallet-bound-guard and attested-market-guard under the OLD parent (*.graphminis.eth). When those three names were re-published on 2026-07-26 they had to take new tokens, because MiniAppRegistry.register reverts TokenAlreadyBound and AgenticId._bindEnsName reverts EnsNameAlreadyBound \u2014 a binding you can silently move is not a binding. So the old tokens are not revoked and not reused; they simply no longer correspond to anything resolvable. Their MiniAppRegistry entries are three of the six that GET /api/registry/published reports as `retired`.",
+  "tokenIds": [5, 6, 7],
+  "supersededBy": { "5": 17, "6": 15, "7": 14 }
+ },
  "registryGap": {
-  "note": "Names whose ENS records and Agentic ID are live but which MiniAppRegistry does not assert, so mutuallyVerified reads false. Checked 2026-07-26 by reading get(nameKey) off 0G Galileo. Cause and fix are in the aave-guard-fork note above. Repairable by re-registering; left as-is because it is the evidence.",
+  "note": "Names whose ENS records and Agentic ID are live but which MiniAppRegistry does not assert under this parent, so mutuallyVerified reads false and the Published names strip does not show them. Checked 2026-07-26 by reading get(nameKey) off 0G Galileo and by GET /api/resolve/<label>. aave-guard-fork: registerFork reverted ParentUnknown and the revert was swallowed — cause and fix in its note above; left as-is because it is the evidence. durable-market-guard: never re-published, so its token still names the old parent; its manifest fetches, which is why it was outside the re-publish that covered the three names whose bytes were lost.",
   "names": [
-   "aave-guard-fork.atlas-apps.eth"
+   "aave-guard-fork.atlas-apps.eth",
+   "durable-market-guard.atlas-apps.eth"
   ]
  }
 }
