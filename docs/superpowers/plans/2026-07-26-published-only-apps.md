@@ -738,7 +738,7 @@ Bump the schema version constant near line 60 by one, and replace its comment wi
 
 Find the `useEffect` that sets `hydrated` (near the `useBoard` export, line 281) and add a `void loadBoard();` call after hydration completes.
 
-- [ ] **Step 6: Typecheck**
+- [ ] **Step 6: Typecheck and fix the fallout in this task**
 
 Run: `cd web && pnpm run typecheck`
 Expected: **many** errors, all of the form "Property 'valueTransactedUsd' does not exist" or "'manifest' is possibly 'null'". This is the compiler enumerating Task 8's work. Record the list — do not fix it here beyond what `store.ts` itself needs to compile.
