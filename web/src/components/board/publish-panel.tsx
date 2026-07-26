@@ -53,6 +53,7 @@ import {
   type PublishOutcome,
 } from "@/lib/store";
 import { Fig, Label, SectionHead } from "@/components/board/chrome";
+import { SponsorMark, type Sponsor } from "@/components/brand/sponsor-mark";
 
 /* ------------------------------------------------------------------ *
  * Small shared pieces
@@ -67,10 +68,25 @@ import { Fig, Label, SectionHead } from "@/components/board/chrome";
  * imported out of a feature module is a smell, and one worth fixing at the point
  * it starts to bite rather than pre-emptively.
  */
-export function Row({ term, children }: { term: string; children: ReactNode }) {
+export function Row({
+  term,
+  children,
+  /**
+   * Whose chain this line is a receipt for. Pass it only when the row holds a
+   * value that was actually obtained — a mark beside "no token — nothing was
+   * minted" would put 0G's face on a mint that did not happen, which is the one
+   * thing this receipt exists to make unmissable.
+   */
+  mark,
+}: {
+  term: string;
+  children: ReactNode;
+  mark?: Sponsor;
+}) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2">
-      <dt className="mono min-w-[5.5rem] text-[0.5625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+      <dt className="mono flex min-w-[5.5rem] items-center gap-1 text-[0.5625rem] uppercase tracking-[0.08em] text-[var(--muted-ink)]">
+        {mark ? <SponsorMark of={mark} size={11} /> : null}
         {term}
       </dt>
       <dd className="min-w-0 flex-1">{children}</dd>
@@ -120,6 +136,14 @@ interface ForecastRow {
   body: string;
   /** `gain` this path is real. `risk` it is computed but not announced. */
   accent?: "gain" | "risk";
+  /**
+   * Set only on the rows whose accent is `gain` — i.e. where the press really
+   * will touch that protocol. On a mocked path the sentence already says so in
+   * words, and a logo beside "Agentic ID is mocked" would say the opposite
+   * louder. So in this list the presence of a mark IS the claim: 0G's face means
+   * a token gets minted on 0G, and its absence means nothing does.
+   */
+  mark?: Sponsor;
 }
 
 /**
@@ -147,6 +171,7 @@ function forecast(status: IdentityStatusView, name: string | null): ForecastRow[
           head: `issues ${label}.${status.ens.parent}`,
           body: "registered on chain under the wrapped parent, with the addr, contenthash and ENSIP-25/26 records written in the same publish.",
           accent: "gain",
+          mark: "ens",
         }
       : {
           key: "ens",
@@ -179,6 +204,7 @@ function forecast(status: IdentityStatusView, name: string | null): ForecastRow[
           head: `mints an Agentic ID on ${status.zeroG.chainName}`,
           body: `ERC-7857 at ${status.zeroG.agenticId} (chain ${status.zeroG.chainId})${status.zeroG.registry ? `, with the name and attestation hash written to MiniAppRegistry at ${status.zeroG.registry}` : ""}.`,
           accent: "gain",
+          mark: "zerog",
         }
       : {
           key: "zerog",
@@ -241,6 +267,7 @@ export function PublishForecast({
       <ul className="mt-1.5 space-y-1.5">
         {rows.map((row) => (
           <li key={row.key} className="text-[0.6875rem] leading-snug">
+            {row.mark ? <SponsorMark of={row.mark} size={12} className="mr-1.5 -translate-y-px" /> : null}
             <Fig accent={row.accent} className="text-[0.6875rem]">
               {row.head}
             </Fig>
@@ -350,7 +377,7 @@ export function PublishReceipt({
               </span>
             ) : null}
           </Row>
-          <Row term="ens">
+          <Row term="ens" mark={ens ? "ens" : undefined}>
             {ens ? (
               <span className="mono break-all text-[0.6875rem]">{ens}</span>
             ) : (
@@ -370,7 +397,10 @@ export function PublishReceipt({
               </span>
             )}
           </Row>
-          <Row term="agentic id">
+          <Row
+            term="agentic id"
+            mark={tokenId !== null && tokenId !== undefined ? "zerog" : undefined}
+          >
             {tokenId !== null && tokenId !== undefined ? (
               <span className="mono text-[0.6875rem]">#{tokenId}</span>
             ) : (

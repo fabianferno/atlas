@@ -2,6 +2,7 @@ import type { MiniApp } from "@/lib/seed";
 import { fmtNum, fmtUsd, isArmed } from "@/lib/store";
 import { ArmedLamp, Fig, TierTag, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { cn } from "@/lib/utils";
 
 /** Uniform fixed height (px) of a card face — the wheel uses this as its rowHeight base. */
@@ -115,8 +116,14 @@ export function AppCardFace({
                 resolves nowhere is precisely the failure that section exists to
                 prevent, so an unnamed app says so.
               */}
-              <p className="mono mt-1 truncate text-[0.625rem] text-[var(--muted-ink)]">
-                {m.identity.ens ?? "not published — no ENS name"}
+              {/* The mark only rides an issued name — see the header of
+                  `sponsor-mark.tsx`. Putting the ENS logo on "no ENS name"
+                  would dress the absence this comment exists to expose. */}
+              <p className="mono mt-1 flex min-w-0 items-center gap-1 text-[0.625rem] text-[var(--muted-ink)]">
+                {m.identity.ens ? <SponsorMark of="ens" size={11} /> : null}
+                <span className="truncate">
+                  {m.identity.ens ?? "not published — no ENS name"}
+                </span>
               </p>
             </div>
           </div>

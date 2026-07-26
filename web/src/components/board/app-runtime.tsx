@@ -91,19 +91,10 @@ import { familiesWithNoLiveSource } from "@/lib/schema-coverage";
 /** One sentence, three renderings — a header line, a button, a page paragraph. */
 const UNPUBLISHED = "unpublished — no ENS subname issued";
 
-/**
- * A round trip and the app it was made for. `out: null` means still in flight.
- *
- * `auto` distinguishes the query the reader started from the one opening the app
- * started. Only the waiting line reads it — the outcome is the same fact either
- * way — but while it is in flight, "querying…" under an app nobody pressed
- * anything on is unexplained, and unexplained motion on a page arguing for
- * legibility is its own kind of lie.
- */
+/** A finished round trip and the app it was made for. */
 interface RunState {
   app: string;
-  auto: boolean;
-  out: RunOutcome | null;
+  out: RunOutcome;
 }
 
 interface WatchState {
@@ -148,8 +139,14 @@ export function AppRuntime({
   // the failure this whole surface exists to prevent.
   const [run, setRun] = useState<RunState | null>(null);
   const [watch, setWatch] = useState<WatchState | null>(null);
-  const running = run !== null && run.app === name && run.out === null;
-  const runOut = run?.app === name ? run.out : null;
+  // "A query is in flight" is the store's fact, not this component's — see
+  // `BoardState.runningApps`. Watch stays local because `watchBlocks` has one
+  // caller and no dedupe to be the owner of.
+  // `undefined` when nothing is in flight for this app, otherwise what started
+  // it — see `BoardState.runningApps` for why the trigger is carried.
+  const runTrigger = board.runningApps[name];
+  const running = runTrigger !== undefined;
+  const runOut = run?.app === name && !running ? run.out : null;
   const watching = watch !== null && watch.app === name && watch.out === null;
   const watchOut = watch?.app === name ? watch.out : null;
 
@@ -197,32 +194,57 @@ export function AppRuntime({
    * that keyed only on staleness would re-fire on every subsequent render for as
    * long as the gateway stayed down. One attempt per app per mount; the Run
    * button is how you ask for another.
+   *
+   * Nothing is set here synchronously. The spinner comes from the store's
+   * `runningApps`, which `runApp` writes as it starts, so this effect only has to
+   * start the request and record the outcome when it lands.
    */
-  const refreshedFor = useRef<string | null>(null);
+  const refreshedFor = useRef(new Set<string>());
   useEffect(() => {
-    // Nothing to judge until localStorage has been read — a published app is
-    // absent from `board.apps` until then, and treating absent as stale would
-    // fire a query for an app this browser may not even hold.
-    if (!app || refreshedFor.current === name) return;
-    refreshedFor.current = name;
+    /**
+     * Nothing may be judged until localStorage has been read, and `app` being
+     * present is not that signal — this is the one guard the first version got
+     * wrong, and it re-queried every seed app on every reload.
+     *
+     * `useApp` answers out of `SEED_STATE` before hydration, so a bundled app is
+     * already there on the first commit carrying `seed-live.generated.json`'s
+     * build-time `lastRunAt` — permanently stale. The run this browser performed
+     * a moment ago is sitting in localStorage unread. So the effect measured a
+     * value it was about to replace, and "at most one fan-out per app per mount"
+     * turned into one per page load, forever. `hydrated` is the only fact that
+     * means "the stamp you are about to read is this browser's, not the
+     * bundle's".
+     *
+     * `refreshedFor` is deliberately NOT marked on this branch: returning here
+     * is "ask me again in a moment", not "asked and answered".
+     */
+    if (!board.hydrated || !app) return;
+    if (refreshedFor.current.has(name)) return;
+    refreshedFor.current.add(name);
     if (!isRunStale(app)) return;
 
-    setRun({ app: name, auto: true, out: null });
-    let current = true;
-    void runApp(name)
-      // Same reason as `onRun`'s catch: `out: null` is "in flight", so an
-      // unexpected rejection has to clear the record rather than fill it in.
+    void runApp(name, "open")
+      // `runApp` reports failure by returning `ok: false`, so a rejection here is
+      // a fault it does not know about and there is no receipt to write for it.
+      // The ledger already carries whatever the store did record.
       .catch(() => null)
       .then((out) => {
-        // The guard is for the unmount, not for a name change: `run` carries its
-        // own app and the derived values above already refuse to show one app's
-        // outcome under another's name.
-        if (current) setRun(out ? { app: name, auto: true, out } : null);
+        // NO CANCELLATION FLAG, and that is not an oversight. The obvious
+        // `let current = true` / cleanup pair silently swallows every receipt
+        // this effect produces: `app` is in the dependency list, `runAppOnce`
+        // writes the re-composed manifest into the store BEFORE it returns, so
+        // `app` changes identity and the cleanup runs while the promise is still
+        // settling. The flag is false by the time the outcome arrives, every
+        // time. The run happened, the body updated, and the line saying what was
+        // measured never appeared.
+        //
+        // Nothing needs guarding anyway: `run` carries its own app and the
+        // derived value above refuses to show one app's outcome under another's
+        // name, so a late arrival can only land where it belongs. Setting state
+        // on an unmounted component is a no-op in React 18.
+        if (out) setRun({ app: name, out });
       });
-    return () => {
-      current = false;
-    };
-  }, [app, name]);
+  }, [app, name, board.hydrated]);
 
   const [activeTab, setActiveTab] = useState<TabKey>("app");
   // Reset when the wheel flicks to a different app. Adjusting state during
@@ -280,18 +302,16 @@ export function AppRuntime({
   const watchable = autonomous || tier === "monitor";
 
   async function onRun() {
-    // `out: null` clears the previous receipt as it marks the run in flight:
-    // leaving the last run's row numbers on screen while a new query is running
-    // reads as "these are current".
-    setRun({ app: m.name, auto: false, out: null });
+    // Clear the previous receipt as the new query starts: leaving the last run's
+    // row numbers on screen while a fresh one is in flight reads as "these are
+    // current". `runningApps` covers the in-flight state from here.
+    setRun(null);
     // `runApp` reports failure by returning, not by throwing — every failure mode
     // it knows about comes back as `ok: false` with the server's reason, and that
-    // is what the receipt renders. The catch is for the ones it does not know
-    // about. Since `out: null` is how this state says "in flight", a rejection
-    // has to clear the whole record rather than store a null outcome, or the
-    // spinner it leaves behind never resolves.
+    // is what the receipt renders. A rejection is a fault it does not know about,
+    // and there is no honest receipt to write for one.
     const out = await runApp(m.name).catch(() => null);
-    setRun(out ? { app: m.name, auto: false, out } : null);
+    if (out) setRun({ app: m.name, out });
   }
 
   async function onWatch() {
@@ -460,7 +480,7 @@ export function AppRuntime({
               <Receipt
                 tone="wait"
                 text={
-                  run?.auto
+                  runTrigger === "open"
                     ? "last measured too long ago — re-querying deployments and re-composing…"
                     : "querying deployments and re-composing…"
                 }

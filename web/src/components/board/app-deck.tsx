@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { allApps, isMine, isUnclaimed, tierCounts, useBoard } from "@/lib/store";
 import { SectionHead } from "@/components/board/chrome";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { WHEEL_CARD_EXPAND, AppWheelCard } from "@/components/board/app-wheel-card";
 import OptionWheel, { type WheelItem } from "@/components/board/option-wheel";
 import { AppDrawer } from "@/components/board/app-drawer";
@@ -165,7 +166,16 @@ export function AppDeck() {
           {/* Leads the Board, so it carries the page heading. */}
           <SectionHead
             as="h1"
-            title="Explore mini apps on The Graph"
+            /* The mark sits inside the sentence, on the words it belongs to.
+               Every app on this deck was composed from a query The Graph
+               answered, so the page heading is the one place the credit is a
+               statement about the whole surface rather than about one row. */
+            title={
+              <>
+                Explore mini apps on{" "}
+                <SponsorMark of="graph" size={17} className="mx-0.5 -translate-y-[2px]" /> The Graph
+              </>
+            }
             note={[
               `${total} here`,
               // Only when there are some. "0 yours" is true but it reads as a

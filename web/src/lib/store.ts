@@ -154,7 +154,34 @@ export interface BoardState {
    * content and must not be discarded with it.
    */
   localRuns: Record<string, number>;
+  /**
+   * Apps with a fan-out in flight right now, mapped to what started it. Not
+   * persisted — a request cannot survive the page that made it — and
+   * deliberately here rather than in the component that started it, for two
+   * reasons.
+   *
+   * The first is correctness of ownership: `runApp` starts at most one run per
+   * app no matter how many callers ask, so the fact "this app is being queried"
+   * belongs to the same place that fact is decided. The Run button and the
+   * on-open refresh in `AppRuntime` would otherwise each keep their own idea of
+   * it and disagree the moment both are involved.
+   *
+   * The second is that a component may not exist for the whole request. The
+   * drawer keeps one `AppRuntime` and swaps `name` under it, so a run started on
+   * one app outlives the render that shows it; state held in the component would
+   * have to be reconstructed on the way back, and reconstructed state is guessed
+   * state.
+   *
+   * The value is the trigger rather than a bare `true` because the two read
+   * differently to a person: "querying…" under an app somebody pressed Run on is
+   * explained by the press, and under an app they merely opened it is not
+   * explained by anything unless the line says so.
+   */
+  runningApps: Record<string, RunTrigger>;
 }
+
+/** What started a run. See `BoardState.runningApps`. */
+export type RunTrigger = "press" | "open";
 
 const SEED_STATE: BoardState = {
   apps: SEED_APPS,
@@ -162,6 +189,7 @@ const SEED_STATE: BoardState = {
   halted: false,
   wallet: null,
   hydrated: false,
+  runningApps: {},
   // Zero runs on the server snapshot, which is also the truth on first paint:
   // SSR has no browser history to speak for. The panel therefore renders
   // "you have not run this" on both sides of hydration and nothing flashes.
@@ -1570,7 +1598,11 @@ const RUN_FAILED: RunOutcome = {
 };
 
 /**
- * Press Run and the app re-queries The Graph and re-composes its own interface.
+ * The app re-queries The Graph and re-composes its own interface.
+ *
+ * Private on purpose: `runApp` below is the entry point, because two callers now
+ * start this — the Run button and `AppRuntime`'s on-open refresh — and the one
+ * thing they must not do is start it twice at once.
  *
  * This is PRD §5's central property — a mini app is a live plan, not a
  * screenshot — and it was the one thing `runApp` did not do. It used to bump a
@@ -1589,7 +1621,7 @@ const RUN_FAILED: RunOutcome = {
  * changed; the re-composed `ui` and re-probed `sources` are this browser's live
  * view of it. Bumping the stamp would claim the published document moved.
  */
-export async function runApp(name: string): Promise<RunOutcome> {
+async function runAppOnce(name: string): Promise<RunOutcome> {
   const app = state.apps.find((a) => a.manifest.name === name);
   if (!app) return { ...RUN_FAILED, error: `unknown mini app "${name}"` };
 
@@ -1679,6 +1711,87 @@ export async function runApp(name: string): Promise<RunOutcome> {
     });
     return { ...RUN_FAILED, elapsedMs: Date.now() - started, error: detail };
   }
+}
+
+/**
+ * One fan-out per app at a time, shared by everyone who asks for it.
+ *
+ * `runAppOnce` above is the round trip; this is the only way to start one. Two
+ * callers now exist — the Run button and the on-open refresh in `AppRuntime` —
+ * and without this they race in the ordinary case rather than the exotic one:
+ * open a stale app and press Run before the automatic query lands, and the board
+ * pays for two fan-outs whose results are written back in whichever order the
+ * network returns them. The loser's `sources` and `ui` win, which is the older
+ * measurement claiming to be the newer one.
+ *
+ * It also makes React's development double-invoke of effects harmless. That is a
+ * pleasant side effect and not the reason — the reason is that "re-query this
+ * app" is an operation the product should not be able to have two of.
+ *
+ * The dedupe is by name and lasts exactly as long as the request. A second press
+ * after the first returns starts a real second query, which is what a second
+ * press means.
+ */
+const runsInFlight = new Map<string, Promise<RunOutcome>>();
+
+export function runApp(name: string, trigger: RunTrigger = "press"): Promise<RunOutcome> {
+  const existing = runsInFlight.get(name);
+  if (existing) {
+    // Pressing Run while the on-open query is still in flight gets that query's
+    // result — it started moments ago and re-asking would answer the same. But
+    // the press is real and the waiting line should stop explaining the open.
+    if (trigger === "press" && state.runningApps[name] === "open") {
+      set({ runningApps: { ...state.runningApps, [name]: "press" } });
+    }
+    return existing;
+  }
+
+  set({ runningApps: { ...state.runningApps, [name]: trigger } });
+  // `.finally` settles before the promise handed to callers does, so by the time
+  // anyone sees the outcome the slot is already free for the next press — and the
+  // app is off `runningApps` before the receipt that replaces the spinner is set.
+  const started = runAppOnce(name).finally(() => {
+    runsInFlight.delete(name);
+    const rest = { ...state.runningApps };
+    delete rest[name];
+    set({ runningApps: rest });
+  });
+  runsInFlight.set(name, started);
+  return started;
+}
+
+/**
+ * How long a measurement stays current before opening the app re-takes it.
+ *
+ * One minute, and the number is a judgement rather than a fact about upstream:
+ * subgraph indexing lag is measured in blocks, so nothing here can honestly say
+ * "this figure is still correct". What it can say is how long the product is
+ * willing to show a figure it has not checked. A minute is short enough that
+ * anything on screen was measured within this sitting, and long enough that
+ * closing an app and reopening it does not re-query for no reason.
+ */
+export const RUN_STALE_AFTER_MS = 60_000;
+
+/**
+ * Has this app's last measurement aged out?
+ *
+ * `lastRunAt` is the honest input: `withLiveData` sets it to when the seed
+ * snapshot really probed those deployments, the publish path sets it to now, and
+ * `runAppOnce` moves it only on a run that came back. So a bundled app is stale
+ * by construction on a cold load — the snapshot was taken at build time — and a
+ * just-published app is not, because its fan-out happened seconds ago.
+ *
+ * An unparseable or missing stamp counts as stale. The alternative is treating
+ * "we do not know when this was measured" as "it was measured recently", which
+ * is the assumption this whole file exists to refuse.
+ */
+export function isRunStale(app: MiniApp, now = Date.now()): boolean {
+  // `Date.parse` of anything that is not a date — including the `undefined` a
+  // manifest restored from an older localStorage shape can carry — is NaN, and
+  // NaN fails the comparison below rather than passing it. Hence the explicit
+  // test: unknown must read as stale, not as fresh.
+  const at = Date.parse(app.lastRunAt);
+  return Number.isNaN(at) || now - at >= RUN_STALE_AFTER_MS;
 }
 
 /**

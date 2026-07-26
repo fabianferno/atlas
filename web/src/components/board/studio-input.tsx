@@ -85,6 +85,7 @@ import {
 } from "@/lib/store";
 import { AppBody, isUiDoc } from "@/components/board/app-body";
 import { Fig, Label, TierTag, panelClass } from "@/components/board/chrome";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 // The forecast, the receipt and the price field are shared with `/a/[name]`'s
 // publish panel and live in one module — see that file's header. The Studio owned
 // them until there was a second publish surface; copying them is how a forecast
@@ -495,7 +496,10 @@ function RegistryFacts() {
 
   if (!facts) {
     return (
-      <span className="mono text-[0.625rem] tracking-[0.02em] opacity-70">reading the registry…</span>
+      <span className="mono flex items-center gap-1.5 text-[0.625rem] tracking-[0.02em] opacity-70">
+        <SponsorMark of="graph" size={12} />
+        reading the registry…
+      </span>
     );
   }
 
@@ -505,7 +509,12 @@ function RegistryFacts() {
   ).size;
 
   return (
-    <span className="mono text-[0.625rem] tracking-[0.02em] opacity-70">
+    <span className="mono flex items-center gap-1.5 text-[0.625rem] tracking-[0.02em] opacity-70">
+      {/* Every number in this strip is a count of things on The Graph —
+          deployment ids, standardized schema families, the networks they cover.
+          The mark attributes the catalogue, not the size of it: the count is
+          ours and is deliberately the verified one, per the note above. */}
+      <SponsorMark of="graph" size={12} />
       {facts.verified} verified deployments · {families} standardized schema{" "}
       {families === 1 ? "family" : "families"} · {networks} chains
       {/* prd §13: two families have zero deployments anywhere. The honest claim
@@ -628,8 +637,14 @@ function ProvenanceStrip({
               ? "measured this request"
               : "measured data · rules-engine plan"}
         </Fig>
-        <span className="mono ml-auto text-[0.625rem] text-[var(--muted-ink)]">
-          {p.model} · {p.compute}
+        {/* The mark rides `compute`, and only when compute says 0G. This line
+            reports which backend actually planned the app — `openai` and
+            `local` are both real answers here — so marking it unconditionally
+            would turn a provenance record into an advertisement. */}
+        <span className="mono ml-auto flex items-center gap-1 text-[0.625rem] text-[var(--muted-ink)]">
+          {p.model} ·{" "}
+          {p.compute === "0g-private-computer" ? <SponsorMark of="zerog" size={11} /> : null}
+          {p.compute}
           {p.attestationRef ? ` · ${p.attestationRef}` : " · no attestation"}
         </span>
       </div>
@@ -888,8 +903,13 @@ function PublishPanel({
               aria-label="Mini app name"
               className="fig min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
-            <span className="fig shrink-0 text-sm text-[var(--muted-ink)]">
-              .{status?.ens.parent ?? "atlas-apps.eth"}
+            {/* The suffix is the ENS parent this subname will be minted under,
+                so the mark belongs on the suffix rather than on the field. It
+                shows before the publish because the parent is a fact about this
+                deployment either way — the forecast below is what says whether
+                the subname will actually be registered. */}
+            <span className="fig flex shrink-0 items-center gap-1 text-sm text-[var(--muted-ink)]">
+              <SponsorMark of="ens" size={13} />.{status?.ens.parent ?? "atlas-apps.eth"}
             </span>
           </div>
         </div>

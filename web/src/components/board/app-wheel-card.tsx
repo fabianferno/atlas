@@ -3,6 +3,7 @@ import { TIER_LABEL } from "@/lib/seed";
 import { fmtNum, fmtUsd, isArmed } from "@/lib/store";
 import { ArmedLamp, Fig, panelClass } from "@/components/board/chrome";
 import { AppGlyph } from "@/components/board/app-glyph";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { cn } from "@/lib/utils";
 
 /**
@@ -100,6 +101,10 @@ export function AppWheelCard({
             and reads as one; a dotted eth name would not.
           */}
           <div className="flex min-w-0 items-baseline gap-1.5">
+            {/* Rides the name only when the name is an ENS name. When this line
+                is falling back to the manifest slug there is no subname to
+                attribute, and a mark here would assert one. */}
+            {m.identity.ens ? <SponsorMark of="ens" size={11} className="translate-y-[1px]" /> : null}
             <h3 className="display min-w-0 flex-1 truncate text-[0.8125rem] normal-case leading-tight">
               {m.identity.ens ?? m.name}
             </h3>

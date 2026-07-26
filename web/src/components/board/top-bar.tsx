@@ -35,6 +35,7 @@ import { ArmedLamp } from "@/components/board/chrome";
 import { SkinToggle } from "@/components/board/skin-toggle";
 import { WalletButton } from "@/components/board/wallet-button";
 import { BrandMark } from "@/components/brand/brand-mark";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { cn } from "@/lib/utils";
 
 /**
@@ -151,13 +152,18 @@ export function TopBar({ active }: { active?: "board" | "registry" }) {
                 */}
                 {stream ? (
                   <span
-                    className="mono hidden whitespace-nowrap text-[0.625rem] text-[var(--muted-ink)] md:inline"
+                    className="mono hidden items-center gap-1.5 whitespace-nowrap text-[0.625rem] text-[var(--muted-ink)] md:inline-flex"
                     title={
                       stream.reason
                         ? `GET /api/stream — ${stream.reason}`
                         : "read from GET /api/stream"
                     }
                   >
+                    {/* Substreams is The Graph's, so the mark goes on the
+                        clause that says a token is configured — and not on the
+                        one that says there is none. The mark tracks the
+                        capability, exactly as the words do. */}
+                    {stream.mode === "substreams" ? <SponsorMark of="graph" size={11} /> : null}
                     {stream.mode === "substreams"
                       ? "substreams ready · nothing subscribed"
                       : "no substreams token · interval polling"}

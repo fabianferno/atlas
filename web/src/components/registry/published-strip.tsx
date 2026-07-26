@@ -72,6 +72,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IdentityStatus, ResolveReport } from "@/lib/identity/publish";
 import { Fig, Label, LiveDot, SectionHead, panelClass } from "@/components/board/chrome";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { cn } from "@/lib/utils";
 
 /**
@@ -333,12 +334,17 @@ function NameRow({
         {/* the name itself, linked to the lookup that produced this row */}
         <div className="min-w-0">
           <Label>name</Label>
+          {/* The mark is on the resolved row only. The `failed` branch above
+              renders the same string and deliberately gets no mark: a name that
+              did not resolve is a question, and §8 makes resolving the whole
+              point of showing it. */}
           <a
-            className="mono mt-1 block truncate text-[0.8125rem] underline decoration-hairline"
+            className="mono mt-1 flex items-center gap-1.5 text-[0.8125rem] underline decoration-hairline"
             href={href}
             title={`${report.name} — resolved via ${href}`}
           >
-            {report.name}
+            <SponsorMark of="ens" size={13} />
+            <span className="min-w-0 truncate">{report.name}</span>
           </a>
         </div>
 
@@ -437,7 +443,12 @@ function TokenRef({
   const linkable = chain !== null && chain.chainId === token.chainId;
 
   if (!linkable) {
-    return <FigFull value={title} display={`#${token.tokenId}`} />;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <SponsorMark of="zerog" size={12} />
+        <FigFull value={title} display={`#${token.tokenId}`} />
+      </span>
+    );
   }
 
   // Same shape as `explorerTokenUrl()` in src/lib/identity/agentic-id.ts, and
@@ -445,13 +456,17 @@ function TokenRef({
   const url = `${chain.explorer.replace(/\/$/, "")}/token/${chain.agenticId}?a=${token.tokenId}`;
   return (
     <a
-      className="fig text-[0.8125rem] underline decoration-hairline"
+      className="fig inline-flex items-center gap-1.5 text-[0.8125rem] underline decoration-hairline"
       href={url}
       target="_blank"
       rel="noreferrer"
       title={`${title} · ${url}`}
     >
-      #{token.tokenId}
+      {/* The mark rides the token, so it appears in both branches of this
+          component and in neither branch of the caller's "no registration"
+          fallback — a real token id is the only thing it is allowed to sit
+          beside. */}
+      <SponsorMark of="zerog" size={12} />#{token.tokenId}
     </a>
   );
 }

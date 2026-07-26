@@ -61,6 +61,7 @@ import { ArmedLamp, Fig, Label, SectionHead, TierTag, panelClass } from "@/compo
 import { AppGlyph } from "@/components/board/app-glyph";
 import { ForkDialog } from "@/components/registry/fork-dialog";
 import { score } from "@/components/registry/ratings";
+import { SponsorMark } from "@/components/brand/sponsor-mark";
 import { NO_LIVE_SOURCE, familiesWithNoLiveSource } from "@/lib/schema-coverage";
 import { cn } from "@/lib/utils";
 
@@ -374,7 +375,12 @@ function RegistryCard({
                 resolvable name — labelled unpublished. Same vocabulary as
                 `app-card-face.tsx` and `app-wheel-card.tsx`.
               */}
-              <p className="mono mt-1 flex min-w-0 items-baseline gap-1.5 text-[0.625rem] text-[var(--muted-ink)]">
+              <p className="mono mt-1 flex min-w-0 items-center gap-1.5 text-[0.625rem] text-[var(--muted-ink)]">
+                {/* Follows the same rule as the fallback above it: the mark
+                    rides an issued ENS name and never the manifest slug. On a
+                    card that offers a Fork button, an ENS logo over an
+                    unpublished slug would be the §8 failure with a logo on it. */}
+                {m.identity.ens ? <SponsorMark of="ens" size={11} /> : null}
                 <span className="min-w-0 flex-1 truncate">{m.identity.ens ?? m.name}</span>
                 {m.identity.ens ? null : (
                   <span className="shrink-0 uppercase tracking-[0.08em]">unpublished</span>
