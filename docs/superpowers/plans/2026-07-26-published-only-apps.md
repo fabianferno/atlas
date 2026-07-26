@@ -304,6 +304,8 @@ git commit -m "Join a registry record to what its name actually resolves to"
 - Consumes: `listRegisteredApps`, `selectUnderParent` from `@/lib/identity/published`; `assembleBoard`, `BoardEntry` from `@/lib/identity/board`; `identityStatus` from `@/lib/identity/publish`.
 - Produces: `GET /api/registry` → `{ parent, registry, chainId, total, retired, entries: BoardEntry[] }`, or 502 `{ error }`.
 
+> **Note on the sibling route.** `web/src/app/api/registry/published/route.ts` was committed in `0ff5c0e` (the enumeration plan's Task 2) and already does the `listRegisteredApps` + `selectUnderParent` half of this. It is deliberately left alone here and **deleted in Task 10**, once the strip stops being the only consumer of it. Two routes performing the same chain read is exactly the drift this change removes, so they must not both survive. Model this route's error handling, the `no-store` header and the `dynamic` comment on that file — it is the house style for this now.
+
 - [ ] **Step 1: Write the route**
 
 Create `web/src/app/api/registry/route.ts`:
@@ -1139,11 +1141,26 @@ git commit -m "Rebuild the two suites that ran against the seed corpus"
 - Modify: `web/src/components/registry/published-strip.tsx`
 - Modify: `web/src/app/registry/page.tsx`
 
-This supersedes Tasks 2 and 3 of `docs/superpowers/plans/2026-07-26-published-strip-live-enumeration.md`. Mark those tasks as superseded in that file rather than deleting them, with a line pointing here.
+- Delete: `web/src/app/api/registry/published/route.ts`
 
-- [ ] **Step 1: Delete the constant and the separate fetch**
+Task 2 of `docs/superpowers/plans/2026-07-26-published-strip-live-enumeration.md` shipped as `0ff5c0e` before this plan was written; its Task 3 is superseded by this one. Mark Task 3 superseded in that file with a line pointing here, and tick Task 2 as done.
 
-Delete `PUBLISHED_LABELS` and the per-row `GET /api/resolve` effect. The strip now reads `useBoard()` — the same `BoardEntry[]` the grid renders — because the registry is now the source for both and two components resolving the same names twice is the drift this whole change removes.
+- [ ] **Step 1: Delete the constant, the separate fetch, and the sibling route**
+
+The strip now reads `useBoard()` — the same `BoardEntry[]` the grid renders — so `/api/registry/published` has no consumer left:
+
+```bash
+git rm web/src/app/api/registry/published/route.ts
+```
+
+Confirm nothing else called it before committing:
+
+```bash
+cd web && grep -rn "registry/published" src
+```
+Expected: no output.
+
+In `published-strip.tsx`, delete `PUBLISHED_LABELS`, the catalog fetch and the per-row `GET /api/resolve` effect, and read the entries from `useBoard()` instead. Two components resolving the same names twice is the drift this whole change removes.
 
 - [ ] **Step 2: Rewrite the doc comment**
 
