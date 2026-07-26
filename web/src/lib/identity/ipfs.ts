@@ -43,6 +43,24 @@ export interface IpfsBackend {
   fetchJson(cid: string): Promise<unknown | null>;
 }
 
+/**
+ * The gateway every read goes through, and the gateway whose URL is handed to a
+ * reader as `gatewayUrl`.
+ *
+ * The deployment points this at `gateway.pinata.cloud` rather than `ipfs.io`,
+ * and the reason matters for what a caller may claim. `ipfs.io` takes ~28s to
+ * return a 504 on a CID it has not discovered yet, while `fetchFromGateway`
+ * below gives up at 8s — so a freshly pinned manifest reported "did not fetch"
+ * for minutes even though the bytes were provably being served. A false
+ * negative here is expensive, because it is indistinguishable on screen from
+ * the real failure this codebase already had: manifests pinned under
+ * `IPFS_MODE=local` whose bytes had no provider at all and never will.
+ *
+ * The cost of the swap, stated plainly: a successful fetch now proves that OUR
+ * pinning service served the bytes. It does NOT prove an independent public
+ * gateway holds them. Anything that renders the result must say the weaker
+ * thing — see the note in components/registry/published-strip.tsx.
+ */
 const GATEWAY = process.env.IPFS_GATEWAY ?? "https://ipfs.io/ipfs";
 
 /* -------------------------------------------------------------------------- */

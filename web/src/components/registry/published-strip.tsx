@@ -43,14 +43,22 @@
  * - It is not a health check of the app behind the name. Nothing here runs a
  *   query, composes a surface or reads a subgraph. Resolution only.
  * - "manifest fetched" means *this server* reached the bytes at that CID on
- *   this request. It is not a claim that a public gateway holds them. Some
- *   names were published while `IPFS_MODE=local`, whose store was the sole
- *   provider of their bytes; those bytes are gone and `ipfs.io` returns 504 for
- *   their CIDs permanently, because a CID is the hash of its bytes and
- *   regenerating the manifest yields a different one that no longer matches the
- *   chain. `IPFS_MODE` is now `pinata` so it cannot recur. Which names are
- *   affected is not asserted here — the row says whether the fetch worked on
- *   this request, and that is the only honest count.
+ *   this request, through whatever `IPFS_GATEWAY` names. That gateway is now
+ *   our own pinning service (`gateway.pinata.cloud`), so a fetched row is
+ *   **not** evidence that any independent party holds those bytes — it is
+ *   evidence that the thing we pay to pin them served them. The weaker claim is
+ *   the true one and this is the only place that says so.
+ *   The swap was made because `ipfs.io` takes ~28s to 504 on a CID it has not
+ *   discovered while the fetch gives up at 8s, so freshly published names read
+ *   "did not fetch" for minutes with the bytes provably being served — a false
+ *   negative that looks exactly like the real failure below.
+ *   That real failure: some names were published while `IPFS_MODE=local`, whose
+ *   store was the sole provider of their bytes. Those bytes are gone
+ *   permanently, because a CID is the hash of its bytes and regenerating the
+ *   manifest yields a different one that no longer matches the chain. They were
+ *   re-published rather than repaired. `IPFS_MODE` is now `pinata` so it cannot
+ *   recur. Which names were affected is not asserted here — the row says
+ *   whether the fetch worked on this request, and that is the only honest count.
  * - A row says nothing about whether the wallet at `addr` is funded, or what
  *   the app is allowed to spend. Policy lives with the running app.
  * - **It does not prove anyone holds the key for `addr`.** A resolver returns

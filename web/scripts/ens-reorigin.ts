@@ -25,14 +25,27 @@
  */
 import { getEnsBackend, readRecords, resolveRegistrarMode, splitName, fullName } from "@/lib/identity/ens";
 import type { EnsRecordSet } from "@/lib/identity/ens";
+import { listRegisteredApps, selectUnderParent } from "@/lib/identity/published";
 
-/** Names issued under the parent so far. Override by passing names as args. */
-const DEFAULT_NAMES = [
-  "aave-health-guard",
-  "wallet-bound-guard",
-  "attested-market-guard",
-  "durable-market-guard",
-];
+/**
+ * The default set is READ, not listed.
+ *
+ * This was a hardcoded array of four labels, and by the time it was used it had
+ * drifted: five more names had been issued under the parent and the script
+ * would have silently left every one of them pointing at localhost. A run that
+ * reports "0 failed" while skipping names nobody told it about is worse than a
+ * run that errors.
+ *
+ * So the default now comes from `MiniAppRegistry`, the same enumeration the
+ * Registry page uses. One consequence to know: a name whose ENS records landed
+ * but whose registry write did not — `aave-guard-fork` — is NOT in the registry
+ * and so is NOT in this default. Names in that state have to be passed as args.
+ */
+async function defaultNames(): Promise<string[]> {
+  const parent = getEnsBackend().parent;
+  const { apps } = selectUnderParent(await listRegisteredApps(), parent);
+  return apps.map((a) => splitName(a.ensName).label);
+}
 
 function flag(name: string): string | undefined {
   const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -45,7 +58,6 @@ const from = flag("from") ?? "http://localhost:3000";
 const to = flag("to") ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
 const dryRun = flag("dry-run") !== undefined;
 const names = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const targets = (names.length > 0 ? names : DEFAULT_NAMES).map((n) => splitName(fullName(n)).label);
 
 /** Replace every occurrence of the old origin in a text value. */
 function reorigin(value: string): string {
@@ -67,12 +79,27 @@ async function main(): Promise<void> {
   const mode = resolveRegistrarMode();
   const backend = getEnsBackend();
 
+  /* Resolved here rather than at module load so the "nothing to point at"
+     check above still exits fast without a chain read. */
+  const targets = (names.length > 0 ? names : await defaultNames()).map(
+    (n) => splitName(fullName(n)).label,
+  );
+  if (targets.length === 0) {
+    console.error(
+      "No names to rewrite. The registry has nothing under this parent, and none were passed as arguments.",
+    );
+    process.exit(2);
+  }
+
   console.log("ENS RE-ORIGIN");
   console.log(`  mode        ${mode}${backend.configured ? "" : "  ⚠ NOT CONFIGURED — writes will not land"}`);
   console.log(`  parent      ${backend.parent}`);
   console.log(`  from        ${from}`);
   console.log(`  to          ${to}`);
-  console.log(`  names       ${targets.join(", ")}`);
+  console.log(
+    `  names       ${targets.join(", ")}` +
+      (names.length > 0 ? "  (from args)" : "  (read from MiniAppRegistry)"),
+  );
   console.log(`  ${dryRun ? "DRY RUN — nothing will be written" : "WRITING — each name costs one transaction"}`);
   console.log("");
 
