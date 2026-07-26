@@ -29,6 +29,7 @@ import "../coverage/gap.test";
 import "../identity/published.test";
 import "../identity/board.test";
 import "@/components/registry/published-strip.guard.test";
+import "@/components/landing/facts.test";
 import "../app-view.test";
 import "../seed-to-a2ui-shape.test";
 
